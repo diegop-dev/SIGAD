@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0066cc,100:00d9ff&height=280&section=header&text=SIGCAD&fontSize=80&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Sistema%20de%20Gesti%C3%B3n%20de%20Carga%20Acad%C3%A9mica&descSize=20&descAlignY=60" alt="SIGCAD Header" width="100%" />
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0066cc,100:00d9ff&height=280&section=header&text=SIGAD&fontSize=80&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Sistema%20de%20Gesti%C3%B3n%20Acad%C3%A9mica%20y%20Docente%20&descSize=20&descAlignY=60" alt="SIGAD Header" width="100%" />
 
   <br>
 
@@ -12,7 +12,7 @@
 
 ## 📖 Descripción del Proyecto
 
-**SIGCAD** es una solución web que permite la asignación de materias y horarios en universidades, eliminando errores como cruces de horarios y sobrecarga de horas docentes. A diferencia de la gestión manual actual, nuestro sistema valida reglas académicas en tiempo real y se sincroniza con sistemas de seguimiento de calificaciones, centralizando la toma de decisiones basada en estadísticas de rendimiento y deserción.
+**SIGAD** es una solución web que permite la asignación de materias y horarios en universidades, eliminando errores como cruces de horarios y sobrecarga de horas docentes. A diferencia de la gestión manual actual, nuestro sistema valida reglas académicas en tiempo real y se sincroniza con sistemas de seguimiento de calificaciones, centralizando la toma de decisiones basada en estadísticas de rendimiento y deserción.
 
 El objetivo principal es optimizar la administración académica y garantizar la integridad de los datos mediante una arquitectura escalable y segura.
 
