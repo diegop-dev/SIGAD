@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+@theme {
+  /* Sobrescribe la familia tipográfica sans por defecto para toda la aplicación */
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+}

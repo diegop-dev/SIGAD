@@ -1,0 +1,14 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencias
+node_modules/
+
+# Builds de producción
+dist/
+dist-ssr/
+
+# Editor
+.DS_Store
