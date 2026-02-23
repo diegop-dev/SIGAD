@@ -1,4 +1,14 @@
-# Logs
+# Dependencias
+node_modules/
+
+# Archivos de configuración local
+*.local
+
+# Archivos subidos por los usuarios (Imágenes de Multer)
+Backend/uploads/profiles/*
+!Backend/uploads/profiles/.gitkeep
+
+# Logs y Builds
 logs
 *.log
 npm-debug.log*
@@ -6,11 +16,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-node_modules
 dist
 dist-ssr
-*.local
 
 # Editor directories and files
 .vscode/*
