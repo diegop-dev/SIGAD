@@ -10,5 +10,6 @@ router.get('/', verifyToken, requireRole([1, 2]), userController.getUsers);
 
 // Endpoint para el registro de usuarios (hu-01) con validación estricta
 router.post('/register', uploadProfilePic.single('foto_perfil_url'), validateUserRegistration, userController.registerUser);
-
+// Melvin 
+router.patch('/desactivar/:id', userController.desactivarUsuario);
 module.exports = router;

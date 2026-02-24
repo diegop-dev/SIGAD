@@ -89,8 +89,37 @@ const registerUser = async (req, res) => {
       .json({ error: "Error interno del servidor al procesar el registro." });
   }
 };
+// Eliminacion/Desactivacion Usuarios Melvin
+const desactivarUsuario = async (req, res) => {
+  const { id } = req.params; 
+  const { eliminado_por } = req.body;
+
+  try {
+    const query = `
+      UPDATE Usuarios 
+      SET 
+        estatus = 'INACTIVO', 
+        eliminado_por = ?, 
+        fecha_eliminacion = NOW() 
+      WHERE id_usuario = ?
+    `;
+
+
+    const [result] = await pool.query(query, [eliminado_por, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    res.json({ message: "Usuario desactivado con éxito" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error en el servidor" });
+  }
+};
 
 module.exports = {
   registerUser,
   getUsers,
+  desactivarUsuario, // Melvin
 };
