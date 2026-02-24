@@ -1,12 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, UserCheck } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { UserForm } from './UserForm';
 import { UserModal } from './UserModal';
+import { DeactivateUserModal } from './DeactivateUserModal';
+import { ActivateUserModal } from './ActivateUserModal'; // NUEVO: Importamos el modal de reactivación
+import { useAuth } from '../../hooks/useAuth';
 
 export const UserManagement = () => {
-  const [isCreating, setIsCreating] = useState(false);
+  const { user: currentUser } = useAuth(); 
+  
+  const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userToDeactivate, setUserToDeactivate] = useState(null); 
+  const [userToActivate, setUserToActivate] = useState(null); // NUEVO: Estado para reactivación
+  
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -33,7 +42,6 @@ export const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  // Filtrado instantáneo en memoria
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const fullName = `${user.nombres} ${user.apellido_paterno} ${user.apellido_materno}`.toLowerCase();
@@ -59,35 +67,102 @@ export const UserManagement = () => {
   }, [searchTerm, roleFilter, statusFilter]);
 
   const handleSuccessAction = () => {
-    setIsCreating(false);
+    setShowForm(false);
+    setEditingUser(null);
+    setUserToDeactivate(null); 
+    setUserToActivate(null); // Limpiamos el estado
     fetchUsers();
   };
 
-  if (isCreating) {
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingUser(null);
+  };
+
+  const handleViewClick = (targetUser) => {
+    const currentRoleId = Number(currentUser?.rol_id);
+    const targetRoleId = Number(targetUser.rol_id);
+    const isSelf = Number(currentUser?.id_usuario) === Number(targetUser.id_usuario);
+
+    if (!isSelf) {
+      if (currentRoleId === 1 && targetRoleId === 1) {
+        toast.error("Acceso denegado: No puedes visualizar expedientes de otros Superadministradores.");
+        return;
+      }
+      if (currentRoleId === 2 && (targetRoleId === 1 || targetRoleId === 2)) {
+        toast.error("Acceso denegado: Tu rol solo permite ver expedientes de docentes.");
+        return;
+      }
+    }
+    
+    setSelectedUser(targetUser);
+  };
+
+  const handleProtectedAction = (targetUser, action) => {
+    const currentRoleId = Number(currentUser?.rol_id);
+    const targetRoleId = Number(targetUser.rol_id);
+    const isSelf = Number(currentUser?.id_usuario) === Number(targetUser.id_usuario);
+
+    if (isSelf && (currentRoleId === 1 || currentRoleId === 2)) {
+      toast.error("Acceso denegado: Para modificar tus propios datos, utiliza la sección 'Mi Perfil'.");
+      return;
+    }
+
+    if (currentRoleId === 1 && targetRoleId === 1) {
+      toast.error("Acceso denegado para modificar a un superadministrador.");
+      return;
+    }
+
+    if (currentRoleId === 2 && (targetRoleId === 1 || targetRoleId === 2)) {
+      toast.error("Acceso denegado para modificar a directivos.");
+      return;
+    }
+
+    if (action === 'edit') {
+      setEditingUser(targetUser);
+      setShowForm(true);
+    } else if (action === 'delete') {
+      if (targetUser.estatus === 'INACTIVO') {
+        toast.error("Este usuario ya se encuentra inactivo.");
+        return;
+      }
+      setUserToDeactivate(targetUser);
+    } else if (action === 'activate') {
+      if (targetUser.estatus === 'ACTIVO') {
+        toast.error("Este usuario ya se encuentra activo.");
+        return;
+      }
+      setUserToActivate(targetUser);
+    }
+  };
+
+  if (showForm) {
     return (
       <div>
-        <UserForm onBack={() => setIsCreating(false)} onSuccess={handleSuccessAction} />
+        <UserForm 
+          userToEdit={editingUser} 
+          onBack={handleCloseForm} 
+          onSuccess={handleSuccessAction} 
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Cabecera estática */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Gestión de usuarios</h1>
           <p className="mt-1 text-sm text-slate-500 font-medium">Administra los accesos y roles del personal institucional.</p>
         </div>
         <button 
-          onClick={() => setIsCreating(true)} 
+          onClick={() => { setEditingUser(null); setShowForm(true); }} 
           className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
         >
           <Plus className="w-5 h-5 mr-2" /> Nuevo usuario
         </button>
       </div>
 
-      {/* Barra de herramientas: Búsqueda y Filtros estática */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -129,7 +204,6 @@ export const UserManagement = () => {
         </div>
       </div>
 
-      {/* Tabla de datos estática para máximo rendimiento */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -194,17 +268,38 @@ export const UserManagement = () => {
                       <div className="flex justify-center space-x-2">
                         <button 
                           title="Ver detalles" 
-                          onClick={() => setSelectedUser(u)}
+                          onClick={() => handleViewClick(u)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
-                        <button title="Editar usuario" className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all">
+                        <button 
+                          title="Editar usuario" 
+                          onClick={() => handleProtectedAction(u, 'edit')}
+                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                        >
                           <Edit className="w-5 h-5" />
                         </button>
-                        <button title="Desactivar usuario" className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+
+                        {/* RENDERIZADO CONDICIONAL DEL BOTÓN DE ESTADO */}
+                        {u.estatus === 'ACTIVO' ? (
+                          <button 
+                            title="Desactivar usuario" 
+                            onClick={() => handleProtectedAction(u, 'delete')}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button 
+                            title="Reactivar usuario" 
+                            onClick={() => handleProtectedAction(u, 'activate')}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          >
+                            <UserCheck className="w-5 h-5" />
+                          </button>
+                        )}
+
                       </div>
                     </td>
                   </tr>
@@ -214,7 +309,6 @@ export const UserManagement = () => {
           </table>
         </div>
 
-        {/* Controles de paginación */}
         {!isLoading && filteredUsers.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
@@ -247,13 +341,26 @@ export const UserManagement = () => {
         )}
       </div>
       
-      {/* Modal de detalles estático */}
+      {/* Modales */}
       {selectedUser && (
         <UserModal 
           user={selectedUser} 
           onClose={() => setSelectedUser(null)} 
         />
       )}
+
+      <DeactivateUserModal 
+        userToDeactivate={userToDeactivate}
+        onClose={() => setUserToDeactivate(null)}
+        onSuccess={handleSuccessAction}
+      />
+
+      {/* NUEVO: Modal de Reactivación */}
+      <ActivateUserModal 
+        userToActivate={userToActivate}
+        onClose={() => setUserToActivate(null)}
+        onSuccess={handleSuccessAction}
+      />
     </div>
   );
 };

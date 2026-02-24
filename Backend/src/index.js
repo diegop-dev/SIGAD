@@ -19,13 +19,13 @@ app.use(helmet({
 // Configuración estricta de CORS (Ajustaremos el puerto del Frontend según Vite o React)
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', "PATCH", 'DELETE'],
   credentials: true
 }));
 
 // Parseo de payloads JSON con límite de tamaño para evitar ataques de denegación de servicio (DDoS)
 app.use(express.json({ limit: '1mb' }));
-
+app.use('/api/docentes', docentesRoutes); // <--- 2. Registrar el prefijo para las rutas de docentes
 // Permite acceso público a las imágenes leyendo la ruta absoluta
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
