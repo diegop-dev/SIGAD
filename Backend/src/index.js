@@ -6,7 +6,7 @@ require('dotenv').config();
 require('./config/database'); // Inicializa el pool de MariaDB
 const userRoutes = require('./routes/userRoutes'); // Rutas relacionadas con usuarios (registro, autenticación, etc.)
 const authRoutes = require('./routes/authRoutes'); // Nueva importación para rutas de autenticación
-
+const docentesRoutes = require('./routes/docentesRoutes'); // <--- 1. Importar las rutas de docentes
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -24,7 +24,7 @@ app.use(cors({
 
 // Parseo de payloads JSON con límite de tamaño para evitar ataques de denegación de servicio (DDoS)
 app.use(express.json({ limit: '1mb' }));
-
+app.use('/api/docentes', docentesRoutes); // <--- 2. Registrar el prefijo para las rutas de docentes
 // Permite acceso público a las imágenes leyendo la ruta absoluta
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
