@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, Home, Users, BookOpen, Calendar, LogOut, Bell, User } from 'lucide-react';
+import { Menu, X, Home, Users, BookOpen, Calendar, LogOut, Bell, User, Radiation } from 'lucide-react';
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
@@ -19,6 +19,7 @@ export const MainLayout = () => {
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
     { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
+    { name: 'Materias', path: '/materias', icon: Radiation, roles: [1, 2] },
     { name: 'Estructura académica', path: '/academicos', icon: BookOpen, roles: [1, 2] },
     { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
   ];

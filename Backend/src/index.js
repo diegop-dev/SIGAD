@@ -6,6 +6,7 @@ require('dotenv').config();
 require('./config/database'); // Inicializa el pool de MariaDB
 const userRoutes = require('./routes/userRoutes'); // Rutas relacionadas con usuarios (registro, autenticación, etc.)
 const authRoutes = require('./routes/authRoutes'); // Nueva importación para rutas de autenticación
+const materiaRoutes = require('./routes/materiaRoutes'); // rutas de materias
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,6 +32,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Registro de rutas del sistema
 app.use('/api/users', userRoutes); // Rutas para usuarios (registro, gestión, etc.)
 app.use('/api/auth', authRoutes); // Rutas para autenticación (login, logout, etc.)
+app.use('/api/materias', materiaRoutes); // Rutas para materias
 
 // Ruta de comprobación de salud (Health check)
 app.get('/api/health', (req, res) => {

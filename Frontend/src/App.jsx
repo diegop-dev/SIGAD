@@ -6,6 +6,7 @@ import { MainLayout } from "./components/MainLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
             {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
               <Route path="/usuarios" element={<UserManagement />} />
+              <Route path="/materias" element={<MateriasManagement />} />
               {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
