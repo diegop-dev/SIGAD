@@ -6,6 +6,9 @@ npm-debug.log*
 # Dependencias
 node_modules/
 
+# Compilación
+.env
+
 # Builds de producción
 dist/
 dist-ssr/
