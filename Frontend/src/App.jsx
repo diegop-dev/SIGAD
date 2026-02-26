@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
+import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
 function App() {
   return (
     <>
@@ -26,6 +27,7 @@ function App() {
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
               <Route path="/usuarios" element={<UserManagement />} />
             <Route path="/docentes" element={<DocenteManagement />} />
+              <Route path="/academias" element={<AcademiaManagement />} />
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
