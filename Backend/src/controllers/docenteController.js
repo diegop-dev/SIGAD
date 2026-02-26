@@ -45,11 +45,14 @@ const registerDocente = async (req, res) => {
 
     if (documentos.length < 6) return res.status(400).json({ error: "Se requieren los 6 archivos PDF." });
 
-    const ultimaMatricula = await docenteModel.getLastMatricula();
-    let matricula = "DOC-0001";
+const ultimaMatricula = await docenteModel.getLastMatricula();
+    let matricula = "00000001"; // Formato inicial si la tabla está vacía
+    
     if (ultimaMatricula) {
-      const numeroActual = parseInt(ultimaMatricula.split("-")[1], 10);
-      matricula = `DOC-${(numeroActual + 1).toString().padStart(4, "0")}`;
+      // Como ahora son solo números, lo leemos directamente
+      const numeroActual = parseInt(ultimaMatricula, 10);
+      // Le sumamos 1 y garantizamos que siempre tenga 8 dígitos
+      matricula = String(numeroActual + 1).padStart(8, "0");
     }
 
     const domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;

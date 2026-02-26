@@ -2,13 +2,12 @@
 logs
 *.log
 npm-debug.log*
-
 # Dependencias
 node_modules/
-
+.env
 # Builds de producción
 dist/
 dist-ssr/
-
 # Editor
 .DS_Store
+

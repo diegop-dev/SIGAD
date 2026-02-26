@@ -3,8 +3,6 @@ const db = require('../config/database');
 const docenteModel = {
 getUsuariosDisponibles: async () => {
     try {
-      // Esta consulta es "inmortal": solo usa las tablas usuarios y docentes
-      // que ya sabemos que existen y tienen esos campos.
       const query = `
         SELECT 
           id_usuario, 
@@ -14,12 +12,12 @@ getUsuariosDisponibles: async () => {
           personal_email 
         FROM usuarios 
         WHERE id_usuario NOT IN (SELECT usuario_id FROM docentes)
+        AND rol_id = 3
       `;
       const rows = await db.query(query);
-      console.log(`[Docentes] Se encontraron ${rows.length} usuarios candidatos.`);
       return rows;
     } catch (error) {
-      console.error("Error crítico en getUsuariosDisponibles:", error.message);
+      console.error("Error al filtrar por rol:", error.message);
       throw error;
     }
   },
