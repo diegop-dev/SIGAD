@@ -12,3 +12,5 @@ dist-ssr/
 
 # Editor
 .DS_Store
+
+.env
