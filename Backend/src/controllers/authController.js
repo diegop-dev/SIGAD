@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authModel = require('../models/authModel');
+const userModel = require('../models/userModel'); // Importamos el userModel para poder reutilizar el updateUser
 
 const login = async (req, res) => {
   try {
@@ -48,7 +49,7 @@ const login = async (req, res) => {
         apellido_paterno: user.apellido_paterno,
         rol_id: user.rol_id,
         foto_perfil_url: user.foto_perfil_url,
-        es_password_temporal: user.es_password_temporal
+        es_password_temporal: user.es_password_temporal // <--- El Frontend usará esto
       }
     });
 
@@ -58,6 +59,61 @@ const login = async (req, res) => {
   }
 };
 
+// ==========================================
+// NUEVO: CAMBIO DE CONTRASEÑA TEMPORAL
+// ==========================================
+const changeTemporaryPassword = async (req, res) => {
+  try {
+    // El usuario ya debe estar logueado (tener token) para llegar aquí
+    const id_usuario = req.user?.id_usuario; 
+    const { new_password } = req.body;
+
+    if (!id_usuario) {
+      return res.status(401).json({ error: 'No autorizado. Se requiere sesión activa.' });
+    }
+
+    if (!new_password || new_password.trim() === '') {
+      return res.status(400).json({ error: 'La nueva contraseña es obligatoria.' });
+    }
+
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres.' });
+    }
+    
+    if (/\s/.test(new_password)) {
+      return res.status(400).json({ error: 'La contraseña no puede contener espacios.' });
+    }
+
+    // 1. Encriptamos la nueva contraseña de forma segura
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(new_password, saltRounds);
+
+    // 2. Usamos el modelo de usuario para actualizar dinámicamente
+    const updateData = {
+      password_hash: password_hash,
+      es_password_temporal: 0, // Apagamos la bandera para que no lo vuelva a molestar
+      modificado_por: id_usuario // Dejamos rastro de que el mismo usuario lo cambió
+    };
+
+    const affectedRows = await userModel.updateUser(id_usuario, updateData);
+
+    if (affectedRows === 0) {
+      return res.status(400).json({ error: 'No se pudo procesar el cambio de contraseña.' });
+    }
+
+    // Respuesta exitosa. El usuario no necesita volver a loguearse.
+    res.status(200).json({ 
+      message: 'Contraseña actualizada con éxito. ¡Bienvenido al sistema!',
+      es_password_temporal: 0 // Le avisamos al frontend que ya se apagó
+    });
+
+  } catch (error) {
+    console.error('[Error en authController - changeTemporaryPassword]:', error);
+    res.status(500).json({ error: 'Error interno al cambiar la contraseña temporal.' });
+  }
+};
+
 module.exports = {
-  login
+  login,
+  changeTemporaryPassword // Exportamos la nueva función
 };
