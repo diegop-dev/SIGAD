@@ -61,8 +61,24 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
+  // NUEVO: Función para actualizar el estado tras cambiar la contraseña temporal
+  const completePasswordChange = () => {
+    if (user) {
+      const updatedUser = { ...user, es_password_temporal: 0 };
+      setUser(updatedUser); // Actualiza la memoria RAM (estado)
+      localStorage.setItem('sigad_user', JSON.stringify(updatedUser)); // Actualiza el disco duro (navegador)
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isAuthenticated, 
+      loading, 
+      login, 
+      logout,
+      completePasswordChange // <-- Lo exponemos para usarlo en el Modal
+    }}>
       {children}
     </AuthContext.Provider>
   );
