@@ -20,7 +20,7 @@ export const MainLayout = () => {
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
     { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
-    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
+    { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.rol_id));
