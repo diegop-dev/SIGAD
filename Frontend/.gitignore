@@ -6,7 +6,7 @@ npm-debug.log*
 # Dependencias
 node_modules/
 
-# Compilación
+# Ignora el archivo de configuración de entorno
 .env
 
 # Builds de producción
