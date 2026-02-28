@@ -4,12 +4,11 @@ const path = require('path');
 const helmet = require('helmet');
 require('dotenv').config();
 require('./config/database'); // Inicializa el pool de MariaDB
-
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const docentesRoutes = require('./routes/docentesRoutes');
 const academiaRoutes = require('./routes/academiaRoutes'); 
-
+const materiaRoutes = require('./routes/materiaRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -29,7 +28,8 @@ app.use(express.json({ limit: '1mb' }));
 
 // Registro de rutas con sus prefijos
 app.use('/api/docentes', docentesRoutes); 
-app.use('/api/academias', academiaRoutes); 
+app.use('/api/academias', academiaRoutes);
+app.use('/api/materias', materiaRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

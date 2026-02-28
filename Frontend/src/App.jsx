@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
 import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
 
 function App() {
   return (
@@ -28,8 +29,8 @@ function App() {
               <Route path="/usuarios" element={<UserManagement />} />
               <Route path="/docentes" element={<DocenteManagement />} />
               <Route path="/academias" element={<AcademiaManagement />} />
+              <Route path="/materias" element={<MateriasManagement />} />
               {/* Aquí irán /carreras, /materias, etc. */}
-
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
