@@ -6,11 +6,12 @@ npm-debug.log*
 # Dependencias
 node_modules/
 
+# Ignora el archivo de configuración de entorno
+.env
+
 # Builds de producción
 dist/
 dist-ssr/
 
 # Editor
 .DS_Store
-
-.env

@@ -9,7 +9,7 @@ const Academia = {
       const rows = await conn.query(`
         SELECT id_usuario, nombres, apellido_paterno
         FROM usuarios
-        WHERE rol_id = 3
+        WHERE rol_id = 2
       `);
       return rows;
     } finally {
