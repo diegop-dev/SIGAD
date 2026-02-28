@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, Home, Users, Calendar, LogOut, Bell, User } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen } from 'lucide-react';
 import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal'; // NUEVO: Importamos el modal aquí
 
 export const MainLayout = () => {
@@ -20,6 +20,9 @@ export const MainLayout = () => {
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
     { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
+    { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
+    { name: 'Gestión de academias', path:'/academias', icon: School, roles:[1,2]},
+    { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
     { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
   ];
 
