@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { ArrowLeft, CheckCircle, X } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import "./AltaAcademia.css";
 
 
 export const AltaAcademia = ({ onBack, onSuccess }) => {
@@ -136,11 +137,11 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             required
           >
             <option value="">Seleccione</option>
-            {coordinadores.map(c => (
-              <option key={c.id_usuario} value={c.id_usuario}>
-                {c.nombres} {c.apellido_paterno}
-              </option>
-            ))}
+              {coordinadores.map(c => (
+  <option key={c.id_usuario} value={c.id_usuario}>
+    {c.nombres} {c.apellido_paterno}
+  </option>
+))}
           </select>
         </div>
 
