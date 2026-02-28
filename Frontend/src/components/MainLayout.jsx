@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, Home, Users, BookOpen, Calendar, LogOut, Bell, User, Radiation } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen } from 'lucide-react';
+import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal'; // NUEVO: Importamos el modal aquí
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
@@ -19,15 +20,14 @@ export const MainLayout = () => {
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
     { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
-    { name: 'Materias', path: '/materias', icon: Radiation, roles: [1, 2] },
-    { name: 'Estructura académica', path: '/academicos', icon: BookOpen, roles: [1, 2] },
-    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
     { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
+    { name: 'Gestión de academias', path:'/academias', icon: School, roles:[1,2]},
+    { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
+    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.rol_id));
 
-  // CORRECCIÓN: Construcción robusta de la URL (igual que en el modal)
   const API_BASE = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
     : 'http://localhost:3000';
@@ -38,6 +38,9 @@ export const MainLayout = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+      
+      {/* NUEVO: El modal ahora vive dentro del Layout del Dashboard */}
+      <ForceChangePasswordModal />
       
       {isSidebarOpen && (
         <div 
