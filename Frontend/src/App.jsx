@@ -7,11 +7,13 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
+import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
+
 function App() {
   return (
     <>
       <Toaster position="top-right" reverseOrder={false} />
-      
       <Routes>
         <Route path="/login" element={<Login />} />
 
@@ -25,7 +27,10 @@ function App() {
             {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
               <Route path="/usuarios" element={<UserManagement />} />
-            <Route path="/docentes" element={<DocenteManagement />} />
+              <Route path="/docentes" element={<DocenteManagement />} />
+              <Route path="/academias" element={<AcademiaManagement />} />
+              <Route path="/materias" element={<MateriasManagement />} />
+              {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
