@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto"); // Importamos crypto para generar la contraseña
 const userModel = require("../models/userModel");
 
 const getUsers = async (req, res) => {
@@ -15,24 +16,33 @@ const getUsers = async (req, res) => {
 
 const registerUser = async (req, res) => {
   try {
-    const {
+    let {
       nombres,
       apellido_paterno,
       apellido_materno,
       personal_email,
       institutional_email,
-      password_raw,
       rol_id,
       creado_por,
     } = req.body;
+
+    // ==========================================
+    // NORMALIZACIÓN DE DATOS (PROTECCIÓN FINAL)
+    // ==========================================
+    nombres = nombres?.trim();
+    apellido_paterno = apellido_paterno?.trim();
+    apellido_materno = apellido_materno?.trim();
+    personal_email = personal_email?.trim().toLowerCase();
+    institutional_email = institutional_email?.trim().toLowerCase();
 
     const foto_perfil_url = req.file
       ? `/uploads/profiles/${req.file.filename}`
       : null;
 
+    // Ya no exigimos password_raw desde el cliente
     if (
       !nombres || !apellido_paterno || !apellido_materno ||
-      !personal_email || !institutional_email || !password_raw ||
+      !personal_email || !institutional_email ||
       !rol_id || !creado_por
     ) {
       return res.status(400).json({ error: "Faltan campos obligatorios para el registro." });
@@ -48,8 +58,19 @@ const registerUser = async (req, res) => {
       });
     }
 
+    // ==========================================
+    // GENERACIÓN DE CONTRASEÑA TEMPORAL SEGURA
+    // ==========================================
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+    let password_generada = "";
+    for (let i = 0; i < length; i++) {
+      const randomIndex = crypto.randomInt(0, charset.length);
+      password_generada += charset[randomIndex];
+    }
+
     const saltRounds = 10;
-    const password_hash = await bcrypt.hash(password_raw, saltRounds);
+    const password_hash = await bcrypt.hash(password_generada, saltRounds);
 
     const newUserId = await userModel.createUser({
       nombres,
@@ -66,6 +87,7 @@ const registerUser = async (req, res) => {
     res.status(201).json({
       message: "Usuario registrado exitosamente",
       usuarioId: newUserId,
+      password_temporal: password_generada, // Devolvemos la contraseña en texto plano al admin
       nota: "El usuario deberá cambiar su contraseña temporal en el primer inicio de sesión.",
     });
   } catch (error) {
@@ -80,7 +102,7 @@ const registerUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params; 
-    const {
+    let {
       nombres,
       apellido_paterno,
       apellido_materno,
@@ -104,6 +126,7 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
+    // VALIDACIONES FUERTES DE RBAC (JERARQUÍA)
     const isSelf = Number(currentUserId) === Number(existingUser.id_usuario);
 
     if (isSelf && (currentUserRole === 1 || currentUserRole === 2)) {
@@ -123,9 +146,20 @@ const updateUser = async (req, res) => {
       return res.status(403).json({ error: "Acceso denegado: No tienes permisos para asignar el rol de Superadministrador." });
     }
 
+    // NORMALIZACIÓN DE DATOS ANTES DE ACTUALIZAR
+    const updateData = {
+      nombres: nombres?.trim(),
+      apellido_paterno: apellido_paterno?.trim(),
+      apellido_materno: apellido_materno?.trim(),
+      personal_email: personal_email?.trim().toLowerCase(),
+      institutional_email: institutional_email?.trim().toLowerCase(),
+      rol_id,
+      modificado_por
+    };
+
     const emailCollision = await userModel.findExistingEmailsExceptUser(
-      personal_email,
-      institutional_email,
+      updateData.personal_email,
+      updateData.institutional_email,
       id
     );
     if (emailCollision) {
@@ -133,16 +167,6 @@ const updateUser = async (req, res) => {
         error: "Uno de los correos ya está en uso por otro usuario del sistema."
       });
     }
-
-    const updateData = {
-      nombres,
-      apellido_paterno,
-      apellido_materno,
-      personal_email,
-      institutional_email,
-      rol_id,
-      modificado_por
-    };
 
     if (estatus) {
       updateData.estatus = estatus;
@@ -255,7 +279,6 @@ const activateUser = async (req, res) => {
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
-    // Reglas Jerárquicas Estrictas (las mismas)
     if (currentUserRole === 1 && existingUser.rol_id === 1 && Number(currentUserId) !== Number(existingUser.id_usuario)) {
       return res.status(403).json({ error: "Acceso denegado: No puedes reactivar a otros Superadministradores." });
     }
@@ -282,11 +305,10 @@ const activateUser = async (req, res) => {
   }
 };
 
-
 module.exports = {
   registerUser,
   getUsers,
   updateUser,
   deactivateUser,
-  activateUser // Exportamos la nueva función
+  activateUser
 };
