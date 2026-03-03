@@ -47,13 +47,13 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       [name]: sanitizedValue
     }));
   };
-
+// encodeURIComponent previene errores de rutas con caracteres especiales
   const validarNombreUnico = async () => {
     try {
-      const response = await api.get(`/academias/validar-nombre/${formData.nombre}`);
+      const response = await api.get(`/academias/validar-nombre/${encodeURIComponent(formData.nombre)}`);
       return response.data.existe;
     } catch {
-      return true;
+      return null; // estoy con NULL, true bloquearía el registro aunque el servidor solo esté caído. (porque true significa que sí existe
     }
   };
 
@@ -64,14 +64,17 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       toast.error("Complete los campos obligatorios.");
       return;
     }
-
+       const idToast = toast.loading("Verificando disponibilidad...");
     const existe = await validarNombreUnico();
-
-    if (existe) {
+ toast.dismiss(idToast);
+    if (existe === null) {
       toast.error("El nombre ya existe.");
       return;
     }
-
+ if (existe) {
+    toast.error("El nombre ya existe.");
+    return;
+  }
     setShowModal(true);
   };
 
@@ -114,7 +117,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
           <input
             type="text"
             name="nombre"
-            maxLength="150"
+            maxLength="70"
             value={formData.nombre}
             onChange={handleChange}
             required
@@ -125,6 +128,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
           <label>Descripción</label>
           <textarea
             name="descripcion"
+            maxLength="500"
             rows="3"
             value={formData.descripcion}
             onChange={handleChange}
