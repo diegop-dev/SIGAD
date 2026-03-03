@@ -12,7 +12,12 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
-    coordinador_id: ""
+    coordinador_id: "",
+    codigo_postal: "",
+    estado: "",
+    municipio: "",
+    direccion: "",
+    estatus: "ACTIVO"
   });
 
   const [coordinadores, setCoordinadores] = useState([]);
@@ -41,11 +46,32 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
     if (name === "nombre") {
       sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
     }
-
+if (name === "codigo_postal") {
+      sanitizedValue = value.replace(/\D/g, ""); // solo números
+    }
     setFormData(prev => ({
       ...prev,
       [name]: sanitizedValue
     }));
+  };
+  const handleCPBlur = async () => {
+    if (formData.codigo_postal.length !== 5) return;
+
+    try {
+      const res = await api.get(`/ubicacion/cp/${formData.codigo_postal}`);
+      setFormData(prev => ({
+        ...prev,
+        estado: res.data.estado,
+        municipio: res.data.municipio
+      }));
+    } catch {
+      toast.error("Código postal inválido.");
+      setFormData(prev => ({
+        ...prev,
+        estado: "",
+        municipio: ""
+      }));
+    }
   };
 // encodeURIComponent previene errores de rutas con caracteres especiales
   const validarNombreUnico = async () => {
@@ -60,7 +86,8 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const handleOpenModal = async (e) => {
     e.preventDefault();
 
-    if (!formData.nombre || !formData.coordinador_id) {
+    if (!formData.nombre || !formData.coordinador_id ||!formData.codigo_postal || !formData.estado ||!formData.municipio ||!formData.direccion) 
+      {
       toast.error("Complete los campos obligatorios.");
       return;
     }
@@ -68,8 +95,9 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
     const existe = await validarNombreUnico();
  toast.dismiss(idToast);
     if (existe === null) {
-      toast.error("El nombre ya existe.");
+      toast.error("Error al validar con el servidor.");
       return;
+    
     }
  if (existe) {
     toast.error("El nombre ya existe.");
@@ -117,7 +145,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
           <input
             type="text"
             name="nombre"
-            maxLength="70"
+            maxLength="100"
             value={formData.nombre}
             onChange={handleChange}
             required
@@ -150,7 +178,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
               <option value="">No hay coordinadores disponibles</option>
             ) : (
            <>
-            <option value="">Seleccione</option>
+            <option value=""> Seleccione</option>
               {coordinadores.map(c => (
   <option key={c.id_usuario} value={c.id_usuario}>
     {c.nombres} {c.apellido_paterno}
@@ -160,7 +188,69 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   )}
           </select>
         </div>
+     
+        <div className="form-group">
+          <label>Código Postal *</label>
+          <input
+            type="text"
+            name="codigo_postal"
+            maxLength="5"
+            value={formData.codigo_postal}
+            onChange={handleChange}
+            onBlur={handleCPBlur}
+            required
+          />
+        </div>
 
+      
+        <div className="form-group">
+          <label>Estado *</label>
+          <input
+            type="text"
+            name="estado"
+            value={formData.estado}
+            readOnly
+            required
+          />
+        </div>
+
+      
+        <div className="form-group">
+          <label>Municipio *</label>
+          <input
+            type="text"
+            name="municipio"
+            value={formData.municipio}
+            readOnly
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Dirección *</label>
+          <input
+            type="text"
+            name="direccion"
+            maxLength="255"
+            value={formData.direccion}
+            onChange={handleChange}
+            required
+          />
+        </div>
+
+        {user?.rol === "Superadministrador" && (
+          <div className="form-group">
+            <label>Estatus *</label>
+            <select
+              name="estatus"
+              value={formData.estatus}
+              onChange={handleChange}
+            >
+              <option value="ACTIVO">Activo</option>
+              <option value="INACTIVO">Inactivo</option>
+            </select>
+          </div>
+        )}
         <div className="form-actions">
           <button disabled={isSubmitting || isLoadingCoordinadores} type="submit" className="btn-primary">
             <CheckCircle size={18} />
@@ -182,6 +272,8 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             <div className="modal-body">
               <p><b>Nombre:</b> {formData.nombre}</p>
               <p><b>Coordinador ID:</b> {formData.coordinador_id}</p>
+              <p><b>Ubicación:</b> {formData.municipio}, {formData.estado}</p>
+              <p><b>Estatus:</b> {formData.estatus}</p>
             </div>
 
             <div className="modal-footer">
