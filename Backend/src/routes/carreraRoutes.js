@@ -10,6 +10,9 @@ const carreraController = require('../controllers/carreraController');
 // Endpoint para obtener las academias (GET /api/carreras/academias-activas)
 router.get('/academias-activas', carreraController.getAcademiasDisponibles);
 
+// Endpoint para obtener las carreras (GET /api/carreras)
+router.get('/', carreraController.getCarreras);
+
 // (Opcional) Importar middleware de autenticación si lo tienes
 // const { verificarToken } = require('../middlewares/authMiddleware');
 

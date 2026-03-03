@@ -16,7 +16,17 @@ const carreraController = {
         message: 'Error al obtener la lista de academias'
       });
     }
-  },  
+  },
+  
+  getCarreras: async (req, res) => {
+    try {
+      const carreras = await carreraModel.getAllCarreras();
+      return res.status(200).json(carreras);
+    } catch (error) {
+      console.error('Error al obtener carreras:', error);
+      return res.status(500).json({ success: false, message: 'Error al obtener carreras' });
+    }
+  },
 
   crearCarrera: async (req, res) => {
     try {
@@ -71,5 +81,7 @@ const carreraController = {
     }
   }
 };
+
+
 
 module.exports = carreraController;

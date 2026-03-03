@@ -62,7 +62,29 @@ const carreraModel = {
     } finally {
       if (conn) conn.release();
     }
-  }
+  },
+  
+// Obtener todas las carreras con el nombre de su academia (JOIN)
+  getAllCarreras: async () => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT 
+          c.id_carrera, 
+          c.nombre_carrera, 
+          c.estatus, 
+          a.nombre AS nombre_academia
+        FROM Carreras c
+        LEFT JOIN academias a ON c.academia_id = a.id_academia
+        ORDER BY c.id_carrera DESC
+      `);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
 };
 
 module.exports = carreraModel;
