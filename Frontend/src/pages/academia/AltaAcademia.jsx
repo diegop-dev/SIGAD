@@ -18,14 +18,17 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const [coordinadores, setCoordinadores] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
-
+  const [isLoadingCoordinadores, setIsLoadingCoordinadores] = useState(true);
   useEffect(() => {
     const fetchCoordinadores = async () => {
       try {
+        setIsLoadingCoordinadores(true);
         const response = await api.get("/academias/coordinadores-disponibles");
         setCoordinadores(response.data);
       } catch {
         toast.error("Error al cargar coordinadores.");
+          } finally {
+      setIsLoadingCoordinadores(false); 
       }
     };
     fetchCoordinadores();
@@ -50,7 +53,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       const response = await api.get(`/academias/validar-nombre/${formData.nombre}`);
       return response.data.existe;
     } catch {
-      return false;
+      return true;
     }
   };
 
@@ -135,18 +138,27 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             value={formData.coordinador_id}
             onChange={handleChange}
             required
-          >
+             disabled={isLoadingCoordinadores}
+             >
+            {isLoadingCoordinadores ? (
+              <option value="">Cargando coordinadores...</option>
+            ) : coordinadores.length === 0 ? (
+              <option value="">No hay coordinadores disponibles</option>
+            ) : (
+           <>
             <option value="">Seleccione</option>
               {coordinadores.map(c => (
   <option key={c.id_usuario} value={c.id_usuario}>
     {c.nombres} {c.apellido_paterno}
   </option>
 ))}
+  </>
+  )}
           </select>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-primary">
+          <button disabled={isSubmitting || isLoadingCoordinadores} type="submit" className="btn-primary">
             <CheckCircle size={18} />
             Guardar
           </button>
