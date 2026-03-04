@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, Home, Beaker, MapPin, Users } from 'lucide-react';
-import EditAulaModal from './EditAulaModal'; // El modal que creamos antes
+import EditAulaModal from './EditAulaModal'; 
+import AddAulaModal from './AddAulaModal';
 
 const AulaManagement = () => {
   const [aulas, setAulas] = useState([]);
@@ -8,6 +9,7 @@ const AulaManagement = () => {
   const [cargando, setCargando] = useState(true);
   const [aulaSeleccionada, setAulaSeleccionada] = useState(null);
   const [mostrarModalEdit, setMostrarModalEdit] = useState(false);
+  const [mostrarModalAdd, setMostrarModalAdd] = useState(false);
 
   // 1. Cargar datos desde el Backend (HU-30)
   const cargarAulas = async () => {
@@ -26,7 +28,7 @@ const AulaManagement = () => {
     cargarAulas();
   }, []);
 
-  // 2. Filtro de búsqueda para el Tester
+ 
   const aulasFiltradas = aulas.filter(aula => 
     aula.nombre_codigo.toLowerCase().includes(busqueda.toLowerCase()) ||
     aula.ubicacion.toLowerCase().includes(busqueda.toLowerCase())
@@ -34,20 +36,22 @@ const AulaManagement = () => {
 
   return (
     <div className="p-6 font-['Figtree'] bg-white min-h-screen">
-      {/* Cabecera del Management */}
+    
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Gestión de Aulas y Laboratorios</h1>
           <p className="text-gray-500 text-sm">Administra los espacios físicos de la institución (HU-31)</p>
         </div>
         
-        <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-sm">
+        <button 
+        onClick={() => setMostrarModalAdd(true)}
+        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-sm">
           <Plus className="w-4 h-4" />
           Nuevo Espacio
         </button>
       </div>
 
-      {/* Barra de búsqueda */}
+  
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
         <input 
@@ -59,7 +63,7 @@ const AulaManagement = () => {
         />
       </div>
 
-      {/* Tabla de Aulas */}
+  
       <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-sm">
         <table className="w-full text-left">
           <thead className="bg-gray-50 text-gray-600 text-sm uppercase">
@@ -112,7 +116,7 @@ const AulaManagement = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {/* BOTÓN EDITAR (Aquí se cumple la HU-31) */}
+                      {/* BOTÓN EDITAR ( HU-31) */}
                       <button 
                         onClick={() => {
                           setAulaSeleccionada(aula);
@@ -135,15 +139,22 @@ const AulaManagement = () => {
         </table>
       </div>
 
-      {/* Renderizado condicional del Modal de Edición */}
+   
       {mostrarModalEdit && (
         <EditAulaModal 
           aula={aulaSeleccionada} 
           alCerrar={() => setMostrarModalEdit(false)} 
-          alExito={cargarAulas} // Para que la tabla se refresque al guardar
-          adminId={1} // Aquí pasarías el ID del usuario logueado desde tu AuthContext
+          alExito={cargarAulas} 
+          adminId={1}
         />
       )}
+      {mostrarModalAdd && (
+  <AddAulaModal 
+    alCerrar={() => setMostrarModalAdd(false)} 
+    alExito={cargarAulas} 
+    adminId={1} 
+  />
+)}
     </div>
   );
 };

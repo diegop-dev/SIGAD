@@ -1,4 +1,61 @@
 
+const registrarAula = async (req, res) => {
+  const { nombre, tipo, capacidad, ubicacion, creado_por } = req.body;
+
+  try {
+
+    const [existente] = await pool.query(
+      'SELECT id_aula FROM Aulas WHERE nombre = ?', 
+      [nombre]
+    );
+
+    if (existente.length > 0) {
+      return res.status(409).json({ message: "Ya existe un aula o laboratorio con ese nombre." });
+    }
+
+    
+    const query = `
+      INSERT INTO Aulas (nombre, tipo, capacidad, ubicacion, estatus, creado_por, fecha_creacion) 
+      VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())
+    `;
+
+    const [resultado] = await pool.query(query, [nombre, tipo, capacidad, ubicacion, creado_por]);
+
+    res.status(201).json({ 
+      message: "Espacio académico registrado con éxito.",
+      id_aula: resultado.insertId 
+    });
+
+  } catch (error) {
+    console.error("Error al registrar aula:", error);
+    res.status(500).json({ message: "Error interno del servidor al crear el espacio." });
+  }
+};
+const consultarAulas = async (req, res) => {
+  try {
+
+    const query = `
+      SELECT 
+        id_aula, 
+        nombre AS nombre_codigo, 
+        tipo, 
+        capacidad, 
+        ubicacion, 
+        estatus 
+      FROM Aulas
+      ORDER BY nombre ASC
+    `;
+
+    const [resultados] = await pool.query(query);
+
+
+    res.status(200).json(resultados);
+    
+  } catch (error) {
+    console.error("Error al consultar el catálogo de aulas:", error);
+    res.status(500).json({ message: "Error interno al obtener las aulas." });
+  }
+};
 const actualizarAula = async (req, res) => {
   const { id } = req.params;
   const { nombre, tipo, capacidad, ubicacion, estatus, modificado_por } = req.body;
@@ -40,29 +97,5 @@ const actualizarAula = async (req, res) => {
   }
 };
 
-const consultarAulas = async (req, res) => {
-  try {
 
-    const query = `
-      SELECT 
-        id_aula, 
-        nombre AS nombre_codigo, 
-        tipo, 
-        capacidad, 
-        ubicacion, 
-        estatus 
-      FROM Aulas
-      ORDER BY nombre ASC
-    `;
-
-    const [resultados] = await pool.query(query);
-
-
-    res.status(200).json(resultados);
-    
-  } catch (error) {
-    console.error("Error al consultar el catálogo de aulas:", error);
-    res.status(500).json({ message: "Error interno al obtener las aulas." });
-  }
-};
-module.exports = { consultarAulas, actualizarAula };
+module.exports = { registrarAula, consultarAulas, actualizarAula };
