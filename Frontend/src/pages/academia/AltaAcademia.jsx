@@ -5,38 +5,33 @@ import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import "./AltaAcademia.css";
 
-
 export const AltaAcademia = ({ onBack, onSuccess }) => {
   const { user } = useAuth();
 
   const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
-    coordinador_id: "",
-    codigo_postal: "",
-    estado: "",
-    municipio: "",
-    direccion: "",
-    estatus: "ACTIVO"
+    coordinador_id: ""
   });
 
   const [coordinadores, setCoordinadores] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isLoadingCoordinadores, setIsLoadingCoordinadores] = useState(true);
+
   useEffect(() => {
     const fetchCoordinadores = async () => {
-      
       try {
         setIsLoadingCoordinadores(true);
         const response = await api.get("/academias/coordinadores-disponibles");
         setCoordinadores(response.data);
       } catch {
         toast.error("Error al cargar coordinadores.");
-          } finally {
-      setIsLoadingCoordinadores(false); 
+      } finally {
+        setIsLoadingCoordinadores(false);
       }
     };
+
     fetchCoordinadores();
   }, []);
 
@@ -47,63 +42,49 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
     if (name === "nombre") {
       sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
     }
-if (name === "codigo_postal") {
-      sanitizedValue = value.replace(/\D/g, ""); // solo números
-    }
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
       [name]: sanitizedValue
     }));
   };
-  const handleCPBlur = async () => {
-    if (formData.codigo_postal.length !== 5) return;
 
-    try {
-      const res = await api.get(`/ubicacion/cp/${formData.codigo_postal}`);
-      setFormData(prev => ({
-        ...prev,
-        estado: res.data.estado,
-        municipio: res.data.municipio
-      }));
-    } catch {
-      toast.error("Código postal inválido.");
-      setFormData(prev => ({
-        ...prev,
-        estado: "",
-        municipio: ""
-      }));
-    }
-  };
-// encodeURIComponent previene errores de rutas con caracteres especiales
+  // encodeURIComponent previene errores de rutas con caracteres especiales
   const validarNombreUnico = async () => {
     try {
-      const response = await api.get(`/academias/validar-nombre/${encodeURIComponent(formData.nombre)}`);
+      const response = await api.get(
+        `/academias/validar-nombre/${encodeURIComponent(formData.nombre)}`
+      );
       return response.data.existe;
     } catch {
-      return null; // estoy con NULL, true bloquearía el registro aunque el servidor solo esté caído. (porque true significa que sí existe
+      return null; 
+      // estoy con NULL, true bloquearía el registro aunque el servidor solo esté caído.
+      // (porque true significa que sí existe)
     }
   };
 
   const handleOpenModal = async (e) => {
     e.preventDefault();
 
-    if (!formData.nombre || !formData.coordinador_id ||!formData.codigo_postal || !formData.estado ||!formData.municipio ||!formData.direccion) 
-      {
+    if (!formData.nombre || !formData.coordinador_id) {
       toast.error("Complete los campos obligatorios.");
       return;
     }
-       const idToast = toast.loading("Verificando disponibilidad...");
+
+    const idToast = toast.loading("Verificando disponibilidad...");
     const existe = await validarNombreUnico();
- toast.dismiss(idToast);
+    toast.dismiss(idToast);
+
     if (existe === null) {
-      toast.error("Error al validar con el servidor.");
+      toast.error("El nombre ya existe.");
       return;
-    
     }
- if (existe) {
-    toast.error("El nombre ya existe.");
-    return;
-  }
+
+    if (existe) {
+      toast.error("El nombre ya existe.");
+      return;
+    }
+
     setShowModal(true);
   };
 
@@ -120,10 +101,13 @@ if (name === "codigo_postal") {
       });
 
       toast.success("Academia registrada correctamente", { id: toastId });
-      if (onSuccess) onSuccess();
 
+      if (onSuccess) onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.error || "Error de servidor", { id: toastId });
+      toast.error(
+        error.response?.data?.error || "Error de servidor",
+        { id: toastId }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -140,13 +124,12 @@ if (name === "codigo_postal") {
       </div>
 
       <form onSubmit={handleOpenModal} className="alta-form">
-
         <div className="form-group">
           <label>Nombre *</label>
           <input
             type="text"
             name="nombre"
-            maxLength="100"
+            maxLength="70"
             value={formData.nombre}
             onChange={handleChange}
             required
@@ -171,89 +154,31 @@ if (name === "codigo_postal") {
             value={formData.coordinador_id}
             onChange={handleChange}
             required
-             disabled={isLoadingCoordinadores}
-             >
+            disabled={isLoadingCoordinadores}
+          >
             {isLoadingCoordinadores ? (
               <option value="">Cargando coordinadores...</option>
             ) : coordinadores.length === 0 ? (
               <option value="">No hay coordinadores disponibles</option>
             ) : (
-           <>
-            <option value=""> Seleccione</option>
-              {coordinadores.map(c => (
-  <option key={c.id_usuario} value={c.id_usuario}>
-    {c.nombres} {c.apellido_paterno}
-  </option>
-))}
-  </>
-  )}
+              <>
+                <option value="">Seleccione</option>
+                {coordinadores.map((c) => (
+                  <option key={c.id_usuario} value={c.id_usuario}>
+                    {c.nombres} {c.apellido_paterno}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
         </div>
-     
-        <div className="form-group">
-          <label>Código Postal *</label>
-          <input
-            type="text"
-            name="codigo_postal"
-            maxLength="5"
-            value={formData.codigo_postal}
-            onChange={handleChange}
-            onBlur={handleCPBlur}
-            required
-          />
-        </div>
 
-      
-        <div className="form-group">
-          <label>Estado *</label>
-          <input
-            type="text"
-            name="estado"
-            value={formData.estado}
-            readOnly
-            required
-          />
-        </div>
-
-      
-        <div className="form-group">
-          <label>Municipio *</label>
-          <input
-            type="text"
-            name="municipio"
-            value={formData.municipio}
-            readOnly
-            required
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Dirección *</label>
-          <input
-            type="text"
-            name="direccion"
-            maxLength="255"
-            value={formData.direccion}
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        {user?.rol === "Superadministrador" && (
-          <div className="form-group">
-            <label>Estatus *</label>
-            <select
-              name="estatus"
-              value={formData.estatus}
-              onChange={handleChange}
-            >
-              <option value="ACTIVO">Activo</option>
-              <option value="INACTIVO">Inactivo</option>
-            </select>
-          </div>
-        )}
         <div className="form-actions">
-          <button disabled={isSubmitting || isLoadingCoordinadores} type="submit" className="btn-primary">
+          <button
+            disabled={isSubmitting || isLoadingCoordinadores}
+            type="submit"
+            className="btn-primary"
+          >
             <CheckCircle size={18} />
             Guardar
           </button>
@@ -271,14 +196,19 @@ if (name === "codigo_postal") {
             </div>
 
             <div className="modal-body">
-              <p><b>Nombre:</b> {formData.nombre}</p>
-              <p><b>Coordinador ID:</b> {formData.coordinador_id}</p>
-              <p><b>Ubicación:</b> {formData.municipio}, {formData.estado}</p>
-              <p><b>Estatus:</b> {formData.estatus}</p>
+              <p>
+                <b>Nombre:</b> {formData.nombre}
+              </p>
+              <p>
+                <b>Coordinador ID:</b> {formData.coordinador_id}
+              </p>
             </div>
 
             <div className="modal-footer">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">
+              <button
+                onClick={() => setShowModal(false)}
+                className="btn-secondary"
+              >
                 Cancelar
               </button>
               <button onClick={handleSubmit} className="btn-primary">

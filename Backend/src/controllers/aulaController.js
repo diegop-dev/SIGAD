@@ -1,0 +1,68 @@
+
+const actualizarAula = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, tipo, capacidad, ubicacion, estatus, modificado_por } = req.body;
+
+  try {
+
+    const [existente] = await pool.query(
+      'SELECT id_aula FROM Aulas WHERE nombre = ? AND id_aula != ?', 
+      [nombre, id]
+    );
+
+    if (existente.length > 0) {
+      return res.status(409).json({ message: "Ya existe otra aula/laboratorio con ese nombre." });
+    }
+
+    const query = `
+      UPDATE Aulas 
+      SET 
+        nombre = ?, 
+        tipo = ?, 
+        capacidad = ?, 
+        ubicacion = ?, 
+        estatus = ?,
+        modificado_por = ?,
+        fecha_modificacion = NOW()
+      WHERE id_aula = ?
+    `;
+
+    const [resultado] = await pool.query(query, [nombre, tipo, capacidad, ubicacion, estatus, modificado_por, id]);
+
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ message: "Aula o laboratorio no encontrado." });
+    }
+
+    res.json({ message: "Espacio académico actualizado con éxito." });
+  } catch (error) {
+    console.error("Error al actualizar aula:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+const consultarAulas = async (req, res) => {
+  try {
+
+    const query = `
+      SELECT 
+        id_aula, 
+        nombre AS nombre_codigo, 
+        tipo, 
+        capacidad, 
+        ubicacion, 
+        estatus 
+      FROM Aulas
+      ORDER BY nombre ASC
+    `;
+
+    const [resultados] = await pool.query(query);
+
+
+    res.status(200).json(resultados);
+    
+  } catch (error) {
+    console.error("Error al consultar el catálogo de aulas:", error);
+    res.status(500).json({ message: "Error interno al obtener las aulas." });
+  }
+};
+module.exports = { consultarAulas, actualizarAula };
