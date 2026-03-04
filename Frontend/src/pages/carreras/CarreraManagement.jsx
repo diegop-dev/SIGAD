@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { CarreraForm } from './CarreraForm';
@@ -10,17 +10,16 @@ export const CarreraManagement = () => {
   
   const [showForm, setShowForm] = useState(false);
   const [carreras, setCarreras] = useState([]);
-  const [academiasLista, setAcademiasLista] = useState([]); // <-- NUEVO: Estado para el filtro
+  const [academiasLista, setAcademiasLista] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [carreraAEditar, setCarreraAEditar] = useState(null);
 
-  // Estados para filtros y paginación
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-// Cargar datos desde el backend
   const fetchCarreras = async () => {
     setIsLoading(true);
     try {
@@ -36,27 +35,27 @@ export const CarreraManagement = () => {
     }
   };
 
-  // NUEVA FUNCIÓN: Traer academias para el filtro
   const fetchAcademiasFiltro = async () => {
     try {
-      const response = await api.get('/carreras/academias-activas');
-      setAcademiasLista(response.data.data || []);
+      const response = await api.get('/academias');
+      setAcademiasLista(response.data || []);
     } catch (error) {
       console.error("Error al cargar academias para el filtro:", error);
     }
   };
 
-useEffect(() => {
+  useEffect(() => {
     fetchCarreras();
     fetchAcademiasFiltro();
   }, []);
 
   const filteredCarreras = useMemo(() => {
     return carreras.filter(carrera => {
-      const nombreCarrera = carrera.nombre_carrera?.toLowerCase() || '';
       const busqueda = searchTerm.toLowerCase();
+      const nombreCarrera = carrera.nombre_carrera?.toLowerCase() || '';
+      const codigoCarrera = carrera.codigo_unico?.toLowerCase() || '';
 
-      const coincideBusqueda = nombreCarrera.includes(busqueda);
+      const coincideBusqueda = nombreCarrera.includes(busqueda) || codigoCarrera.includes(busqueda);
       const coincideAcademia = academiaFilter ? carrera.nombre_academia === academiaFilter : true;
       const coincideEstatus = statusFilter ? carrera.estatus === statusFilter : true;
 
@@ -76,22 +75,39 @@ useEffect(() => {
 
   const handleSuccessAction = () => {
     setShowForm(false);
+    setCarreraAEditar(null);
     fetchCarreras();
+  };
+
+  const handleNuevaCarrera = () => {
+    setCarreraAEditar(null);
+    setShowForm(true);
+  };
+
+  const handleEditarCarrera = (carrera) => {
+    setCarreraAEditar(carrera);
+    setShowForm(true);
+  };
+
+  const handleEliminarRapido = () => {
+    toast("Función de eliminación en desarrollo", { icon: "🚧" });
   };
 
   if (showForm) {
     return (
       <CarreraForm 
-        onBack={() => setShowForm(false)} 
+        onBack={() => {
+          setShowForm(false);
+          setCarreraAEditar(null);
+        }} 
         onSuccess={handleSuccessAction} 
+        initialData={carreraAEditar}
       />
     );
   }
 
   return (
     <div className="space-y-6">
-      
-      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -101,14 +117,13 @@ useEffect(() => {
           <p className="mt-1 text-sm text-slate-500 font-medium">Administra el catálogo de carreras de la institución.</p>
         </div>
         <button 
-          onClick={() => setShowForm(true)} 
+          onClick={handleNuevaCarrera} 
           className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
         >
           <Plus className="w-5 h-5 mr-2" /> Nueva carrera
         </button>
       </div>
 
-      {/* Barra de filtros */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -116,7 +131,7 @@ useEffect(() => {
           </div>
           <input
             type="text"
-            placeholder="Buscar por nombre de carrera..."
+            placeholder="Buscar por nombre o código de carrera..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
@@ -126,13 +141,12 @@ useEffect(() => {
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex items-center min-w-[220px]">
             <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
-<select
+            <select
               value={academiaFilter}
               onChange={(e) => setAcademiaFilter(e.target.value)}
               className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
             >
               <option value="">Todas las academias</option>
-              {/* Iteramos sobre las academias reales de la base de datos */}
               {academiasLista.map(academia => (
                 <option key={academia.id_academia} value={academia.nombre}>
                   {academia.nombre}
@@ -153,13 +167,14 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Tabla de datos */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre de la carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Modalidad</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Academia</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
@@ -169,7 +184,7 @@ useEffect(() => {
             <tbody className="bg-white divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
+                  <td colSpan="6" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
                       <p className="text-sm text-slate-500 font-medium">Cargando catálogo...</p>
@@ -178,7 +193,7 @@ useEffect(() => {
                 </tr>
               ) : paginatedCarreras.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-16 text-center">
+                  <td colSpan="6" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <BookOpen className="h-8 w-8 text-slate-400" />
@@ -192,8 +207,20 @@ useEffect(() => {
                 paginatedCarreras.map((carrera) => (
                   <tr key={carrera.id_carrera} className="hover:bg-blue-50/50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center text-sm font-bold text-slate-700">
+                        <Hash className="w-4 h-4 mr-1 text-slate-400" />
+                        {carrera.codigo_unico || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-900">
                         {carrera.nombre_carrera}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center text-sm font-medium text-slate-600">
+                        <Layers className="w-4 h-4 mr-1 text-slate-400" />
+                        {carrera.modalidad || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -214,14 +241,14 @@ useEffect(() => {
                       <div className="flex justify-center space-x-2">
                         <button 
                           title="Editar carrera" 
-                          onClick={() => toast.success('Función en desarrollo')}
+                          onClick={() => handleEditarCarrera(carrera)}
                           className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button 
                           title="Cambiar estatus" 
-                          onClick={() => toast.success('Función en desarrollo')}
+                          onClick={handleEliminarRapido}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -235,7 +262,6 @@ useEffect(() => {
           </table>
         </div>
 
-        {/* Paginación */}
         {!isLoading && filteredCarreras.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>

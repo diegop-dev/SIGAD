@@ -30,15 +30,9 @@ const carreraController = {
 
   crearCarrera: async (req, res) => {
     try {
-      // 1. Extraemos los datos que envía el frontend (React)
-      const { nombre_carrera, academia_id } = req.body;
-
-      // Extraemos el ID del usuario que está realizando la acción.
-      // Lo ideal es que esto venga del token de autenticación (ej. req.usuario.id_usuario).
-      // Si temporalmente lo mandan desde el frontend, usaríamos req.body.creado_por.
+      const { codigo_unico, nombre_carrera, modalidad, academia_id } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : req.body.creado_por;
 
-      // 2. Validar que la carrera no exista previamente
       const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera);
       
       if (carreraExistente) {
@@ -48,31 +42,30 @@ const carreraController = {
         });
       }
 
-      // 3. Preparar el objeto de datos para el modelo
       const datosNuevaCarrera = {
+        codigo_unico: codigo_unico.toUpperCase(),
         nombre_carrera,
+        modalidad,
         academia_id,
         creado_por
       };
 
-      // 4. Llamar al modelo para insertar el registro en MariaDB
       const resultado = await carreraModel.crearCarrera(datosNuevaCarrera);
 
-      // 5. Responder al frontend confirmando el éxito de la operación
       return res.status(201).json({
         success: true,
         message: 'La carrera se ha registrado correctamente.',
         data: {
           id_carrera: Number(resultado.insertId), 
+          codigo_unico: datosNuevaCarrera.codigo_unico,
           nombre_carrera,
+          modalidad,
           academia_id
         }
       });
 
     } catch (error) {
       console.error('Error al crear la carrera:', error);
-      
-      // Respuesta en caso de que la base de datos o el servidor fallen
       return res.status(500).json({
         success: false,
         message: 'Ocurrió un error en el servidor al intentar guardar la carrera.',
@@ -81,7 +74,5 @@ const carreraController = {
     }
   }
 };
-
-
 
 module.exports = carreraController;
