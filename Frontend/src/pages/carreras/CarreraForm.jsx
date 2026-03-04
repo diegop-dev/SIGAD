@@ -11,7 +11,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
   const [academias, setAcademias] = useState([]); 
   const [cargandoAcademias, setCargandoAcademias] = useState(true);
 
-  // Determinar si estamos en modo edición o creación
   const isEditing = !!initialData;
 
   const [formData, setFormData] = useState({
@@ -21,7 +20,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
     academia_id: initialData?.academia_id || "",
   });
 
-  // Cargar academias para el select
   useEffect(() => {
     const fetchAcademias = async () => {
       try {
@@ -39,7 +37,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Si es el código, forzamos mayúsculas y limitamos a 5 caracteres
     const finalValue = name === 'codigo_unico' ? value.toUpperCase().slice(0, 5) : value;
     
     setFormData({ ...formData, [name]: finalValue });
@@ -50,19 +47,30 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
     const newErrors = {};
     const { codigo_unico, nombre_carrera, modalidad, academia_id } = formData;
 
-    // Validación Código (XXX##)
     if (!/^[A-Z]{3}[0-9]{2}$/.test(codigo_unico)) {
       newErrors.codigo_unico = "Formato inválido (Ej. INF01)";
     }
-    // Validación Nombre
-    if (nombre_carrera.trim().length < 5) {
-      newErrors.nombre_carrera = "Mínimo 5 caracteres";
+    
+    const nombreLimpio = nombre_carrera.trim();
+    const palabras = nombreLimpio.split(/\s+/);
+    const purasLetrasSueltas = palabras.length > 1 && palabras.every(palabra => palabra.length <= 1);
+
+    if (nombreLimpio.length < 5) {
+      newErrors.nombre_carrera = "El nombre debe tener al menos 5 caracteres";
+    } else if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(nombre_carrera)) {
+      newErrors.nombre_carrera = "Solo se permiten letras y espacios";
+    } else if (/\s{2,}/.test(nombre_carrera)) {
+      newErrors.nombre_carrera = "No se permiten espacios dobles";
+    } else if (/(.)\1{2,}/.test(nombre_carrera)) {
+      newErrors.nombre_carrera = "El nombre no parece válido (caracteres repetidos)";
+    } else if (purasLetrasSueltas) {
+      newErrors.nombre_carrera = "El nombre no puede estar formado solo por letras sueltas";
     }
-    // Validación Modalidad
+
     if (!modalidad) {
       newErrors.modalidad = "La modalidad es obligatoria";
     }
-    // Validación Academia
+    
     if (!academia_id) {
       newErrors.academia_id = "Selecciona una academia";
     }
@@ -91,14 +99,22 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onSuccess) onSuccess();
       if (onBack) onBack();
     } catch (error) {
-      const msg = error.response?.data?.message || "Error al procesar la solicitud";
-      toast.error(msg, { id: toastId });
+      if (error.response?.data?.errores) {
+        const backendErrors = {};
+        error.response.data.errores.forEach(err => {
+          backendErrors[err.path || err.param] = err.msg;
+        });
+        setErrores(backendErrors);
+        toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
+      } else {
+        const msg = error.response?.data?.message || "Error al procesar la solicitud";
+        toast.error(msg, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Handlers temporales para funciones futuras
   const handleUpdatePlaceholder = () => toast("Función de edición en desarrollo", { icon: "🚧" });
   const handleDeletePlaceholder = () => toast("Función de eliminación en desarrollo", { icon: "🚧" });
 
@@ -110,12 +126,11 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar Carrera" : "Nueva Carrera"}</h2>
+            <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar carrera" : "Nueva carrera"}</h2>
             <p className="text-sm text-slate-500 font-medium">Define el código, nombre y modalidad de la carrera.</p>
           </div>
         </div>
         
-        {/* Espacio para botones de gestión futura si estamos en modo edición */}
         {isEditing && (
           <div className="flex gap-2">
             <button onClick={handleDeletePlaceholder} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
@@ -129,7 +144,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* Código Único */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Hash className="w-4 h-4 mr-2 text-blue-500" /> Código (Formato XXX##)
@@ -147,7 +161,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.codigo_unico && <p className="text-xs font-bold text-red-500">{errores.codigo_unico}</p>}
             </div>
 
-            {/* Modalidad */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
@@ -168,7 +181,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.modalidad && <p className="text-xs font-bold text-red-500">{errores.modalidad}</p>}
             </div>
 
-            {/* Nombre de la carrera */}
             <div className="md:col-span-2 space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Nombre de la carrera
@@ -186,7 +198,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.nombre_carrera && <p className="text-xs font-bold text-red-500">{errores.nombre_carrera}</p>}
             </div>
 
-            {/* Academia */}
             <div className="md:col-span-2 space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Academia responsable
@@ -213,13 +224,13 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
             {isEditing ? (
               <>
                 <button type="button" onClick={handleUpdatePlaceholder} className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 transition-all shadow-md">
-                  <Edit3 className="w-5 h-5 mr-2" /> Actualizar Datos
+                  <Edit3 className="w-5 h-5 mr-2" /> Actualizar datos
                 </button>
               </>
             ) : (
               <button type="submit" disabled={isSubmitting || cargandoAcademias} className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md">
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-                Guardar Carrera
+                Guardar carrera
               </button>
             )}
           </div>

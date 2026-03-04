@@ -212,11 +212,11 @@ export const CarreraManagement = () => {
                         {carrera.codigo_unico || 'N/A'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-900">
-                        {carrera.nombre_carrera}
-                      </div>
-                    </td>
+<td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
+  <div className="text-sm font-bold text-slate-900 leading-relaxed break-words">
+    {carrera.nombre_carrera}
+  </div>
+</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm font-medium text-slate-600">
                         <Layers className="w-4 h-4 mr-1 text-slate-400" />
@@ -229,10 +229,12 @@ export const CarreraManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg ${
+                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
                         carrera.estatus === 'ACTIVO' 
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                          : 'bg-red-100 text-red-800 border border-red-200'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : carrera.estatus === 'INACTIVO'
+                          ? 'bg-red-100 text-red-800 border-red-200'
+                          : 'bg-slate-100 text-slate-800 border-slate-200'
                       }`}>
                         {carrera.estatus}
                       </span>
