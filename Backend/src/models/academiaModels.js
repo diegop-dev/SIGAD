@@ -54,7 +54,7 @@ const Academia = {
       conn = await db.getConnection();
       await conn.query(
         `INSERT INTO academias (nombre, descripcion,  estado, municipio, codigo_postal, direccion, usuario_id, estatus, creado_por)
-         VALUES (?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?,?, ?, ?,?)`,
         [
           data.nombre,
           data.descripcion,

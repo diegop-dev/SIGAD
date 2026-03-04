@@ -26,6 +26,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const [isLoadingCoordinadores, setIsLoadingCoordinadores] = useState(true);
   useEffect(() => {
     const fetchCoordinadores = async () => {
+      
       try {
         setIsLoadingCoordinadores(true);
         const response = await api.get("/academias/coordinadores-disponibles");
