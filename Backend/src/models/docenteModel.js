@@ -44,20 +44,20 @@ getUsuariosDisponibles: async () => {
           usuario_id, matricula_empleado, rfc, curp, clave_ine, 
           domicilio, celular, nivel_academico, antiguedad_fecha, 
           estatus, creado_por, fecha_creacion, academia_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?, NOW(), NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?, NOW(), ?)
       `;
 
       const docenteRes = await conn.query(docenteQuery, [
         datos.usuario_id, datos.matricula, datos.rfc, datos.curp, datos.clave_ine,
         datos.domicilio, datos.celular, datos.nivel_academico, datos.antiguedad_fecha,
-        datos.creado_por
+        datos.creado_por, datos.academia_id
       ]);
 
       const idDocente = Number(docenteRes.insertId);
 
       if (datos.documentos && datos.documentos.length > 0) {
         const docQuery = `
-          INSERT INTO documentos_docente (id_docente, tipo_documento, url_archivo, fecha_subida)
+          INSERT INTO documentos_docentes (docente_id, tipo_documento, url_archivo, fecha_subida)
           VALUES (?, ?, ?, NOW())
         `;
         for (const doc of datos.documentos) {

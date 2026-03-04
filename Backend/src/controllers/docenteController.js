@@ -22,11 +22,11 @@ const registerDocente = async (req, res) => {
   try {
     const {
       usuario_id, rfc, curp, celular, calle, numero, colonia, cp,
-      clave_ine, fecha_ingreso, nivel_academico, creado_por 
+      clave_ine, fecha_ingreso, nivel_academico, creado_por, academia_id 
     } = req.body;
 
     if (!usuario_id || !rfc || !curp || !celular || !calle || !numero || !colonia || !cp ||
-        !clave_ine || !fecha_ingreso || !nivel_academico || !creado_por) {
+        !clave_ine || !fecha_ingreso || !nivel_academico || !creado_por || !academia_id) {
       return res.status(400).json({ error: "Faltan datos obligatorios." });
     }
 
@@ -60,7 +60,8 @@ const ultimaMatricula = await docenteModel.getLastMatricula();
     await docenteModel.createDocente({
       usuario_id, creado_por, matricula, rfc, curp, clave_ine,
       domicilio: domicilio_completo, celular, nivel_academico, 
-      antiguedad_fecha: fecha_ingreso, documentos
+      antiguedad_fecha: fecha_ingreso, documentos,
+      academia_id
     });
 
     res.status(201).json({ message: "Éxito", matricula_generada: matricula });
