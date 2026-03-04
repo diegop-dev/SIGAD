@@ -8,13 +8,17 @@ export const AltaDocente = ({ onBack, onSuccess }) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  
+  // Listados desde la DB
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
+  const [academiasDisponibles, setAcademiasDisponibles] = useState([]);
 
-  // NUEVOS ESTADOS para Código Postal y Validaciones
+  // Estados para Código Postal y Validaciones
   const [errores, setErrores] = useState({ rfc: "", curp: "" });
   const [coloniasDisponibles, setColoniasDisponibles] = useState([]);
   const [estadoRepublica, setEstadoRepublica] = useState("");
-const [siguienteMatricula, setSiguienteMatricula] = useState("AUTOMÁTICA");  
+  const [siguienteMatricula, setSiguienteMatricula] = useState("AUTOMÁTICA");  
+
   // Obtener fecha local de hoy
   const hoy = new Date();
   const yyyy = hoy.getFullYear();
@@ -28,8 +32,9 @@ const [siguienteMatricula, setSiguienteMatricula] = useState("AUTOMÁTICA");
   const [formData, setFormData] = useState({
     usuario_id: "", rfc: "", curp: "", celular: "", 
     calle: "", numero: "", colonia: "", cp: "",
-    clave_ine: "", fecha_ingreso: fechaActual, // <-- FECHA PRECARGADA
-    nivel_academico: ""
+    clave_ine: "", fecha_ingreso: fechaActual,
+    nivel_academico: "",
+    academia_id: ""
   });
 
   const [archivos, setArchivos] = useState({
@@ -51,6 +56,19 @@ const [siguienteMatricula, setSiguienteMatricula] = useState("AUTOMÁTICA");
       }
     };
     fetchUsuarios();
+  }, []);
+
+  // Cargar academias disponibles
+  useEffect(() => {
+    const fetchAcademias = async () => {
+      try {
+        const response = await api.get("/academias"); 
+        setAcademiasDisponibles(response.data);
+      } catch (error) {
+        console.error("Error al cargar la lista de academias", error);
+      }
+    };
+    fetchAcademias();
   }, []);
 
   // Efecto para buscar Estado y Colonias con el CP
@@ -129,7 +147,7 @@ const [siguienteMatricula, setSiguienteMatricula] = useState("AUTOMÁTICA");
     setShowModal(true);
   };
 
-const handleSubmit = async () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     setShowModal(false);
     const toastId = toast.loading("Armando expediente digital...");
@@ -137,10 +155,8 @@ const handleSubmit = async () => {
     try {
       const form = new FormData();
       
-      // Armamos los datos aplicando el "truco" para la fecha
       Object.keys(formData).forEach((key) => {
         if (key === "fecha_ingreso") {
-          // Cortamos la letra "T" y todo lo que sigue (la hora), enviando solo YYYY-MM-DD
           form.append(key, formData[key].split("T")[0]); 
         } else {
           form.append(key, formData[key]);
@@ -171,11 +187,9 @@ const handleSubmit = async () => {
 
       <form onSubmit={handleOpenModal} className="p-6 space-y-8">
         
-{/* SECCIÓN 1: Selección de Usuario y Datos de Contacto */}
+        {/* SECCIÓN 1: Selección de Usuario y Datos de Contacto */}
         <div>
           <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">1. Vinculación y Contacto</h3>
-          
-          {/* NUEVO DISEÑO DIVIDIDO: 2/3 Select, 1/3 Matrícula */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 mb-6">
             <div className="sm:col-span-2">
               <label className="block text-sm font-bold text-slate-800 mb-2">Seleccionar Usuario (Con rol de Docente) *</label>
@@ -189,7 +203,6 @@ const handleSubmit = async () => {
               </select>
             </div>
 
-            {/* NUEVO CAMPO: N# Matrícula */}
             <div>
               <label className="block text-sm font-bold text-slate-800 mb-2">N# Matrícula (Auto)</label>
               <input 
@@ -209,6 +222,13 @@ const handleSubmit = async () => {
               <input type="text" name="rfc" required maxLength="13" value={formData.rfc} onChange={handleChange} onKeyDown={handleKeyDownStrict} className={`block w-full rounded-xl border ${errores.rfc ? 'border-red-500 focus:border-red-600' : 'border-slate-300 focus:border-blue-600'} shadow-sm py-3 px-4`} />
               {errores.rfc && <p className="text-xs text-red-500 mt-1 font-semibold">{errores.rfc}</p>}
             </div>
+            
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-2">CURP *</label>
+              <input type="text" name="curp" required maxLength="18" value={formData.curp} onChange={handleChange} onKeyDown={handleKeyDownStrict} className={`block w-full rounded-xl border ${errores.curp ? 'border-red-500 focus:border-red-600' : 'border-slate-300 focus:border-blue-600'} shadow-sm py-3 px-4`} />
+              {errores.curp && <p className="text-xs text-red-500 mt-1 font-semibold">{errores.curp}</p>}
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-800 mb-2">Celular *</label>
               <input type="text" name="celular" required maxLength="10" value={formData.celular} onChange={handleChange} className="block w-full rounded-xl border border-slate-300 shadow-sm focus:border-blue-600 py-3 px-4" />
@@ -259,13 +279,14 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        {/* SECCIÓN 3: Laboral */}
+        {/* SECCIÓN 3: Laboral y Académica */}
         <div>
           <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">3. Laboral y Académica</h3>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+          
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 mb-6">
             <div>
               <label className="block text-sm font-bold text-slate-800 mb-2">Grado Máximo *</label>
-              <select name="nivel_academico" required value={formData.nivel_academico} onChange={handleChange} className="block w-full rounded-xl border border-slate-300 shadow-sm focus:border-blue-600 py-3 px-4">
+              <select name="nivel_academico" required value={formData.nivel_academico} onChange={handleChange} className="block w-full rounded-xl border border-slate-300 shadow-sm focus:border-blue-600 py-3 px-4 bg-white">
                 <option value="">Seleccione grado</option>
                 <option value="Licenciatura">Licenciatura</option>
                 <option value="Maestria">Maestría</option>
@@ -273,13 +294,26 @@ const handleSubmit = async () => {
               </select>
             </div>
             
-            {/* AQUÍ ESTÁ EL CAMBIO DE LA FECHA ESTATICA */}
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Fecha de Ingreso*</label>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Academia *</label>
+              <select name="academia_id" required value={formData.academia_id} onChange={handleChange} className="block w-full rounded-xl border border-slate-300 shadow-sm focus:border-blue-600 py-3 px-4 bg-white">
+                <option value="">Seleccione academia</option>
+                {academiasDisponibles.map((academia) => (
+                  <option key={academia.id_academia} value={academia.id_academia}>
+                    {academia.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Fecha de Ingreso *</label>
               <input type="date" name="fecha_ingreso" value={formData.fecha_ingreso} readOnly disabled className="block w-full rounded-xl border border-slate-200 bg-slate-100 text-slate-600 py-3 px-4 cursor-not-allowed font-medium shadow-sm" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-800 mb-2">Antigüedad*</label>
+              <label className="block text-sm font-bold text-slate-800 mb-2">Antigüedad *</label>
               <input type="text" value={antiguedad} readOnly disabled placeholder="Automática" className="block w-full rounded-xl border border-slate-200 bg-slate-100 text-slate-600 py-3 px-4 cursor-not-allowed font-medium shadow-sm" />
             </div>
           </div>
@@ -317,6 +351,7 @@ const handleSubmit = async () => {
               <p className="text-sm text-slate-600 mb-4">Se creará el expediente y generará la matrícula. Verifique los datos:</p>
               <div className="bg-slate-50 p-4 rounded-xl text-sm space-y-2">
                 <div className="flex"><span className="font-bold w-1/3">RFC:</span> <span>{formData.rfc}</span></div>
+                <div className="flex"><span className="font-bold w-1/3">CURP:</span> <span>{formData.curp}</span></div>
                 <div className="flex"><span className="font-bold w-1/3">ID Oficial:</span> <span>{formData.clave_ine}</span></div>
                 <div className="flex"><span className="font-bold w-1/3">Estado:</span> <span>{estadoRepublica}</span></div>
                 <div className="flex"><span className="font-bold w-1/3">Colonia:</span> <span>{formData.colonia}</span></div>
