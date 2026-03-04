@@ -97,5 +97,31 @@ const actualizarAula = async (req, res) => {
   }
 };
 
+const desactivarAula = async (req, res) => {
+  const { id } = req.params;
+  const { eliminado_por } = req.body; 
 
-module.exports = { registrarAula, consultarAulas, actualizarAula };
+  try {
+    const query = `
+      UPDATE Aulas 
+      SET 
+        estatus = 'INACTIVO', 
+        eliminado_por = ?, 
+        fecha_eliminacion = NOW() 
+      WHERE id_aula = ?
+    `;
+
+    const [resultado] = await pool.query(query, [eliminado_por, id]);
+
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ message: "Aula o laboratorio no encontrado." });
+    }
+
+    res.json({ message: "Espacio académico desactivado con éxito." });
+  } catch (error) {
+    console.error("Error al desactivar aula:", error);
+    res.status(500).json({ message: "Error interno al procesar la baja del espacio." });
+  }
+};
+
+module.exports = { registrarAula, consultarAulas, actualizarAula, desactivarAula};

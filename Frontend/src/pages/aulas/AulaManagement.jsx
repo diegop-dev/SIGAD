@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, Home, Beaker, MapPin, Users } from 'lucide-react';
 import EditAulaModal from './EditAulaModal'; 
 import AddAulaModal from './AddAulaModal';
+import DeactivateAulaModal from './DeactivateAulaModal';
 
 const AulaManagement = () => {
   const [aulas, setAulas] = useState([]);
@@ -10,6 +11,7 @@ const AulaManagement = () => {
   const [aulaSeleccionada, setAulaSeleccionada] = useState(null);
   const [mostrarModalEdit, setMostrarModalEdit] = useState(false);
   const [mostrarModalAdd, setMostrarModalAdd] = useState(false);
+  const [mostrarModalDeactivate, setMostrarModalDeactivate] = useState(false);
 
   // 1. Cargar datos desde el Backend (HU-30)
   const cargarAulas = async () => {
@@ -127,7 +129,13 @@ const AulaManagement = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                      <button  onClick={() => {
+                            setAulaSeleccionada(aula);
+                            setMostrarModalDeactivate(true);
+                        }}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
+                            title="Desactivar"
+                        >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -151,6 +159,14 @@ const AulaManagement = () => {
       {mostrarModalAdd && (
   <AddAulaModal 
     alCerrar={() => setMostrarModalAdd(false)} 
+    alExito={cargarAulas} 
+    adminId={1} 
+  />
+)}
+{mostrarModalDeactivate && (
+  <DeactivateAulaModal 
+    aula={aulaSeleccionada} 
+    alCerrar={() => setMostrarModalDeactivate(false)} 
     alExito={cargarAulas} 
     adminId={1} 
   />
