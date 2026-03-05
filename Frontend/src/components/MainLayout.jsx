@@ -27,6 +27,7 @@ export const MainLayout = () => {
     { name: 'Gestión de carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
     { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
+    { name: 'Gestión de asignaciones', path: '/asignaciones', icon: Calendar, roles: [1, 2]},
     { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3]}
   ];
 
