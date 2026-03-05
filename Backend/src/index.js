@@ -9,6 +9,7 @@ const authRoutes = require('./routes/authRoutes');
 const docentesRoutes = require('./routes/docentesRoutes');
 const academiaRoutes = require('./routes/academiaRoutes'); 
 const materiaRoutes = require('./routes/materiaRoutes');
+const aulasRoutes = require('./routes/aulasRoutes');
 const carreraRoutes = require('./routes/carreraRoutes');
 const grupoRoutes = require('./routes/grupoRoutes');
 const app = express();
@@ -32,6 +33,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use('/api/docentes', docentesRoutes); 
 app.use('/api/academias', academiaRoutes);
 app.use('/api/materias', materiaRoutes);
+app.use('/api/aulas', aulasRoutes);
 app.use('/api/carreras', carreraRoutes);
 app.use('/api/grupos', grupoRoutes);
 
