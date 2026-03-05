@@ -45,13 +45,11 @@ const registerDocente = async (req, res) => {
 
     if (documentos.length < 6) return res.status(400).json({ error: "Se requieren los 6 archivos PDF." });
 
-const ultimaMatricula = await docenteModel.getLastMatricula();
-    let matricula = "00000001"; // Formato inicial si la tabla está vacía
+    const ultimaMatricula = await docenteModel.getLastMatricula();
+    let matricula = "00000001"; 
     
     if (ultimaMatricula) {
-      // Como ahora son solo números, lo leemos directamente
       const numeroActual = parseInt(ultimaMatricula, 10);
-      // Le sumamos 1 y garantizamos que siempre tenga 8 dígitos
       matricula = String(numeroActual + 1).padStart(8, "0");
     }
 
@@ -71,4 +69,54 @@ const ultimaMatricula = await docenteModel.getLastMatricula();
   }
 };
 
-module.exports = { registerDocente, getDocentes, getUsuariosDisponibles };
+// NUEVA FUNCIÓN PARA ACTUALIZAR
+const updateDocente = async (req, res) => {
+  try {
+    const { id } = req.params; // Obtenemos el ID del docente desde la URL
+    const {
+      rfc, curp, celular, calle, numero, colonia, cp,
+      clave_ine, nivel_academico, academia_id, modificado_por 
+    } = req.body;
+
+    // Opcional: Validar que no falten datos clave
+    if (!rfc || !curp || !celular || !clave_ine || !nivel_academico || !academia_id) {
+      return res.status(400).json({ error: "Faltan datos obligatorios para actualizar." });
+    }
+
+    // Reconstruimos el domicilio solo si nos enviaron los campos (por si cambiaron de dirección)
+    let domicilio_completo = null;
+    if (calle && numero && colonia && cp) {
+      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+    }
+
+    // Procesamos solo los documentos que el usuario haya decidido reemplazar
+    const documentosNuevos = [];
+    if (req.files?.titulo) documentosNuevos.push({ tipo: 'TITULO', url: `/uploads/docentes/${req.files.titulo[0].filename}` });
+    if (req.files?.cedula) documentosNuevos.push({ tipo: 'CEDULA', url: `/uploads/docentes/${req.files.cedula[0].filename}` });
+    if (req.files?.sat) documentosNuevos.push({ tipo: 'CONSTANCIA_FISCAL', url: `/uploads/docentes/${req.files.sat[0].filename}` });
+    if (req.files?.ine) documentosNuevos.push({ tipo: 'INE', url: `/uploads/docentes/${req.files.ine[0].filename}` });
+    if (req.files?.domicilio) documentosNuevos.push({ tipo: 'COMPROBANTE_DOMICILIO', url: `/uploads/docentes/${req.files.domicilio[0].filename}` });
+    if (req.files?.cv) documentosNuevos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
+
+    // Mandamos todo al modelo
+    await docenteModel.updateDocente(id, {
+      rfc, 
+      curp, 
+      clave_ine, 
+      celular, 
+      nivel_academico, 
+      academia_id, 
+      modificado_por,
+      domicilio: domicilio_completo,
+      documentos: documentosNuevos
+    });
+
+    res.status(200).json({ message: "Docente actualizado correctamente" });
+  } catch (error) {
+    console.error("Error al actualizar docente:", error);
+    res.status(500).json({ error: "Error interno al actualizar el docente." });
+  }
+};
+
+// No olvides exportar la nueva función
+module.exports = { registerDocente, getDocentes, getUsuariosDisponibles, updateDocente };
