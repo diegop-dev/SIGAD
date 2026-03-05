@@ -6,29 +6,26 @@ import api from "../../services/api";
 export const AssignmentForm = ({ onBack, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estados para los catálogos (Selects)
   const [periodos, setPeriodos] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [materias, setMaterias] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [aulas, setAulas] = useState([]);
 
-  // Estado del formulario
+  // ESTADO ACTUALIZADO AL DIAGRAMA BD
   const [formData, setFormData] = useState({
-    id_periodo: "",
-    id_docente: "",
-    id_materia: "",
-    id_grupo: "",
+    periodo_id: "",
+    docente_id: "",
+    materia_id: "",
+    grupo_id: "",
     horarios: [
       { dia_semana: "Lunes", hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }
-    ] // Inicia con un bloque por defecto
+    ]
   });
 
-  // Cargar catálogos al montar el componente
   useEffect(() => {
     const fetchCatalogs = async () => {
       try {
-        // NOTA: Ajusta estas rutas a tus endpoints reales de consulta
         const [resPeriodos, resDocentes, resMaterias, resGrupos, resAulas] = await Promise.all([
           api.get('/periodos').catch(() => ({ data: [] })),
           api.get('/docentes').catch(() => ({ data: [] })),
@@ -37,11 +34,11 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
           api.get('/aulas').catch(() => ({ data: [] }))
         ]);
 
-        setPeriodos(resPeriodos.data);
-        setDocentes(resDocentes.data);
-        setMaterias(resMaterias.data);
-        setGrupos(resGrupos.data);
-        setAulas(resAulas.data);
+        setPeriodos(resPeriodos.data?.data || resPeriodos.data || []);
+        setDocentes(resDocentes.data?.data || resDocentes.data || []);
+        setMaterias(resMaterias.data?.data || resMaterias.data || []);
+        setGrupos(resGrupos.data?.data || resGrupos.data || []);
+        setAulas(resAulas.data?.data || resAulas.data || []);
       } catch (error) {
         toast.error("Error al cargar los catálogos del sistema.");
       }
@@ -77,7 +74,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validación de que todas las aulas estén seleccionadas en los bloques
     const missingAula = formData.horarios.some(h => !h.aula_id);
     if (missingAula) return toast.error("Debes seleccionar un aula para cada bloque de horario.");
 
@@ -107,39 +103,37 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
 
       <form onSubmit={handleSubmit} className="p-6 space-y-8">
         
-        {/* Datos Generales */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">Periodo Escolar *</label>
-            <select name="id_periodo" required value={formData.id_periodo} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
+            <select name="periodo_id" required value={formData.periodo_id} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
               <option value="">Seleccione un periodo...</option>
-              {periodos.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.nombre_periodo}</option>)}
+              {periodos.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">Docente *</label>
-            <select name="id_docente" required value={formData.id_docente} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
+            <select name="docente_id" required value={formData.docente_id} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
               <option value="">Seleccione un docente...</option>
               {docentes.map(d => <option key={d.id_docente} value={d.id_docente}>{d.nombres} {d.apellido_paterno}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">Materia *</label>
-            <select name="id_materia" required value={formData.id_materia} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
+            <select name="materia_id" required value={formData.materia_id} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
               <option value="">Seleccione una materia...</option>
-              {materias.map(m => <option key={m.id_materia} value={m.id_materia}>{m.nombre_materia}</option>)}
+              {materias.map(m => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">Grupo *</label>
-            <select name="id_grupo" required value={formData.id_grupo} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
+            <select name="grupo_id" required value={formData.grupo_id} onChange={handleChange} className="w-full rounded-xl border-slate-300 py-3 px-4 border shadow-sm focus:ring-2 focus:ring-blue-200">
               <option value="">Seleccione un grupo...</option>
-              {grupos.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.nombre_grupo}</option>)}
+              {grupos.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Bloques de Horarios Dinámicos */}
         <div className="border-t border-slate-200 pt-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-slate-800 flex items-center">
@@ -172,7 +166,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider"><MapPin className="w-3 h-3 inline mr-1"/>Aula</label>
                     <select value={horario.aula_id} required onChange={(e) => handleHorarioChange(index, "aula_id", e.target.value)} className="w-full rounded-lg border-slate-300 py-2.5 px-3 border shadow-sm">
                       <option value="">Seleccione...</option>
-                      {aulas.map(a => <option key={a.id_aula} value={a.id_aula}>{a.nombre_aula}</option>)}
+                      {aulas.map(a => <option key={a.id_aula} value={a.id_aula}>{a.nombre_codigo}</option>)}
                     </select>
                   </div>
                 </div>

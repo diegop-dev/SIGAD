@@ -1,57 +1,54 @@
-const pool = require('../config/database').pool;
+const pool = require('../config/database');
 
 // ==========================================
 // VALIDACIONES DE CRUCE DE HORARIOS (HU-33)
 // ==========================================
 
-// Verifica si un DOCENTE ya tiene clases en ese día y cruce de horas en el mismo periodo
-const checkDocenteConflict = async (id_docente, id_periodo, dia_semana, hora_inicio, hora_fin) => {
+const checkDocenteConflict = async (docente_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
   const [rows] = await pool.execute(`
     SELECT a.id_asignacion 
     FROM asignaciones a
-    WHERE a.id_docente = ? 
-      AND a.id_periodo = ? 
+    WHERE a.docente_id = ? 
+      AND a.periodo_id = ? 
       AND a.dia_semana = ?
       AND a.estatus_acta != 'CERRADA'
       AND (
         (a.hora_inicio < ? AND a.hora_fin > ?) OR
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
-  `, [id_docente, id_periodo, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  `, [docente_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
   return rows.length > 0;
 };
 
-// Verifica si un GRUPO ya tiene clases en ese día y cruce de horas en el mismo periodo
-const checkGrupoConflict = async (id_grupo, id_periodo, dia_semana, hora_inicio, hora_fin) => {
+const checkGrupoConflict = async (grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
   const [rows] = await pool.execute(`
     SELECT a.id_asignacion 
     FROM asignaciones a
-    WHERE a.id_grupo = ? 
-      AND a.id_periodo = ? 
+    WHERE a.grupo_id = ? 
+      AND a.periodo_id = ? 
       AND a.dia_semana = ?
       AND a.estatus_acta != 'CERRADA'
       AND (
         (a.hora_inicio < ? AND a.hora_fin > ?) OR
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
-  `, [id_grupo, id_periodo, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  `, [grupo_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
   return rows.length > 0;
 };
 
-// Verifica si un AULA ya está ocupada en ese día y cruce de horas en el mismo periodo
-const checkAulaConflict = async (aula_id, id_periodo, dia_semana, hora_inicio, hora_fin) => {
+const checkAulaConflict = async (aula_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
   const [rows] = await pool.execute(`
     SELECT a.id_asignacion 
     FROM asignaciones a
     WHERE a.aula_id = ? 
-      AND a.id_periodo = ? 
+      AND a.periodo_id = ? 
       AND a.dia_semana = ?
       AND a.estatus_acta != 'CERRADA'
       AND (
         (a.hora_inicio < ? AND a.hora_fin > ?) OR
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
-  `, [aula_id, id_periodo, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  `, [aula_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
   return rows.length > 0;
 };
 
@@ -59,7 +56,6 @@ const checkAulaConflict = async (aula_id, id_periodo, dia_semana, hora_inicio, h
 // TRANSACCIÓN DE CREACIÓN (HU-33)
 // ==========================================
 
-// Inserta múltiples asignaciones (una por cada bloque de horario/día)
 const createAsignaciones = async (asignacionesData) => {
   const connection = await pool.getConnection();
   try {
@@ -67,10 +63,10 @@ const createAsignaciones = async (asignacionesData) => {
 
     const insertQuery = `
       INSERT INTO asignaciones (
-        id_periodo, 
-        id_materia, 
-        id_docente, 
-        id_grupo, 
+        periodo_id, 
+        materia_id, 
+        docente_id, 
+        grupo_id, 
         aula_id, 
         dia_semana, 
         hora_inicio, 
@@ -81,13 +77,12 @@ const createAsignaciones = async (asignacionesData) => {
 
     const insertedIds = [];
 
-    // Iteramos sobre cada bloque de horario y lo insertamos
     for (const data of asignacionesData) {
       const [result] = await connection.execute(insertQuery, [
-        data.id_periodo,
-        data.id_materia,
-        data.id_docente,
-        data.id_grupo,
+        data.periodo_id,
+        data.materia_id,
+        data.docente_id,
+        data.grupo_id,
         data.aula_id,
         data.dia_semana,
         data.hora_inicio,
@@ -112,7 +107,6 @@ const createAsignaciones = async (asignacionesData) => {
 // CONSULTA RELACIONAL CON FILTROS (HU-34)
 // ==========================================
 
-// Obtiene todas las asignaciones con los nombres cruzados (JOINs) y filtros opcionales
 const getAllAsignaciones = async (filters = {}) => {
   let query = `
     SELECT 
@@ -122,43 +116,39 @@ const getAllAsignaciones = async (filters = {}) => {
       a.hora_fin,
       a.estatus_confirmacion,
       a.estatus_acta,
-      p.nombre_periodo,
-      m.nombre_materia,
-      g.nombre_grupo,
-      au.nombre_aula,
-      a.id_docente,
+      p.codigo AS nombre_periodo,
+      m.nombre AS nombre_materia,
+      g.identificador AS nombre_grupo,
+      au.nombre_codigo AS nombre_aula,
+      a.docente_id,
       u.nombres AS docente_nombres,
       u.apellido_paterno AS docente_apellido_paterno,
       u.apellido_materno AS docente_apellido_materno
     FROM asignaciones a
-    INNER JOIN periodos p ON a.id_periodo = p.id_periodo
-    INNER JOIN materias m ON a.id_materia = m.id_materia
-    INNER JOIN grupos g ON a.id_grupo = g.id_grupo
+    INNER JOIN periodos p ON a.periodo_id = p.id_periodo
+    INNER JOIN materias m ON a.materia_id = m.id_materia
+    INNER JOIN grupos g ON a.grupo_id = g.id_grupo
     INNER JOIN aulas au ON a.aula_id = au.id_aula
-    INNER JOIN docentes d ON a.id_docente = d.id_docente
-    INNER JOIN usuarios u ON d.id_usuario = u.id_usuario
+    INNER JOIN docentes d ON a.docente_id = d.id_docente
+    INNER JOIN usuarios u ON d.usuario_id = u.id_usuario
     WHERE a.estatus_acta != 'CERRADA'
   `;
 
   const queryParams = [];
 
-  // Construcción dinámica de filtros WHERE
-  if (filters.id_periodo) {
-    query += ` AND a.id_periodo = ?`;
-    queryParams.push(filters.id_periodo);
+  if (filters.periodo_id) {
+    query += ` AND a.periodo_id = ?`;
+    queryParams.push(filters.periodo_id);
   }
-  
-  if (filters.id_docente) {
-    query += ` AND a.id_docente = ?`;
-    queryParams.push(filters.id_docente);
+  if (filters.docente_id) {
+    query += ` AND a.docente_id = ?`;
+    queryParams.push(filters.docente_id);
   }
-
-  if (filters.id_grupo) {
-    query += ` AND a.id_grupo = ?`;
-    queryParams.push(filters.id_grupo);
+  if (filters.grupo_id) {
+    query += ` AND a.grupo_id = ?`;
+    queryParams.push(filters.grupo_id);
   }
 
-  // Ordenamos para que la tabla en el frontend se vea estructurada
   query += ` ORDER BY p.fecha_inicio DESC, u.apellido_paterno ASC, a.dia_semana ASC, a.hora_inicio ASC`;
 
   const [rows] = await pool.execute(query, queryParams);
