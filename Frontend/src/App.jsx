@@ -10,6 +10,8 @@ import { DocenteManagement } from "./pages/docentes/DocenteManagement";
 import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
 import { MateriasManagement } from "./pages/materias/materiasManagement";
 import { periodosManagement } from "./pages/periodos/periodosManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
+import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 
 function App() {
   return (
@@ -32,6 +34,7 @@ function App() {
               <Route path="/academias" element={<AcademiaManagement />} />
               <Route path="/materias" element={<MateriasManagement />} />
               <Route path="/periodos" element={<periodosManagement />} />
+              <Route path="/carreras" element={<CarreraManagement />} />
               {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 

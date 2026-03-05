@@ -27,4 +27,21 @@ exports.createAcademia = async (req, res) => {
     console.error("Error real al registrar:", error);
     res.status(500).json({ error: error.message });
   }
+  
+};
+exports.getAcademiasCliente = async (req, res) => {
+  try {
+    const academias = await Academia.getAcademiasActivasCliente();
+    res.json(academias);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.getAcademias = async (req, res) => {
+  try {
+    const academias = await Academia.getAcademias();
+    res.json(academias);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
