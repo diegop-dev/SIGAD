@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Save, X, Loader2, AlertCircle } from 'lucide-react';
-
+import api from '../../services/api'; 
+import toast from 'react-hot-toast'
 const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
   const [formData, setFormData] = useState({
-    nombre: aula.nombre || '',
+    nombre: aula.nombre_codigo || '',
     tipo: aula.tipo || 'AULA',
     capacidad: aula.capacidad || '',
     ubicacion: aula.ubicacion || '',
@@ -24,23 +25,23 @@ const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/aulas/actualizar/${aula.id_aula}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, modificado_por: adminId })
+      
+      const response = await api.patch(`/aulas/actualizar/${aula.id_aula}`, {
+        ...formData,
+        capacidad: parseInt(formData.capacidad), 
+        modificado_por: adminId
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        alExito(); // Refresca la tabla en AulaManagement
+      if (response.status === 200) {
+        toast.success("¡Espacio actualizado con éxito!");
+        alExito(); // Refresca la tablita
         alCerrar(); // Cierra el modal
-      } else {
-        // Muestra el error del validador o del controlador
-        setError(data.message || data.errores?.join(', ') || "Error al actualizar");
       }
     } catch (err) {
-      setError("Error de conexión con el servidor.");
+     
+      const msg = err.response?.data?.message || "Error al conectar con el servidor.";
+      setError(msg);
+      toast.error("No se pudo actualizar el espacio");
     } finally {
       setCargando(false);
     }
@@ -68,6 +69,7 @@ const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
             <input 
               type="text" name="nombre" value={formData.nombre} onChange={handleChange} required
+              maxLength={50}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>

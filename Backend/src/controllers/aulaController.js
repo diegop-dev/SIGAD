@@ -1,11 +1,11 @@
-
+const pool = require('../config/database');
 const registrarAula = async (req, res) => {
   const { nombre, tipo, capacidad, ubicacion, creado_por } = req.body;
 
   try {
-
-    const [existente] = await pool.query(
-      'SELECT id_aula FROM Aulas WHERE nombre = ?', 
+    // SIN CORCHETES: guardamos el arreglo completo
+    const existente = await pool.query(
+      'SELECT id_aula FROM Aulas WHERE nombre_codigo = ?', 
       [nombre]
     );
 
@@ -13,13 +13,13 @@ const registrarAula = async (req, res) => {
       return res.status(409).json({ message: "Ya existe un aula o laboratorio con ese nombre." });
     }
 
-    
     const query = `
-      INSERT INTO Aulas (nombre, tipo, capacidad, ubicacion, estatus, creado_por, fecha_creacion) 
+      INSERT INTO Aulas (nombre_codigo, tipo, capacidad, ubicacion, estatus, creado_por, fecha_creacion) 
       VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())
     `;
 
-    const [resultado] = await pool.query(query, [nombre, tipo, capacidad, ubicacion, creado_por]);
+    // SIN CORCHETES
+    const resultado = await pool.query(query, [nombre, tipo, capacidad, ubicacion, creado_por]);
 
     res.status(201).json({ 
       message: "Espacio académico registrado con éxito.",
@@ -33,21 +33,20 @@ const registrarAula = async (req, res) => {
 };
 const consultarAulas = async (req, res) => {
   try {
-
     const query = `
       SELECT 
         id_aula, 
-        nombre AS nombre_codigo, 
+        nombre_codigo, 
         tipo, 
         capacidad, 
         ubicacion, 
         estatus 
       FROM Aulas
-      ORDER BY nombre ASC
+      ORDER BY nombre_codigo ASC
     `;
 
-    const [resultados] = await pool.query(query);
-
+    // SIN CORCHETES
+    const resultados = await pool.query(query);
 
     res.status(200).json(resultados);
     
@@ -61,9 +60,8 @@ const actualizarAula = async (req, res) => {
   const { nombre, tipo, capacidad, ubicacion, estatus, modificado_por } = req.body;
 
   try {
-
-    const [existente] = await pool.query(
-      'SELECT id_aula FROM Aulas WHERE nombre = ? AND id_aula != ?', 
+    const existente = await pool.query(
+      'SELECT id_aula FROM Aulas WHERE nombre_codigo = ? AND id_aula != ?', 
       [nombre, id]
     );
 
@@ -74,7 +72,7 @@ const actualizarAula = async (req, res) => {
     const query = `
       UPDATE Aulas 
       SET 
-        nombre = ?, 
+        nombre_codigo = ?, 
         tipo = ?, 
         capacidad = ?, 
         ubicacion = ?, 
@@ -84,15 +82,15 @@ const actualizarAula = async (req, res) => {
       WHERE id_aula = ?
     `;
 
-    const [resultado] = await pool.query(query, [nombre, tipo, capacidad, ubicacion, estatus, modificado_por, id]);
+    const resultado = await pool.query(query, [nombre, tipo, capacidad, ubicacion, estatus, modificado_por, id]);
 
     if (resultado.affectedRows === 0) {
-      return res.status(404).json({ message: "Aula o laboratorio no encontrado." });
+      return res.status(404).json({ message: "Aula no encontrada." });
     }
 
-    res.json({ message: "Espacio académico actualizado con éxito." });
+    res.json({ message: "Actualizado con éxito." });
   } catch (error) {
-    console.error("Error al actualizar aula:", error);
+    console.error("Error al actualizar:", error);
     res.status(500).json({ message: "Error interno del servidor." });
   }
 };
@@ -111,7 +109,7 @@ const desactivarAula = async (req, res) => {
       WHERE id_aula = ?
     `;
 
-    const [resultado] = await pool.query(query, [eliminado_por, id]);
+    const resultado = await pool.query(query, [eliminado_por, id]);
 
     if (resultado.affectedRows === 0) {
       return res.status(404).json({ message: "Aula o laboratorio no encontrado." });

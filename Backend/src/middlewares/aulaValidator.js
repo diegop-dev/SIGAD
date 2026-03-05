@@ -2,7 +2,7 @@ const validarActualizacionAula = (req, res, next) => {
   const { nombre, tipo, capacidad, ubicacion, estatus } = req.body;
   const errores = [];
 
-  // Validaciones que un tester buscaría:
+  
   if (!nombre || nombre.trim().length < 3) {
     errores.push("El nombre debe tener al menos 3 caracteres.");
   }

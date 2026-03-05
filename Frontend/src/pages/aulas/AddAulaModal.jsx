@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Save, X, Loader2, AlertCircle } from 'lucide-react';
-
+import api from '../../services/api'; 
+import toast from 'react-hot-toast';
 const AddAulaModal = ({ alCerrar, alExito, adminId }) => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -20,29 +21,28 @@ const AddAulaModal = ({ alCerrar, alExito, adminId }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setCargando(true);
-    setError(null);
+try {
+  
+    const datosAEnviar = {
+  ...formData,
+  capacidad: parseInt(formData.capacidad), 
+  creado_por: adminId 
+};
+    const response = await api.post('/aulas/registrar', datosAEnviar);
 
-    try {
-      const response = await fetch('/api/aulas/registrar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, creado_por: adminId })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alExito(); // Refresca
-        alCerrar(); // Cierra el modal
-      } else {
-        setError(data.message || "Error al registrar el espacio");
-      }
-    } catch (err) {
-      setError("Error de conexión con el servidor.");
-    } finally {
-      setCargando(false);
+    if (response.status === 201) {
+      toast.success('¡Aula registrada con éxito!');
+      alExito(); 
+      alCerrar();
     }
-  };
+  } catch (err) {
+    
+    const msg = err.response?.data?.message || "Error al conectar con el servidor";
+    toast.error(msg);
+  } finally {
+    setCargando(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 font-['Figtree']">
@@ -67,6 +67,7 @@ const AddAulaModal = ({ alCerrar, alExito, adminId }) => {
             <input 
               type="text" name="nombre" value={formData.nombre} onChange={handleChange} 
               required placeholder="Ej. A-101 o Lab. Cómputo 1"
+              maxLength={50}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>

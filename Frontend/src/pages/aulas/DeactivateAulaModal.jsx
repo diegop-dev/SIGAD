@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, X, Loader2, Trash2 } from 'lucide-react';
-
+import api from '../../services/api'; 
+import toast from 'react-hot-toast'
 const DeactivateAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
@@ -9,23 +10,23 @@ const DeactivateAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
     setCargando(true);
     setError(null);
 
-    try {
-      const response = await fetch(`/api/aulas/desactivar/${aula.id_aula}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eliminado_por: adminId })
+  try {
+
+      const response = await api.patch(`/aulas/desactivar/${aula.id_aula}`, {
+        eliminado_por: adminId 
       });
 
-      const data = await response.json();
 
-      if (response.ok) {
-        alExito(); // Refresca la tabliat
-        alCerrar(); // Cierra el modal
-      } else {
-        setError(data.message || "Error al desactivar el espacio");
+      if (response.status === 200) {
+        toast.success("¡Espacio desactivado con éxito!");
+        alExito(); 
+        alCerrar(); 
       }
     } catch (err) {
-      setError("Error de conexión con el servidor.");
+      
+      const msg = err.response?.data?.message || "Error al conectar con el servidor.";
+      setError(msg);
+      toast.error("Hubo un problema al desactivar el espacio");
     } finally {
       setCargando(false);
     }
