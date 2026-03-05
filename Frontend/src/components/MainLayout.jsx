@@ -25,8 +25,9 @@ export const MainLayout = () => {
     { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
     { name: 'Gestion de Aulas y Laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
     { name: 'Gestión de carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
-    { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2] },
-    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
+    { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
+    { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
+    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3]}
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.rol_id));
