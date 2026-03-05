@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, HomeIcon } from 'lucide-react';
-import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, GraduationCap } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon } from 'lucide-react';
 import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal'; // NUEVO: Importamos el modal aquí
 
 export const MainLayout = () => {
