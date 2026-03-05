@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
 const carreraModel = require("../models/carreraModel");
 
 const getCarreras = async (req, res) => {
@@ -12,6 +15,7 @@ const getCarreras = async (req, res) => {
 };
 
 module.exports = { getCarreras };
+<<<<<<< HEAD
 =======
 const carreraModel = require('../models/carreraModel');
 
@@ -92,3 +96,5 @@ const carreraController = {
 
 module.exports = carreraController;
 >>>>>>> 96d47df85929427909951d672149819d49488ffe
+=======
+>>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49

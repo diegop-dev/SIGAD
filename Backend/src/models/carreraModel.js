@@ -1,12 +1,17 @@
 const pool = require("../config/database");
 
 const carreraModel = {
+<<<<<<< HEAD
 
   findExistingCarrera: async (nombre_carrera) => {
+=======
+  getAllCarreras: async () => {
+>>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
     let conn;
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(
+<<<<<<< HEAD
         `SELECT id_carrera, nombre_carrera 
          FROM carreras 
          WHERE nombre_carrera = ? LIMIT 1`,
@@ -51,6 +56,10 @@ const carreraModel = {
         LEFT JOIN academias a ON c.academia_id = a.id_academia
         ORDER BY c.id_carrera DESC
       `);
+=======
+        `SELECT id_carrera, nombre_carrera FROM Carreras`
+      );
+>>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
       return rows;
     } finally {
       if (conn) conn.release();
