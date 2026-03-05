@@ -29,4 +29,11 @@ router.delete(
   materiaController.deleteMateria
 );
 
+router.patch(
+  "/:id",
+  verifyToken,
+  requireRole([1]),
+  materiaController.toggleMateria
+);
+
 module.exports = router;

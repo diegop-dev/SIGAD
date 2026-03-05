@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../../services/api";
 import PeriodoForm from "./periodosForm";
 
-export const periodosManagement = () => {
+export const PeriodosManagement = () => {
   const [periodos, setPeriodos] = useState([]);
   const [estatus, setEstatus] = useState("");
 

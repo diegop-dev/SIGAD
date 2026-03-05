@@ -9,21 +9,54 @@ export const MateriasDelete = ({
 }) => {
 
   const handleDelete = async () => {
-    const toastId = toast.loading("Procesando eliminación...");
 
-    try {
-      await api.delete(`/materias/${materia.id_materia}`);
+const toastId = toast.loading("Procesando eliminación...");
 
-      toast.success("Materia eliminada correctamente", { id: toastId });
-      onSuccess();
-    } catch (error) {
-      const msg =
-        error.response?.data?.error ||
-        "No se puede eliminar físicamente. Se recomienda baja lógica.";
+try{
 
-      toast.error(msg, { id: toastId });
-    }
-  };
+await api.delete(`/materias/${materia.id_materia}`);
+
+toast.success("Materia eliminada correctamente",{id:toastId});
+
+onSuccess();
+
+}catch(error){
+
+if(error.response?.status === 409){
+
+toast.error("Tiene historial. Se aplicará baja lógica.",{id:toastId});
+
+await handleLogicalDelete();
+
+}else{
+
+toast.error("Error eliminando",{id:toastId});
+
+}
+
+}
+
+};
+
+const handleLogicalDelete = async ()=>{
+
+const toastId = toast.loading("Aplicando baja lógica...");
+
+try{
+
+await api.patch(`/materias/${materia.id_materia}/toggle`);
+
+toast.success("Materia desactivada",{id:toastId});
+
+onSuccess();
+
+}catch{
+
+toast.error("Error aplicando baja lógica",{id:toastId});
+
+}
+
+};
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

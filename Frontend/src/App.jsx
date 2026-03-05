@@ -8,11 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
 import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
-<<<<<<< HEAD
-=======
-import { MateriasManagement } from "./pages/materias/materiasManagement";
-import { periodosManagement } from "./pages/periodos/periodosManagement";
->>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
+import { PeriodosManagement } from "./pages/periodos/periodosManagement";
 import { MateriasManagement } from "./pages/materias/MateriasManagement";
 import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 
@@ -36,13 +32,8 @@ function App() {
               <Route path="/docentes" element={<DocenteManagement />} />
               <Route path="/academias" element={<AcademiaManagement />} />
               <Route path="/materias" element={<MateriasManagement />} />
-<<<<<<< HEAD
+              <Route path="/periodos" element={<PeriodosManagement />} />
               <Route path="/carreras" element={<CarreraManagement />} />
-              <Route path="/periodos" element={<periodosManagement />} />
-=======
-              <Route path="/periodos" element={<periodosManagement />} />
-              <Route path="/carreras" element={<CarreraManagement />} />
->>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
               {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 

@@ -17,24 +17,36 @@ const validateMateria = [
     .isInt({ min: 1, max: 30 })
     .withMessage("Los créditos deben estar entre 1 y 30"),
 
-  check("cuatrimestre")
+  check("cupo_maximo")
     .notEmpty()
-    .withMessage("El cuatrimestre es obligatorio")
-    .isInt({ min: 1, max: 12 })
-    .withMessage("El cuatrimestre debe estar entre 1 y 12"),
+    .withMessage("El cupo máximo es obligatorio")
+    .isInt({ min: 1, max: 200 })
+    .withMessage("El cupo máximo debe ser entre 1 y 200"),
+
+  check("periodo_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un periodo")
+    .isInt({ min: 1 })
+    .withMessage("Periodo inválido"),
+
+  check("cuatrimestre_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un cuatrimestre")
+    .isInt({ min: 1 })
+    .withMessage("Cuatrimestre inválido"),
 
   check("tipo_asignatura")
     .trim()
     .notEmpty()
     .withMessage("El tipo de asignatura es obligatorio")
-    .isLength({ max: 50 })
-    .withMessage("El tipo de asignatura no puede exceder 50 caracteres"),
+    .isIn(["TRONCO_COMUN", "OBLIGATORIA", "OPTATIVA"])
+    .withMessage("Tipo de asignatura inválido"),
 
   check("carrera_id")
     .notEmpty()
     .withMessage("Debe seleccionar una carrera")
     .isInt({ min: 1 })
-    .withMessage("El ID de carrera debe ser un número entero válido"),
+    .withMessage("ID de carrera inválido"),
 
   (req, res, next) => {
     const errors = validationResult(req);

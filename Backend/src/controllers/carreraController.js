@@ -1,22 +1,3 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49
-const carreraModel = require("../models/carreraModel");
-
-const getCarreras = async (req, res) => {
-  try {
-    const carreras = await carreraModel.getAllCarreras();
-    res.status(200).json(carreras);
-  } catch (error) {
-    console.error("[Error getCarreras]:", error);
-    res.status(500).json({ error: "Error al consultar carreras." });
-  }
-};
-
-module.exports = { getCarreras };
-<<<<<<< HEAD
-=======
 const carreraModel = require('../models/carreraModel');
 
 const carreraController = {
@@ -95,6 +76,3 @@ const carreraController = {
 };
 
 module.exports = carreraController;
->>>>>>> 96d47df85929427909951d672149819d49488ffe
-=======
->>>>>>> 6f12e3107348b110f0d0d01cfa99ca65a1dadf49

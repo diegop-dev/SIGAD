@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const { verifyToken } = require("../middlewares/authMiddleware");
-const periodoController = require("../controllers/periodoController");
+const cuatrimestreController = require("../controllers/cuatrimestreController");
 
-router.get("/", verifyToken, periodoController.getPeriodos);
+router.get("/", verifyToken, cuatrimestreController.getCuatrimestres);
 
 module.exports = router;
