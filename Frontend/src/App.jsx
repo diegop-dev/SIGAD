@@ -8,8 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
 import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
-import { MateriasManagement } from "./pages/materias/materiasManagement";
-import { periodosManagement } from "./pages/periodos/periodosManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
+import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 
 function App() {
   return (
@@ -31,6 +31,7 @@ function App() {
               <Route path="/docentes" element={<DocenteManagement />} />
               <Route path="/academias" element={<AcademiaManagement />} />
               <Route path="/materias" element={<MateriasManagement />} />
+              <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/periodos" element={<periodosManagement />} />
               {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
