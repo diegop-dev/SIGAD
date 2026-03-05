@@ -5,7 +5,6 @@ import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import "./AltaAcademia.css";
 
-
 export const AltaAcademia = ({ onBack, onSuccess }) => {
   const { user } = useAuth();
 
@@ -18,16 +17,21 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const [coordinadores, setCoordinadores] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isLoadingCoordinadores, setIsLoadingCoordinadores] = useState(true);
 
   useEffect(() => {
     const fetchCoordinadores = async () => {
       try {
+        setIsLoadingCoordinadores(true);
         const response = await api.get("/academias/coordinadores-disponibles");
         setCoordinadores(response.data);
       } catch {
         toast.error("Error al cargar coordinadores.");
+      } finally {
+        setIsLoadingCoordinadores(false);
       }
     };
+
     fetchCoordinadores();
   }, []);
 
@@ -39,18 +43,23 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
     }
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: sanitizedValue
     }));
   };
 
+  // encodeURIComponent previene errores de rutas con caracteres especiales
   const validarNombreUnico = async () => {
     try {
-      const response = await api.get(`/academias/validar-nombre/${formData.nombre}`);
+      const response = await api.get(
+        `/academias/validar-nombre/${encodeURIComponent(formData.nombre)}`
+      );
       return response.data.existe;
     } catch {
-      return false;
+      return null; 
+      // estoy con NULL, true bloquearía el registro aunque el servidor solo esté caído.
+      // (porque true significa que sí existe)
     }
   };
 
@@ -62,7 +71,14 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       return;
     }
 
+    const idToast = toast.loading("Verificando disponibilidad...");
     const existe = await validarNombreUnico();
+    toast.dismiss(idToast);
+
+    if (existe === null) {
+      toast.error("El nombre ya existe.");
+      return;
+    }
 
     if (existe) {
       toast.error("El nombre ya existe.");
@@ -85,10 +101,13 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       });
 
       toast.success("Academia registrada correctamente", { id: toastId });
-      if (onSuccess) onSuccess();
 
+      if (onSuccess) onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.error || "Error de servidor", { id: toastId });
+      toast.error(
+        error.response?.data?.error || "Error de servidor",
+        { id: toastId }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -105,13 +124,12 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       </div>
 
       <form onSubmit={handleOpenModal} className="alta-form">
-
         <div className="form-group">
           <label>Nombre *</label>
           <input
             type="text"
             name="nombre"
-            maxLength="150"
+            maxLength="70"
             value={formData.nombre}
             onChange={handleChange}
             required
@@ -122,6 +140,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
           <label>Descripción</label>
           <textarea
             name="descripcion"
+            maxLength="500"
             rows="3"
             value={formData.descripcion}
             onChange={handleChange}
@@ -135,18 +154,31 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             value={formData.coordinador_id}
             onChange={handleChange}
             required
+            disabled={isLoadingCoordinadores}
           >
-            <option value="">Seleccione</option>
-              {coordinadores.map(c => (
-  <option key={c.id_usuario} value={c.id_usuario}>
-    {c.nombres} {c.apellido_paterno}
-  </option>
-))}
+            {isLoadingCoordinadores ? (
+              <option value="">Cargando coordinadores...</option>
+            ) : coordinadores.length === 0 ? (
+              <option value="">No hay coordinadores disponibles</option>
+            ) : (
+              <>
+                <option value="">Seleccione</option>
+                {coordinadores.map((c) => (
+                  <option key={c.id_usuario} value={c.id_usuario}>
+                    {c.nombres} {c.apellido_paterno}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-primary">
+          <button
+            disabled={isSubmitting || isLoadingCoordinadores}
+            type="submit"
+            className="btn-primary"
+          >
             <CheckCircle size={18} />
             Guardar
           </button>
@@ -164,12 +196,19 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             </div>
 
             <div className="modal-body">
-              <p><b>Nombre:</b> {formData.nombre}</p>
-              <p><b>Coordinador ID:</b> {formData.coordinador_id}</p>
+              <p>
+                <b>Nombre:</b> {formData.nombre}
+              </p>
+              <p>
+                <b>Coordinador ID:</b> {formData.coordinador_id}
+              </p>
             </div>
 
             <div className="modal-footer">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">
+              <button
+                onClick={() => setShowModal(false)}
+                className="btn-secondary"
+              >
                 Cancelar
               </button>
               <button onClick={handleSubmit} className="btn-primary">

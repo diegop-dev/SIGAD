@@ -1,171 +1,316 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Save, ArrowLeft, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Radiation } from "lucide-react";
 import api from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 
+export const MateriasForm = ({ materiaToEdit, onBack, onSuccess }) => {
 
-export const MateriasForm = ({ onBack, onSuccess }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const { user } = useAuth();
+const isEditing = !!materiaToEdit;
 
-  const [formData, setFormData] = useState({
-    codigo_unico: "",
-    nombre: "",
-    creditos: "",
-    cuatrimestre: "",
-    tipo_asignatura: "OBLIGATORIA",
-    carrera_id: "",
-    estatus: "ACTIVO",
-  });
+const [isSubmitting,setIsSubmitting] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+const [carreras,setCarreras] = useState([]);
+const [periodos,setPeriodos] = useState([]);
+const [cuatrimestres,setCuatrimestres] = useState([]);
 
-    let sanitizedValue = value;
+const [formData,setFormData] = useState({
 
-    if (name === "codigo_unico") {
-      sanitizedValue = sanitizedValue
-        .replace(/[^A-Z0-9-]/gi, "")
-        .toUpperCase();
-    }
+nombre:"",
+creditos:1,
+cupo_maximo:30,
+tipo_asignatura:"TRONCO_COMUN",
+periodo_id:"",
+cuatrimestre_id:"",
+carrera_id:""
 
-    if (["creditos", "cuatrimestre", "carrera_id"].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^0-9]/g, "");
-    }
+});
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: sanitizedValue,
-    }));
-  };
+useEffect(()=>{
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+fetchCarreras();
+fetchPeriodos();
+fetchCuatrimestres();
 
-    const toastId = toast.loading("Registrando materia...");
+},[]);
 
-    try {
-      const payload = {
-        ...formData,
-        creditos: Number(formData.creditos),
-        cuatrimestre: Number(formData.cuatrimestre),
-        carrera_id: formData.carrera_id
-          ? Number(formData.carrera_id)
-          : null,
-      };
+const fetchCarreras = async ()=>{
 
-      await api.post("/materias", payload);
+try{
 
-      toast.success("Materia registrada correctamente", { id: toastId });
-      onSuccess();
-    } catch (error) {
-      const msg =
-        error.response?.data?.error ||
-        "Error al conectar con el servidor";
-      toast.error(msg, { id: toastId });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+const res = await api.get("/carreras");
 
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-5 border-b bg-slate-50">
-        <h2 className="text-xl font-black text-slate-900">
-          Registrar nueva materia
-        </h2>
-        <button
-          onClick={onBack}
-          className="flex items-center text-sm font-bold text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Regresar
-        </button>
-      </div>
+setCarreras(res.data);
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+}catch{
 
-          <div>
-            <label className="block font-bold mb-2">Código único *</label>
-            <input
-              name="codigo_unico"
-              required
-              value={formData.codigo_unico}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
+toast.error("Error cargando carreras");
 
-          <div>
-            <label className="block font-bold mb-2">Nombre *</label>
-            <input
-              name="nombre"
-              required
-              value={formData.nombre}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
+}
 
-          <div>
-            <label className="block font-bold mb-2">Créditos *</label>
-            <input
-              name="creditos"
-              required
-              value={formData.creditos}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
+};
 
-          <div>
-            <label className="block font-bold mb-2">Cuatrimestre *</label>
-            <input
-              name="cuatrimestre"
-              required
-              value={formData.cuatrimestre}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
+const fetchPeriodos = async ()=>{
 
-          <div>
-            <label className="block font-bold mb-2">Tipo asignatura *</label>
-            <select
-              name="tipo_asignatura"
-              value={formData.tipo_asignatura}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            >
-              <option value="OBLIGATORIA">Obligatoria</option>
-              <option value="OPTATIVA">Optativa</option>
-              <option value="TRONCO_COMUN">Tronco común</option>
-            </select>
-          </div>
+try{
 
-          <div>
-            <label className="block font-bold mb-2">Carrera ID</label>
-            <input
-              name="carrera_id"
-              value={formData.carrera_id}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
+const res = await api.get("/periodos");
 
-        </div>
+setPeriodos(res.data);
 
-        <div className="flex justify-end">
-          <button
-            disabled={isSubmitting}
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl font-bold"
-          >
-            <Save className="w-5 h-5 mr-2" />
-            {isSubmitting ? "Guardando..." : "Guardar materia"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};  
+}catch{
+
+toast.error("Error cargando periodos");
+
+}
+
+};
+
+const fetchCuatrimestres = async ()=>{
+
+try{
+
+const res = await api.get("/cuatrimestres");
+
+setCuatrimestres(res.data);
+
+}catch{
+
+toast.error("Error cargando cuatrimestres");
+
+}
+
+};
+
+const handleChange = (e)=>{
+
+const {name,value} = e.target;
+
+setFormData(prev=>({
+
+...prev,
+
+[name]:value
+
+}));
+
+};
+
+const handleSubmit = async (e)=>{
+
+e.preventDefault();
+
+setIsSubmitting(true);
+
+const toastId = toast.loading("Guardando materia...");
+
+try{
+
+if(isEditing){
+
+await api.put(`/materias/${materiaToEdit.id_materia}`,{
+
+...formData,
+
+modificado_por:user.id_usuario
+
+});
+
+toast.success("Materia actualizada",{id:toastId});
+
+}else{
+
+await api.post("/materias",{
+
+...formData,
+
+creado_por:user.id_usuario
+
+});
+
+toast.success("Materia creada",{id:toastId});
+
+}
+
+onSuccess();
+
+}catch(error){
+
+console.log("Error completo:", error);
+console.log("Respuesta backend:", error.response?.data);
+
+toast.error("Error al guardar",{id:toastId});
+
+}
+
+};
+
+return(
+
+<div className="bg-white rounded-2xl shadow-sm border border-slate-200">
+
+<div className="flex justify-between px-6 py-5 border-b">
+
+<h2 className="text-xl font-black">
+
+{isEditing ? "Modificar materia":"Registrar materia"}
+
+</h2>
+
+<button
+
+onClick={onBack}
+
+className="flex items-center text-sm font-bold"
+
+>
+
+<ArrowLeft className="w-4 h-4 mr-1"/> Regresar
+
+</button>
+
+</div>
+
+<form onSubmit={handleSubmit} className="p-6 space-y-6">
+
+<div className="grid grid-cols-2 gap-6">
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Nombre de la materia
+</label>
+<input
+name="nombre"
+value={formData.nombre}
+onChange={handleChange}
+placeholder="Ej. Programación Web"
+className="w-full border rounded-lg px-3 py-2"
+/>
+</div>
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Tipo de asignatura
+</label>
+<select
+name="tipo_asignatura"
+value={formData.tipo_asignatura}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+>
+<option value="TRONCO_COMUN">Tronco común</option>
+<option value="OBLIGATORIA">Obligatoria</option>
+<option value="OPTATIVA">Optativa</option>
+</select>
+</div>
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Créditos
+</label>
+<input
+type="number"
+min="1"
+max="30"
+name="creditos"
+value={formData.creditos}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+/>
+</div>
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Cupo máximo
+</label>
+<input
+type="number"
+min="1"
+max="100"
+name="cupo_maximo"
+value={formData.cupo_maximo}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+/>
+</div>
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Periodo escolar
+</label>
+<select
+name="periodo_id"
+value={formData.periodo_id}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+>
+<option value="">Seleccione periodo</option>
+{periodos.map(p=>(
+<option key={p.id_periodo} value={p.id_periodo}>
+{p.codigo}
+</option>
+))}
+</select>
+</div>
+
+<div>
+<label className="block text-sm font-semibold mb-1">
+Cuatrimestre
+</label>
+<select
+name="cuatrimestre_id"
+value={formData.cuatrimestre_id}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+>
+<option value="">Seleccione cuatrimestre</option>
+{cuatrimestres.map(c=>(
+<option key={c.id_cuatrimestre} value={c.id_cuatrimestre}>
+{c.nombre}
+</option>
+))}
+</select>
+</div>
+
+<div className="col-span-2">
+<label className="block text-sm font-semibold mb-1">
+Carrera
+</label>
+<select
+name="carrera_id"
+value={formData.carrera_id}
+onChange={handleChange}
+className="w-full border rounded-lg px-3 py-2"
+>
+<option value="">Seleccione carrera</option>
+{carreras.map(c=>(
+<option key={c.id_carrera} value={c.id_carrera}>
+{c.nombre_carrera}
+</option>
+))}
+</select>
+</div>
+
+</div>
+
+<div className="flex justify-end pt-4">
+
+<button
+type="submit"
+disabled={isSubmitting}
+className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl"
+>
+<Save className="w-5 h-5 mr-2"/>
+Guardar materia
+</button>
+
+</div>
+
+</form>
+
+</div>
+
+);
+
+};

@@ -31,7 +31,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
           api.get('/docentes').catch(() => ({ data: [] })),
           api.get('/materias').catch(() => ({ data: [] })),
           api.get('/grupos').catch(() => ({ data: [] })),
-          api.get('/aulas').catch(() => ({ data: [] }))
+          api.get('/aulas/consultar').catch(() => ({ data: [] }))
         ]);
 
         setPeriodos(resPeriodos.data?.data || resPeriodos.data || []);

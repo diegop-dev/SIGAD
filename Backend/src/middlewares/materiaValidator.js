@@ -1,32 +1,52 @@
 const { check, validationResult } = require("express-validator");
 
 const validateMateria = [
-  check("codigo_unico")
-    .notEmpty()
-    .withMessage("El código único es obligatorio")
-    .isLength({ max: 20 }),
 
   check("nombre")
+    .trim()
     .notEmpty()
     .withMessage("El nombre es obligatorio")
-    .isLength({ max: 100 }),
+    .isLength({ min: 3, max: 100 })
+    .withMessage("El nombre debe tener entre 3 y 100 caracteres")
+    .matches(/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/)
+    .withMessage("El nombre solo puede contener letras y espacios"),
 
   check("creditos")
-    .isInt({ min: 1 })
-    .withMessage("Los créditos deben ser un número entero positivo"),
+    .notEmpty()
+    .withMessage("Los créditos son obligatorios")
+    .isInt({ min: 1, max: 30 })
+    .withMessage("Los créditos deben estar entre 1 y 30"),
 
-  check("cuatrimestre")
+  check("cupo_maximo")
+    .notEmpty()
+    .withMessage("El cupo máximo es obligatorio")
+    .isInt({ min: 1, max: 200 })
+    .withMessage("El cupo máximo debe ser entre 1 y 200"),
+
+  check("periodo_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un periodo")
     .isInt({ min: 1 })
-    .withMessage("El cuatrimestre debe ser un número entero positivo"),
+    .withMessage("Periodo inválido"),
+
+  check("cuatrimestre_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un cuatrimestre")
+    .isInt({ min: 1 })
+    .withMessage("Cuatrimestre inválido"),
 
   check("tipo_asignatura")
+    .trim()
     .notEmpty()
-    .withMessage("El tipo de asignatura es obligatorio"),
+    .withMessage("El tipo de asignatura es obligatorio")
+    .isIn(["TRONCO_COMUN", "OBLIGATORIA", "OPTATIVA"])
+    .withMessage("Tipo de asignatura inválido"),
 
   check("carrera_id")
-    .optional({ nullable: true })
-    .isInt()
-    .withMessage("El ID de carrera debe ser un número entero"),
+    .notEmpty()
+    .withMessage("Debe seleccionar una carrera")
+    .isInt({ min: 1 })
+    .withMessage("ID de carrera inválido"),
 
   (req, res, next) => {
     const errors = validationResult(req);
