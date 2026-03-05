@@ -5,14 +5,13 @@ import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import "./AltaAcademia.css";
 
-
 export const AltaAcademia = ({ onBack, onSuccess }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // Jose Castillo (ID 5)
 
   const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
-    coordinador_id: ""
+    usuario_id: "" // 🔹 Corregido: Sincronizado con el Backend
   });
 
   const [coordinadores, setCoordinadores] = useState([]);
@@ -34,14 +33,17 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    let sanitizedValue = value;
-    if (name === "nombre") {
-      sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
+    // 🔹 VALIDACIÓN: Solo letras, números y espacios
+    const regex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]*$/;
+
+    if (name === "nombre" && value !== "" && !regex.test(value)) {
+      toast.error("No se permiten caracteres especiales (@#$%&/)");
+      return;
     }
 
     setFormData(prev => ({
       ...prev,
-      [name]: sanitizedValue
+      [name]: name === "nombre" ? value.replace(/\s+/g, " ") : value
     }));
   };
 
@@ -57,13 +59,12 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const handleOpenModal = async (e) => {
     e.preventDefault();
 
-    if (!formData.nombre || !formData.coordinador_id) {
+    if (!formData.nombre || !formData.usuario_id) {
       toast.error("Complete los campos obligatorios.");
       return;
     }
 
     const existe = await validarNombreUnico();
-
     if (existe) {
       toast.error("El nombre ya existe.");
       return;
@@ -75,13 +76,13 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setShowModal(false);
-
     const toastId = toast.loading("Registrando...");
 
     try {
+      // 🔹 Enviamos el ID 5 de Jose Castillo en creado_por
       await api.post("/academias/registrar", {
         ...formData,
-        creado_por: user.id_usuario
+        creado_por: user.id_usuario 
       });
 
       toast.success("Academia registrada correctamente", { id: toastId });
@@ -99,13 +100,11 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       <div className="alta-header">
         <h2>Registrar Nueva Academia</h2>
         <button onClick={onBack} className="btn-cancel">
-          <ArrowLeft size={16} />
-          Cancelar
+          <ArrowLeft size={16} /> Cancelar
         </button>
       </div>
 
       <form onSubmit={handleOpenModal} className="alta-form">
-
         <div className="form-group">
           <label>Nombre *</label>
           <input
@@ -131,24 +130,23 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
         <div className="form-group">
           <label>Coordinador *</label>
           <select
-            name="coordinador_id"
-            value={formData.coordinador_id}
+            name="usuario_id" 
+            value={formData.usuario_id}
             onChange={handleChange}
             required
           >
             <option value="">Seleccione</option>
-              {coordinadores.map(c => (
-  <option key={c.id_usuario} value={c.id_usuario}>
-    {c.nombres} {c.apellido_paterno}
-  </option>
-))}
+            {coordinadores.map(c => (
+              <option key={c.id_usuario} value={c.id_usuario}>
+                {c.nombres} {c.apellido_paterno}
+              </option>
+            ))}
           </select>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-primary">
-            <CheckCircle size={18} />
-            Guardar
+          <button type="submit" className="btn-primary" disabled={isSubmitting}>
+            <CheckCircle size={18} /> Guardar
           </button>
         </div>
       </form>
@@ -158,23 +156,15 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
           <div className="modal">
             <div className="modal-header">
               <h3>Confirmar Registro</h3>
-              <button onClick={() => setShowModal(false)}>
-                <X size={18} />
-              </button>
+              <button onClick={() => setShowModal(false)}><X size={18} /></button>
             </div>
-
             <div className="modal-body">
               <p><b>Nombre:</b> {formData.nombre}</p>
-              <p><b>Coordinador ID:</b> {formData.coordinador_id}</p>
+              <p><b>Descripción:</b> {formData.descripcion || "N/A"}</p>
             </div>
-
             <div className="modal-footer">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">
-                Cancelar
-              </button>
-              <button onClick={handleSubmit} className="btn-primary">
-                Confirmar
-              </button>
+              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={handleSubmit} className="btn-primary">Confirmar</button>
             </div>
           </div>
         </div>
