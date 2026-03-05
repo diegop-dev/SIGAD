@@ -12,6 +12,9 @@ const materiaRoutes = require('./routes/materiaRoutes');
 const carreraRoutes = require("./routes/carreraRoutes");
 const cuatrimestresRoutes = require("./routes/cuatrimestresRoutes");
 const periodoRoutes = require("./routes/periodoRoutes");
+const aulasRoutes = require('./routes/aulasRoutes');
+const grupoRoutes = require('./routes/grupoRoutes');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -36,6 +39,9 @@ app.use('/api/materias', materiaRoutes);
 app.use("/api/carreras", carreraRoutes);
 app.use("/api/periodos", periodoRoutes);
 app.use("/api/cuatrimestres", cuatrimestresRoutes);
+app.use('/api/aulas', aulasRoutes);
+app.use('/api/grupos', grupoRoutes);
+
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
