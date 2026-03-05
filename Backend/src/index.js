@@ -10,6 +10,7 @@ const docentesRoutes = require('./routes/docentesRoutes');
 const academiaRoutes = require('./routes/academiaRoutes'); 
 const materiaRoutes = require('./routes/materiaRoutes');
 const carreraRoutes = require('./routes/carreraRoutes');
+const grupoRoutes = require('./routes/grupoRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -32,6 +33,7 @@ app.use('/api/docentes', docentesRoutes);
 app.use('/api/academias', academiaRoutes);
 app.use('/api/materias', materiaRoutes);
 app.use('/api/carreras', carreraRoutes);
+app.use('/api/grupos', grupoRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
