@@ -1,171 +1,355 @@
-import { useState } from "react";
+import { useState, useEffect } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Radiation } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Award, Edit3, Trash2 } from "lucide-react";
 import api from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 
-
-export const MateriasForm = ({ onBack, onSuccess }) => {
+// Nota: se cambió el prop "materiaToEdit" a "initialData" para mantener coherencia con GrupoForm
+export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
+  const { user } = useAuth();
+  const isEditing = !!initialData;
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errores, setErrores] = useState({});
+  
+  const [catalogos, setCatalogos] = useState({
+    carreras: [],
+    periodos: [],
+    cuatrimestres: []
+  });
+  const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [formData, setFormData] = useState({
-    codigo_unico: "",
-    nombre: "",
-    creditos: "",
-    cuatrimestre: "",
-    tipo_asignatura: "OBLIGATORIA",
-    carrera_id: "",
-    estatus: "ACTIVO",
+    codigo_unico: initialData?.codigo_unico || "",
+    nombre: initialData?.nombre || "",
+    creditos: initialData?.creditos || 1,
+    cupo_maximo: initialData?.cupo_maximo || 30,
+    tipo_asignatura: initialData?.tipo_asignatura || "TRONCO_COMUN",
+    periodo_id: initialData?.periodo_id || "",
+    cuatrimestre_id: initialData?.cuatrimestre_id || "",
+    carrera_id: initialData?.carrera_id || ""
   });
 
+  useEffect(() => {
+    // carga paralela de catálogos para optimizar el rendimiento de la interfaz
+    const fetchCatalogos = async () => {
+      try {
+        const [resCarreras, resPeriodos, resCuatrimestres] = await Promise.all([
+          api.get("/carreras"),
+          api.get("/periodos"),
+          api.get("/cuatrimestres")
+        ]);
+
+        setCatalogos({
+          carreras: Array.isArray(resCarreras.data) ? resCarreras.data : resCarreras.data?.data || [],
+          periodos: Array.isArray(resPeriodos.data) ? resPeriodos.data : resPeriodos.data?.data || [],
+          cuatrimestres: Array.isArray(resCuatrimestres.data) ? resCuatrimestres.data : resCuatrimestres.data?.data || []
+        });
+      } catch (error) {
+        console.error("Error al cargar los catálogos de dependencias:", error);
+        toast.error("Fallo al cargar la información base del formulario.");
+      } finally {
+        setCargandoCatalogos(false);
+      }
+    };
+
+    fetchCatalogos();
+  }, []);
+
   const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    let sanitizedValue = value;
-
-    if (name === "codigo_unico") {
-      sanitizedValue = sanitizedValue
-        .replace(/[^A-Z0-9-]/gi, "")
-        .toUpperCase();
+    const { name, value, type } = e.target;
+    
+    let finalValue = value;
+    
+    // coerción y formateo de datos según reglas de negocio
+    if (name === 'codigo_unico') {
+      finalValue = value.toUpperCase().slice(0, 15);
+    } else if (type === 'number') {
+      finalValue = value !== "" ? Number(value) : "";
     }
 
-    if (["creditos", "cuatrimestre", "carrera_id"].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^0-9]/g, "");
-    }
+    setFormData({ ...formData, [name]: finalValue });
+    
+    // limpieza dinámica de errores al escribir
+    if (errores[name]) setErrores({ ...errores, [name]: null });
+  };
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: sanitizedValue,
-    }));
+  const validate = () => {
+    const newErrors = {};
+    const { codigo_unico, nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, carrera_id } = formData;
+
+    if (!codigo_unico.trim()) newErrors.codigo_unico = "El código único es obligatorio";
+    if (!nombre.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
+    
+    if (!creditos || creditos < 1) newErrors.creditos = "Debe asignar al menos 1 crédito";
+    if (!cupo_maximo || cupo_maximo < 1) newErrors.cupo_maximo = "El cupo debe ser mayor a 0";
+    
+    if (!periodo_id) newErrors.periodo_id = "Seleccione el periodo escolar";
+    if (!cuatrimestre_id) newErrors.cuatrimestre_id = "Seleccione el cuatrimestre";
+    if (!carrera_id) newErrors.carrera_id = "Seleccione la carrera correspondiente";
+
+    setErrores(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (!validate()) return;
 
-    const toastId = toast.loading("Registrando materia...");
+    setIsSubmitting(true);
+    const toastId = toast.loading(isEditing ? "Actualizando materia..." : "Guardando materia...");
 
     try {
       const payload = {
         ...formData,
         creditos: Number(formData.creditos),
-        cuatrimestre: Number(formData.cuatrimestre),
-        carrera_id: formData.carrera_id
-          ? Number(formData.carrera_id)
-          : null,
+        cupo_maximo: Number(formData.cupo_maximo),
+        periodo_id: Number(formData.periodo_id),
+        cuatrimestre_id: Number(formData.cuatrimestre_id),
+        carrera_id: Number(formData.carrera_id)
       };
 
-      await api.post("/materias", payload);
-
-      toast.success("Materia registrada correctamente", { id: toastId });
-      onSuccess();
+      if (isEditing) {
+        await api.put(`/materias/${initialData.id_materia}`, payload);
+        toast.success("Materia actualizada correctamente", { id: toastId });
+      } else {
+        await api.post("/materias", payload);
+        toast.success("Materia creada correctamente", { id: toastId });
+      }
+      
+      if (onSuccess) onSuccess();
     } catch (error) {
-      const msg =
-        error.response?.data?.error ||
-        "Error al conectar con el servidor";
-      toast.error(msg, { id: toastId });
+      console.error("Fallo en la petición a la API REST:", error);
+      
+      if (error.response?.data?.errores) {
+        const backendErrors = {};
+        error.response.data.errores.forEach(err => {
+          backendErrors[err.path || err.param] = err.msg;
+        });
+        setErrores(backendErrors);
+        toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
+      } else {
+        const msg = error.response?.data?.error || error.response?.data?.mensaje || "Ocurrió un error al procesar la solicitud";
+        toast.error(msg, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleDeletePlaceholder = () => toast("Función de eliminación en desarrollo", { icon: "🚧" });
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-5 border-b bg-slate-50">
-        <h2 className="text-xl font-black text-slate-900">
-          Registrar nueva materia
-        </h2>
-        <button
-          onClick={onBack}
-          className="flex items-center text-sm font-bold text-slate-600 hover:text-slate-900"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Regresar
-        </button>
+      <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+        <div className="flex items-center">
+          <button onClick={onBack} className="mr-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-xl font-black text-slate-800">
+              {isEditing ? "Gestionar materia" : "Nueva materia"}
+            </h2>
+            <p className="text-sm text-slate-500 font-medium">Define las características de la asignatura para el plan de estudios.</p>
+          </div>
+        </div>
+        
+        {isEditing && (
+          <div className="flex gap-2">
+            <button onClick={handleDeletePlaceholder} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="p-6 md:p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Código único */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Código único
+              </label>
+              <input
+                type="text"
+                name="codigo_unico"
+                value={formData.codigo_unico}
+                onChange={handleChange}
+                placeholder="Ej. MAT-101"
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.codigo_unico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              />
+              {errores.codigo_unico && <p className="text-xs font-bold text-red-500">{errores.codigo_unico}</p>}
+            </div>
 
-          <div>
-            <label className="block font-bold mb-2">Código único *</label>
-            <input
-              name="codigo_unico"
-              required
-              value={formData.codigo_unico}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
+            {/* Nombre de la materia */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Nombre de la materia
+              </label>
+              <input
+                type="text"
+                name="nombre"
+                value={formData.nombre}
+                onChange={handleChange}
+                placeholder="Ej. Programación Web Orientada a Servicios"
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.nombre ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              />
+              {errores.nombre && <p className="text-xs font-bold text-red-500">{errores.nombre}</p>}
+            </div>
+
+            {/* Tipo de asignatura */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Layers className="w-4 h-4 mr-2 text-blue-500" /> Tipo de asignatura
+              </label>
+              <select
+                name="tipo_asignatura"
+                value={formData.tipo_asignatura}
+                onChange={handleChange}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+              >
+                <option value="TRONCO_COMUN">Tronco común</option>
+                <option value="OBLIGATORIA">Obligatoria</option>
+                <option value="OPTATIVA">Optativa</option>
+              </select>
+            </div>
+
+            {/* Carrera */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
+              </label>
+              <select
+                name="carrera_id"
+                value={formData.carrera_id}
+                onChange={handleChange}
+                disabled={cargandoCatalogos}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la carrera --"}</option>
+                {catalogos.carreras.map(c => (
+                  <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                ))}
+              </select>
+              {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
+            </div>
+
+            {/* Periodo escolar */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Periodo escolar
+              </label>
+              <select
+                name="periodo_id"
+                value={formData.periodo_id}
+                onChange={handleChange}
+                disabled={cargandoCatalogos}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.periodo_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el periodo --"}</option>
+                {catalogos.periodos.map(p => (
+                  <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>
+                ))}
+              </select>
+              {errores.periodo_id && <p className="text-xs font-bold text-red-500">{errores.periodo_id}</p>}
+            </div>
+
+            {/* Cuatrimestre */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Cuatrimestre
+              </label>
+              <select
+                name="cuatrimestre_id"
+                value={formData.cuatrimestre_id}
+                onChange={handleChange}
+                disabled={cargandoCatalogos}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.cuatrimestre_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el cuatrimestre --"}</option>
+                {catalogos.cuatrimestres.map(c => (
+                  <option key={c.id_cuatrimestre} value={c.id_cuatrimestre}>{c.nombre}</option>
+                ))}
+              </select>
+              {errores.cuatrimestre_id && <p className="text-xs font-bold text-red-500">{errores.cuatrimestre_id}</p>}
+            </div>
+
+            {/* Créditos */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Award className="w-4 h-4 mr-2 text-blue-500" /> Créditos académicos
+              </label>
+              <input
+                type="number"
+                name="creditos"
+                value={formData.creditos}
+                onChange={handleChange}
+                min="1"
+                max="30"
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.creditos ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              />
+              {errores.creditos && <p className="text-xs font-bold text-red-500">{errores.creditos}</p>}
+            </div>
+
+            {/* Cupo máximo */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Users className="w-4 h-4 mr-2 text-blue-500" /> Cupo máximo
+              </label>
+              <input
+                type="number"
+                name="cupo_maximo"
+                value={formData.cupo_maximo}
+                onChange={handleChange}
+                min="1"
+                max="100"
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.cupo_maximo ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              />
+              {errores.cupo_maximo && <p className="text-xs font-bold text-red-500">{errores.cupo_maximo}</p>}
+            </div>
+
           </div>
 
-          <div>
-            <label className="block font-bold mb-2">Nombre *</label>
-            <input
-              name="nombre"
-              required
-              value={formData.nombre}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
+          {/* Footer de botones */}
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            {isEditing ? (
+              <button 
+                type="submit" 
+                disabled={isSubmitting || cargandoCatalogos} 
+                className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Edit3 className="w-5 h-5 mr-2" />}
+                Actualizar materia
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                disabled={isSubmitting || cargandoCatalogos} 
+                className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
+                Guardar materia
+              </button>
+            )}
           </div>
-
-          <div>
-            <label className="block font-bold mb-2">Créditos *</label>
-            <input
-              name="creditos"
-              required
-              value={formData.creditos}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold mb-2">Cuatrimestre *</label>
-            <input
-              name="cuatrimestre"
-              required
-              value={formData.cuatrimestre}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold mb-2">Tipo asignatura *</label>
-            <select
-              name="tipo_asignatura"
-              value={formData.tipo_asignatura}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            >
-              <option value="OBLIGATORIA">Obligatoria</option>
-              <option value="OPTATIVA">Optativa</option>
-              <option value="TRONCO_COMUN">Tronco común</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold mb-2">Carrera ID</label>
-            <input
-              name="carrera_id"
-              value={formData.carrera_id}
-              onChange={handleChange}
-              className="w-full rounded-xl border p-3"
-            />
-          </div>
-
-        </div>
-
-        <div className="flex justify-end">
-          <button
-            disabled={isSubmitting}
-            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl font-bold"
-          >
-            <Save className="w-5 h-5 mr-2" />
-            {isSubmitting ? "Guardando..." : "Guardar materia"}
-          </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
-};  
+};

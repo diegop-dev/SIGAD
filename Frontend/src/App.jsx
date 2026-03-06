@@ -8,7 +8,12 @@ import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
 import { DocenteManagement } from "./pages/docentes/DocenteManagement";
 import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
+import { PeriodosManagement } from "./pages/periodos/periodosManagement";
 import { MateriasManagement } from "./pages/materias/MateriasManagement";
+import AulaManagement from "./pages/aulas/AulaManagement";
+import { CarreraManagement } from "./pages/carreras/CarreraManagement";
+import { GrupoManagement } from "./pages/grupos/GrupoManagement";
+import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
 
 function App() {
   return (
@@ -30,6 +35,11 @@ function App() {
               <Route path="/docentes" element={<DocenteManagement />} />
               <Route path="/academias" element={<AcademiaManagement />} />
               <Route path="/materias" element={<MateriasManagement />} />
+              <Route path="/periodos" element={<PeriodosManagement />} />
+              <Route path="/aulas" element={<AulaManagement />} />
+              <Route path="/carreras" element={<CarreraManagement />} />
+              <Route path="/grupos" element={<GrupoManagement />} />
+              <Route path="/asignaciones" element={<AssignmentManagement />} />
               {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
