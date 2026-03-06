@@ -1,50 +1,121 @@
+const pool = require("../config/database");
 
-module.exports = (sequelize, DataTypes) => {
-  const Periodo = sequelize.define("Periodo", {
-    id_periodo: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
-    periodo: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    fecha_inicio: {
-      type: DataTypes.DATE,
-      allowNull: false,
-    },
-    fecha_fin: {
-      type: DataTypes.DATE,
-      allowNull: false,
-    },
-    fecha_limite_calif: {
-      type: DataTypes.DATE,
-      allowNull: false,
-    },
-    estatus: {
-      type: DataTypes.STRING,
-      defaultValue: "ACTIVO",
-    },
-    creado_por: {
-      type: DataTypes.INTEGER,
-    },
-    fecha_creacion: {
-      type: DataTypes.DATE,
-    },
-    modificado_por: {
-      type: DataTypes.INTEGER,
-    },
-    fecha_modificacion: {
-      type: DataTypes.DATE,
-    },
-    eliminado_por: {
-      type: DataTypes.INTEGER,
-    },
-    fecha_eliminacion: {
-      type: DataTypes.DATE,
-    },
-  });
+const periodoModel = {
 
-  return Periodo;
+  getAllPeriodos: async () => {
+    let conn;
+
+    try {
+
+      conn = await pool.getConnection();
+
+      const rows = await conn.query(`
+        SELECT 
+          id_periodo,
+          codigo,
+          anio,
+          fecha_inicio,
+          fecha_fin,
+          fecha_limite_calif,
+          estatus
+        FROM Periodos
+        ORDER BY fecha_inicio DESC
+      `);
+
+      return rows;
+
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  createPeriodo: async (data) => {
+
+    let conn;
+
+    try {
+
+      conn = await pool.getConnection();
+
+      const result = await conn.query(`
+        INSERT INTO Periodos
+        (codigo, anio, fecha_inicio, fecha_fin, fecha_limite_calif, creado_por)
+        VALUES (?,?,?,?,?,?)
+      `,[
+        data.codigo,
+        data.anio,
+        data.fecha_inicio,
+        data.fecha_fin,
+        data.fecha_limite_calif,
+        data.creado_por
+      ]);
+
+      return {
+        id: result.insertId
+      };
+
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  updatePeriodo: async (id,data) => {
+
+    let conn;
+
+    try {
+
+      conn = await pool.getConnection();
+
+      await conn.query(`
+        UPDATE Periodos
+        SET
+          codigo = ?,
+          anio = ?,
+          fecha_inicio = ?,
+          fecha_fin = ?,
+          fecha_limite_calif = ?,
+          modificado_por = ?
+        WHERE id_periodo = ?
+      `,[
+        data.codigo,
+        data.anio,
+        data.fecha_inicio,
+        data.fecha_fin,
+        data.fecha_limite_calif,
+        data.modificado_por,
+        id
+      ]);
+
+    } finally {
+      if (conn) conn.release();
+    }
+
+  },
+
+  inactivarPeriodo: async (id,usuario) => {
+
+    let conn;
+
+    try {
+
+      conn = await pool.getConnection();
+
+      await conn.query(`
+        UPDATE Periodos
+        SET
+          estatus = 'INACTIVO',
+          eliminado_por = ?,
+          fecha_eliminacion = NOW()
+        WHERE id_periodo = ?
+      `,[usuario,id]);
+
+    } finally {
+      if (conn) conn.release();
+    }
+
+  }
+
 };
+
+module.exports = periodoModel;
