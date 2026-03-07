@@ -118,5 +118,23 @@ const updateDocente = async (req, res) => {
   }
 };
 
+// NUEVA FUNCIÓN PARA DAR DE BAJA
+const deactivateDocente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { eliminado_por } = req.body;
+
+    if (!eliminado_por) {
+      return res.status(400).json({ error: "Falta especificar quién realiza la baja." });
+    }
+
+    await docenteModel.deactivateDocente(id, eliminado_por);
+    res.status(200).json({ message: "Docente dado de baja correctamente" });
+  } catch (error) {
+    console.error("Error al dar de baja al docente:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
 // No olvides exportar la nueva función
-module.exports = { registerDocente, getDocentes, getUsuariosDisponibles, updateDocente };
+module.exports = { registerDocente, getDocentes, getUsuariosDisponibles, updateDocente, deactivateDocente };

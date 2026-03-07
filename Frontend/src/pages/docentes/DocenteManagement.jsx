@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, ChevronLeft, ChevronRight, Filter, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AltaDocente } from './AltaDocente';
 import { DocenteModal } from './DocenteModal';
+import { DeactivateDocenteModal } from './DeactivateDocenteModal';
 import { useAuth } from '../../hooks/useAuth';
 
 export const DocenteManagement = () => {
@@ -13,6 +14,7 @@ export const DocenteManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState('create'); // Puede ser 'create', 'view' o 'edit'
   const [selectedDocente, setSelectedDocente] = useState(null);
+  const [docenteToDeactivate, setDocenteToDeactivate] = useState(null);
   
   // Estados para la lista de docentes
   const [docentes, setDocentes] = useState([]);
@@ -71,6 +73,7 @@ export const DocenteManagement = () => {
   const handleSuccessAction = () => {
     setShowForm(false);
     setSelectedDocente(null);
+    setDocenteToDeactivate(null);
     fetchDocentes(); // Recargamos la tabla al guardar
   };
 
@@ -94,6 +97,14 @@ export const DocenteManagement = () => {
     setFormMode('edit');
     setSelectedDocente(docente);
     setShowForm(true); // <-- Esto abrirá el AltaDocente
+  };
+
+  const handleDeactivateClick = (docente) => {
+    if (docente.estatus === 'INACTIVO') {
+      toast.error('El docente ya se encuentra inactivo.');
+      return;
+    }
+    setDocenteToDeactivate(docente);
   };
 
 // 1. VISTA DE FORMULARIO (Crear y Editar)
@@ -231,6 +242,15 @@ export const DocenteManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
+                        {d.estatus === 'ACTIVO' && (
+                          <button
+                            title="Dar de baja docente"
+                            onClick={() => handleDeactivateClick(d)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -276,6 +296,13 @@ export const DocenteManagement = () => {
           onClose={handleCloseForm} 
         />
       )}
+
+      {/* MODAL PARA CONFIRMAR BAJA */}
+      <DeactivateDocenteModal
+        docente={docenteToDeactivate}
+        onClose={() => setDocenteToDeactivate(null)}
+        onSuccess={handleSuccessAction}
+      />
           </div>
         )}
       </div>
