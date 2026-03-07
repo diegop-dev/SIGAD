@@ -4,11 +4,23 @@ const path = require('path');
 const helmet = require('helmet');
 require('dotenv').config();
 require('./config/database'); // Inicializa el pool de MariaDB
+
+// Importación de rutas existentes
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const docentesRoutes = require('./routes/docentesRoutes');
 const academiaRoutes = require('./routes/academiaRoutes'); 
 const materiaRoutes = require('./routes/materiaRoutes');
+const carreraRoutes = require("./routes/carreraRoutes");
+const cuatrimestresRoutes = require("./routes/cuatrimestresRoutes");
+const periodoRoutes = require("./routes/periodoRoutes");
+const aulasRoutes = require('./routes/aulasRoutes');
+const grupoRoutes = require('./routes/grupoRoutes');
+const assignmentRoutes = require('./routes/assignmentRoutes');
+
+// --- NUEVA RUTA PARA HU-37 ---
+const externalRoutes = require('./routes/externalRoutes'); 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -30,6 +42,13 @@ app.use(express.json({ limit: '1mb' }));
 app.use('/api/docentes', docentesRoutes); 
 app.use('/api/academias', academiaRoutes);
 app.use('/api/materias', materiaRoutes);
+app.use("/api/carreras", carreraRoutes);
+app.use("/api/periodos", periodoRoutes);
+app.use("/api/cuatrimestres", cuatrimestresRoutes);
+app.use('/api/aulas', aulasRoutes);
+app.use('/api/grupos', grupoRoutes);
+app.use('/api/asignaciones', assignmentRoutes);
+app.use('/api/external', externalRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

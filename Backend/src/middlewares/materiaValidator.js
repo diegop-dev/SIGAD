@@ -2,38 +2,69 @@ const { check, validationResult } = require("express-validator");
 
 const validateMateria = [
   check("codigo_unico")
+    .trim()
     .notEmpty()
     .withMessage("El código único es obligatorio")
-    .isLength({ max: 20 }),
+    .isLength({ min: 3, max: 15 })
+    .withMessage("El código único debe tener entre 3 y 15 caracteres")
+    .matches(/^[A-Za-z0-9\-]+$/)
+    .withMessage("El código único solo admite letras, números y guiones")
+    .toUpperCase(),
 
   check("nombre")
+    .trim()
     .notEmpty()
     .withMessage("El nombre es obligatorio")
-    .isLength({ max: 100 }),
+    .isLength({ min: 3, max: 100 })
+    .withMessage("El nombre debe tener entre 3 y 100 caracteres")
+    // se amplió la expresión regular para soportar números y guiones propios de materias académicas
+    .matches(/^[A-Za-z0-9ÁÉÍÓÚáéíóúÑñ\s\-\.]+$/)
+    .withMessage("El nombre contiene caracteres no permitidos"),
 
   check("creditos")
-    .isInt({ min: 1 })
-    .withMessage("Los créditos deben ser un número entero positivo"),
+    .notEmpty()
+    .withMessage("Los créditos son obligatorios")
+    .isInt({ min: 1, max: 30 })
+    .withMessage("Los créditos deben estar entre 1 y 30"),
 
-  check("cuatrimestre")
+  check("cupo_maximo")
+    .notEmpty()
+    .withMessage("El cupo máximo es obligatorio")
+    .isInt({ min: 1, max: 200 })
+    .withMessage("El cupo máximo debe ser entre 1 y 200"),
+
+  check("periodo_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un periodo")
     .isInt({ min: 1 })
-    .withMessage("El cuatrimestre debe ser un número entero positivo"),
+    .withMessage("Periodo inválido"),
+
+  check("cuatrimestre_id")
+    .notEmpty()
+    .withMessage("Debe seleccionar un cuatrimestre")
+    .isInt({ min: 1 })
+    .withMessage("Cuatrimestre inválido"),
 
   check("tipo_asignatura")
+    .trim()
     .notEmpty()
-    .withMessage("El tipo de asignatura es obligatorio"),
+    .withMessage("El tipo de asignatura es obligatorio")
+    .isIn(["TRONCO_COMUN", "OBLIGATORIA", "OPTATIVA"])
+    .withMessage("Tipo de asignatura inválido"),
 
   check("carrera_id")
-    .optional({ nullable: true })
-    .isInt()
-    .withMessage("El ID de carrera debe ser un número entero"),
+    .notEmpty()
+    .withMessage("Debe seleccionar una carrera")
+    .isInt({ min: 1 })
+    .withMessage("ID de carrera inválido"),
 
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      // la clave "detalles" fue reemplazada por "errores" para que el frontend pueda pintar de rojo los inputs correctos
       return res.status(400).json({
         error: "Error en la validación de datos",
-        detalles: errors.array(),
+        errores: errors.array(),
       });
     }
     next();
