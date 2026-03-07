@@ -5,7 +5,8 @@ const pool = require('../config/database');
 // ==========================================
 
 const checkDocenteConflict = async (docente_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
-  const [rows] = await pool.execute(`
+  // se remueven los corchetes de destructuring para recibir el arreglo completo
+  const rows = await pool.query(`
     SELECT a.id_asignacion 
     FROM asignaciones a
     WHERE a.docente_id = ? 
@@ -17,11 +18,12 @@ const checkDocenteConflict = async (docente_id, periodo_id, dia_semana, hora_ini
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
   `, [docente_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  
   return rows.length > 0;
 };
 
 const checkGrupoConflict = async (grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
-  const [rows] = await pool.execute(`
+  const rows = await pool.query(`
     SELECT a.id_asignacion 
     FROM asignaciones a
     WHERE a.grupo_id = ? 
@@ -33,11 +35,12 @@ const checkGrupoConflict = async (grupo_id, periodo_id, dia_semana, hora_inicio,
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
   `, [grupo_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  
   return rows.length > 0;
 };
 
 const checkAulaConflict = async (aula_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
-  const [rows] = await pool.execute(`
+  const rows = await pool.query(`
     SELECT a.id_asignacion 
     FROM asignaciones a
     WHERE a.aula_id = ? 
@@ -49,6 +52,7 @@ const checkAulaConflict = async (aula_id, periodo_id, dia_semana, hora_inicio, h
         (a.hora_inicio >= ? AND a.hora_inicio < ?)
       )
   `, [aula_id, periodo_id, dia_semana, hora_fin, hora_inicio, hora_inicio, hora_fin]);
+  
   return rows.length > 0;
 };
 
@@ -78,7 +82,8 @@ const createAsignaciones = async (asignacionesData) => {
     const insertedIds = [];
 
     for (const data of asignacionesData) {
-      const [result] = await connection.execute(insertQuery, [
+      // la inserción también debe recibir el objeto result directamente
+      const result = await connection.query(insertQuery, [
         data.periodo_id,
         data.materia_id,
         data.docente_id,
@@ -151,7 +156,8 @@ const getAllAsignaciones = async (filters = {}) => {
 
   query += ` ORDER BY p.fecha_inicio DESC, u.apellido_paterno ASC, a.dia_semana ASC, a.hora_inicio ASC`;
 
-  const [rows] = await pool.execute(query, queryParams);
+  // se remueve destructuring aquí también
+  const rows = await pool.query(query, queryParams);
   return rows;
 };
 
