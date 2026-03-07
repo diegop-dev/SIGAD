@@ -151,6 +151,17 @@ const docenteModel = {
     } finally {
       if (conn) conn.release();
     }
+  },
+
+  // Soft delete a docente
+  deactivateDocente: async (id_docente, eliminado_por) => {
+    const query = `
+      UPDATE docentes
+      SET estatus = 'BAJA', eliminado_por = ?, fecha_eliminacion = NOW()
+      WHERE id_docente = ?
+    `;
+    const result = await db.query(query, [eliminado_por, id_docente]);
+    return result.affectedRows;
   }
 };
 

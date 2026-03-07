@@ -8,6 +8,7 @@ const Dashboard = () => {
   const [activeUsers, setActiveUsers] = useState('--');
 
   // Función para determinar el saludo según la hora del día
+  // const { addNotification } = useNotifications();
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Buenos días';
