@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, UserCheck } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, UserCheck, Shield, Mail } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { UserForm } from './UserForm';
 import { UserModal } from './UserModal';
 import { DeactivateUserModal } from './DeactivateUserModal';
-import { ActivateUserModal } from './ActivateUserModal'; // NUEVO: Importamos el modal de reactivación
+import { ActivateUserModal } from './ActivateUserModal';
 import { useAuth } from '../../hooks/useAuth';
 
 export const UserManagement = () => {
@@ -14,7 +14,7 @@ export const UserManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userToDeactivate, setUserToDeactivate] = useState(null); 
-  const [userToActivate, setUserToActivate] = useState(null); // NUEVO: Estado para reactivación
+  const [userToActivate, setUserToActivate] = useState(null); 
   
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,7 +30,7 @@ export const UserManagement = () => {
     setIsLoading(true);
     try {
       const response = await api.get('/users');
-      setUsers(response.data);
+      setUsers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error('Error al cargar el listado de usuarios');
     } finally {
@@ -45,7 +45,7 @@ export const UserManagement = () => {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const fullName = `${user.nombres} ${user.apellido_paterno} ${user.apellido_materno}`.toLowerCase();
-      const email = user.institutional_email.toLowerCase();
+      const email = user.institutional_email?.toLowerCase() || '';
       const searchLower = searchTerm.toLowerCase();
 
       const matchesSearch = fullName.includes(searchLower) || email.includes(searchLower);
@@ -70,7 +70,7 @@ export const UserManagement = () => {
     setShowForm(false);
     setEditingUser(null);
     setUserToDeactivate(null); 
-    setUserToActivate(null); // Limpiamos el estado
+    setUserToActivate(null); 
     fetchUsers();
   };
 
@@ -136,24 +136,33 @@ export const UserManagement = () => {
     }
   };
 
+  const getRoleBadgeStyle = (rol) => {
+    if (rol === 'Superadministrador') return 'bg-purple-100 text-purple-800 border-purple-200';
+    if (rol === 'Administrador') return 'bg-blue-100 text-blue-800 border-blue-200';
+    return 'bg-slate-100 text-slate-800 border-slate-200'; // Docente
+  };
+
   if (showForm) {
     return (
-      <div>
-        <UserForm 
-          userToEdit={editingUser} 
-          onBack={handleCloseForm} 
-          onSuccess={handleSuccessAction} 
-        />
-      </div>
+      <UserForm 
+        userToEdit={editingUser} 
+        onBack={handleCloseForm} 
+        onSuccess={handleSuccessAction} 
+      />
     );
   }
 
   return (
     <div className="space-y-6">
+      
+      {/* Encabezado estandarizado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Gestión de usuarios</h1>
-          <p className="mt-1 text-sm text-slate-500 font-medium">Administra los accesos y roles del personal institucional.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+            <Users className="w-8 h-8 mr-3 text-blue-600" />
+            Gestión de usuarios
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 font-medium">Administra los accesos, roles y expedientes del personal institucional.</p>
         </div>
         <button 
           onClick={() => { setEditingUser(null); setShowForm(true); }} 
@@ -163,6 +172,7 @@ export const UserManagement = () => {
         </button>
       </div>
 
+      {/* Barra de filtros avanzada */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -170,7 +180,7 @@ export const UserManagement = () => {
           </div>
           <input
             type="text"
-            placeholder="Buscar por nombre o correo..."
+            placeholder="Buscar por nombre completo o correo institucional..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
@@ -204,14 +214,14 @@ export const UserManagement = () => {
         </div>
       </div>
 
+      {/* Tabla de resultados */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Nombre completo</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Correo institucional</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Rol</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Identidad Institucional</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Rol de Acceso</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -220,7 +230,7 @@ export const UserManagement = () => {
             <tbody className="bg-white divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
+                  <td colSpan="4" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
                       <p className="text-sm text-slate-500 font-medium">Cargando base de datos...</p>
@@ -229,7 +239,7 @@ export const UserManagement = () => {
                 </tr>
               ) : paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-16 text-center">
+                  <td colSpan="4" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <Users className="h-8 w-8 text-slate-400" />
@@ -242,49 +252,71 @@ export const UserManagement = () => {
               ) : (
                 paginatedUsers.map((u) => (
                   <tr key={u.id_usuario} className="hover:bg-blue-50/50 transition-colors duration-150">
+                    
+                    {/* Columna de Identidad consolidada (Nombre + Correo) */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-900">
-                        {u.nombres} {u.apellido_paterno} {u.apellido_materno}
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center mr-3 text-slate-500 overflow-hidden shrink-0">
+                          {/* Asumiendo que u.foto_perfil_url viene del backend si existe */}
+                          {u.foto_perfil_url ? (
+                            <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'}${u.foto_perfil_url}`} alt="Perfil" className="h-full w-full object-cover" />
+                          ) : (
+                            <Users className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900">
+                            {u.nombres} {u.apellido_paterno} {u.apellido_materno}
+                          </span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center mt-0.5">
+                            <Mail className="w-3 h-3 mr-1" />
+                            {u.institutional_email}
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-500">
-                      {u.institutional_email}
-                    </td>
+
+                    {/* Columna Rol con Badge */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
-                        {u.nombre_rol}
-                      </span>
+                      <div className={`inline-flex items-center px-3 py-1 rounded-lg border ${getRoleBadgeStyle(u.nombre_rol)}`}>
+                        <Shield className="w-3.5 h-3.5 mr-1.5" />
+                        <span className="text-xs font-bold uppercase tracking-wider">{u.nombre_rol}</span>
+                      </div>
                     </td>
+
+                    {/* Columna Estatus */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg ${
+                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
                         u.estatus === 'ACTIVO' 
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                          : 'bg-red-100 text-red-800 border border-red-200'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : 'bg-red-100 text-red-800 border-red-200'
                       }`}>
                         {u.estatus}
                       </span>
                     </td>
+
+                    {/* Columna Acciones */}
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
                         <button 
-                          title="Ver detalles" 
+                          title="Ver expediente completo" 
                           onClick={() => handleViewClick(u)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
+                        
                         <button 
-                          title="Editar usuario" 
+                          title="Modificar usuario" 
                           onClick={() => handleProtectedAction(u, 'edit')}
                           className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
 
-                        {/* RENDERIZADO CONDICIONAL DEL BOTÓN DE ESTADO */}
                         {u.estatus === 'ACTIVO' ? (
                           <button 
-                            title="Desactivar usuario" 
+                            title="Desactivar usuario (Baja lógica)" 
                             onClick={() => handleProtectedAction(u, 'delete')}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           >
@@ -299,7 +331,6 @@ export const UserManagement = () => {
                             <UserCheck className="w-5 h-5" />
                           </button>
                         )}
-
                       </div>
                     </td>
                   </tr>
@@ -309,8 +340,9 @@ export const UserManagement = () => {
           </table>
         </div>
 
+        {/* Paginación responsiva */}
         {!isLoading && filteredUsers.length > 0 && (
-          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-slate-500">
                 Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}
@@ -355,7 +387,6 @@ export const UserManagement = () => {
         onSuccess={handleSuccessAction}
       />
 
-      {/* NUEVO: Modal de Reactivación */}
       <ActivateUserModal 
         userToActivate={userToActivate}
         onClose={() => setUserToActivate(null)}
