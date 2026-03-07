@@ -76,7 +76,7 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
 
           <div className="bg-red-50 p-4 rounded-xl border border-red-100">
             <p className="text-sm text-red-800 font-medium">
-              <strong>Aviso de seguridad:</strong> El estatus cambiará a <span className="font-bold">INACTIVO</span> y el docente perderá acceso a la plataforma. Se registrará tu ID como auditor de esta acción.
+              <strong>Aviso de seguridad:</strong> El estatus cambiará a <span className="font-bold">BAJA</span> y el docente perderá acceso a la plataforma. Se registrará tu ID como auditor de esta acción.
             </p>
           </div>
         </div>

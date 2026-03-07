@@ -124,15 +124,26 @@ const deactivateDocente = async (req, res) => {
     const { id } = req.params;
     const { eliminado_por } = req.body;
 
+    // Validación de entrada
     if (!eliminado_por) {
-      return res.status(400).json({ error: "Falta especificar quién realiza la baja." });
+      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
     }
 
-    await docenteModel.deactivateDocente(id, eliminado_por);
-    res.status(200).json({ message: "Docente dado de baja correctamente" });
+    // Ejecutamos el modelo y guardamos el número de filas afectadas
+    const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por);
+
+    // Validamos si la base de datos realmente encontró y actualizó el registro
+    if (affectedRows === 0) {
+      // 404 Not Found es el código correcto si el ID no existe
+      return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
+    }
+
+    // Respuesta exitosa
+    res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
+
   } catch (error) {
-    console.error("Error al dar de baja al docente:", error);
-    res.status(500).json({ error: "Error interno del servidor." });
+    console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
+    res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
   }
 };
 

@@ -157,7 +157,7 @@ const docenteModel = {
   deactivateDocente: async (id_docente, eliminado_por) => {
     const query = `
       UPDATE docentes
-      SET estatus = 'INACTIVO', eliminado_por = ?, fecha_eliminacion = NOW()
+      SET estatus = 'BAJA', eliminado_por = ?, fecha_eliminacion = NOW()
       WHERE id_docente = ?
     `;
     const result = await db.query(query, [eliminado_por, id_docente]);

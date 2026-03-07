@@ -38,7 +38,7 @@ export const MainLayout = () => {
     { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
     { name: 'Gestión de academias', path:'/academias', icon: School, roles:[1,2]},
     { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
-    { name: 'Gestion de Aulas y Laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
+    { name: 'Gestion de aulas y laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
     { name: 'Gestión de carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
     { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
