@@ -29,4 +29,7 @@ router.put('/:id', upload.fields([
   { name: 'cv', maxCount: 1 }
 ]), docenteController.updateDocente);
 
+// 5. NUEVA RUTA: Dar de baja un docente (soft delete)
+router.patch('/:id/deactivate', docenteController.deactivateDocente);
+
 module.exports = router;
