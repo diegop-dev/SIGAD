@@ -1,33 +1,7 @@
 const grupoModel = require('../models/grupoModel');
 
 const grupoController = {
-  // método exclusivo para la API de sincronización externa (HU-37 / API-04)
-  getGruposParaSincronizacion: async (req, res) => {
-    try {
-      // extraemos los query strings definidos en el contrato del PDF
-      const { carrera_id, cuatrimestre_id } = req.query;
-
-      // validación estricta: si faltan parámetros devolvemos HTTP 400
-      if (!carrera_id || !cuatrimestre_id) {
-        return res.status(400).json({
-          message: 'Parámetros incompletos. Se requiere carrera_id y cuatrimestre_id.'
-        });
-      }
-
-      // delegamos la consulta al modelo optimizado
-      const grupos = await grupoModel.getGruposParaSincronizacion(carrera_id, cuatrimestre_id);
-      
-      // retornamos directamente el arreglo para cumplir el contrato JSON
-      return res.status(200).json(grupos);
-    } catch (error) {
-      console.error('[Error getGruposParaSincronizacion]:', error);
-      // retornamos HTTP 500 sin exponer detalles de la base de datos
-      return res.status(500).json({ 
-        message: 'Error interno al procesar el catálogo de grupos.' 
-      });
-    }
-  },
-
+  // 1. Obtener todos los grupos para la tabla
   getGrupos: async (req, res) => {
     try {
       const grupos = await grupoModel.getAllGrupos();
@@ -38,34 +12,37 @@ const grupoController = {
     }
   },
 
+  // 2. Crear grupo y autogenerar identificador
   crearGrupo: async (req, res) => {
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
-      const creado_por = req.usuario ? req.usuario.id_usuario : null; 
+      const { carrera_id } = req.body;
+      const creado_por = req.usuario ? req.usuario.id_usuario : null;
 
-      const identificadorMayusculas = identificador.toUpperCase();
-
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
-
+      // Insertar con cuatrimestre 1 y un identificador temporal
       const datosNuevoGrupo = {
-        identificador: identificadorMayusculas, 
+        identificador: 'TEMP',
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: 1, 
         creado_por
       };
 
       const resultado = await grupoModel.crearGrupo(datosNuevoGrupo);
+      const nuevoId = resultado.insertId;
+
+      // Obtener las siglas de la carrera y el año actual
+      const siglas = await grupoModel.getCarreraSiglas(carrera_id);
+      const anio = new Date().getFullYear();
+
+      // Construir el identificador final (Ej. 2026123SIS)
+      const identificadorFinal = `${anio}${nuevoId}${siglas}`;
+
+      // Actualizar el registro con el identificador final
+      await grupoModel.actualizarIdentificador(nuevoId, identificadorFinal);
 
       return res.status(201).json({
         success: true,
-        message: 'Grupo registrado correctamente.',
-        data: { id_grupo: Number(resultado.insertId), ...datosNuevoGrupo }
+        message: 'Grupo registrado y autogenerado correctamente.',
+        data: { id_grupo: nuevoId, identificador: identificadorFinal, carrera_id, cuatrimestre_id: 1 }
       });
 
     } catch (error) {
@@ -74,25 +51,21 @@ const grupoController = {
     }
   },
 
+  // 3. Actualizar grupo existente (solo se cambia la carrera)
   actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
+      const { carrera_id } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
-      const identificadorMayusculas = identificador.toUpperCase();
 
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id, id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
+      // Recuperamos los datos actuales para no borrar el identificador ni el cuatrimestre
+      const grupoExistente = await grupoModel.getGrupoById(id);
+      if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
       const datosActualizar = {
-        identificador: identificadorMayusculas,
+        identificador: grupoExistente.identificador,
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: grupoExistente.cuatrimestre_id,
         modificado_por
       };
 
@@ -105,6 +78,7 @@ const grupoController = {
     }
   },
 
+  // 4. Cambiar el estatus (Activo/Inactivo)
   cambiarEstatusGrupo: async (req, res) => {
     const { id } = req.params;
     const { estatus } = req.body; 

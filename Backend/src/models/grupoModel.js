@@ -60,6 +60,29 @@ getAllGrupos: async () => {
     }
   },
 
+  // Obtener las primeras 3 letras del código único de la carrera para usarlas como siglas
+  getCarreraSiglas: async (carrera_id) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query("SELECT codigo_unico FROM carreras WHERE id_carrera = ?", [carrera_id]);
+      return rows[0] ? rows[0].codigo_unico.substring(0, 3) : 'XXX';
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  // Actualizar el texto del identificador después de haber generado el registro
+  actualizarIdentificador: async (id_grupo, identificador) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      await conn.query("UPDATE grupos SET identificador = ? WHERE id_grupo = ?", [identificador, id_grupo]);
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   getGrupoById: async (id_grupo) => {
     let conn;
     try {
