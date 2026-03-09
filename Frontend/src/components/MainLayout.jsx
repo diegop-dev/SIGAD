@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../context/NotificationContext';
 import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon } from 'lucide-react';
 import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal'; // NUEVO: Importamos el modal aquí
+import { NotificationDropdown } from './NotificationDropdown';
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
+  const { notifications, clearNotifications } = useNotifications();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,13 +21,24 @@ export const MainLayout = () => {
 
   const closeSidebar = () => setIsSidebarOpen(false);
 
+  // cerrar el panel de notificaciones al hacer clic fuera
+  useEffect(() => {
+    const handle = e => {
+      if (!e.target.closest('.notif-container')) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('click', handle);
+    return () => document.removeEventListener('click', handle);
+  }, []);
+
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
     { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
     { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
     { name: 'Gestión de academias', path:'/academias', icon: School, roles:[1,2]},
     { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
-    { name: 'Gestion de Aulas y Laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
+    { name: 'Gestion de aulas y laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
     { name: 'Gestión de carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
     { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
@@ -150,13 +165,40 @@ export const MainLayout = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <button className="relative p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border-2 border-white"></span>
-                </span>
-              </button>
+              <div className="relative notif-container">
+                <button
+                  onClick={() => {
+                    setIsNotifOpen(prev => {
+                      const next = !prev;
+                      if (!prev) clearNotifications(); // limpia al abrir
+                      return next;
+                    });
+                  }}
+                  className="relative p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200"
+                >
+                  <Bell className="h-5 w-5" />
+                  {notifications.length > 0 && (
+                    <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+                      <span
+                        className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                          // determine highest severity color
+                          (() => {
+                            const rank = { baja: 1, media: 2, alta: 3 };
+                            let top = 'baja';
+                            notifications.forEach(n => {
+                              if (rank[n.severity] > rank[top]) top = n.severity;
+                            });
+                            if (top === 'alta') return 'bg-red-500';
+                            if (top === 'media') return 'bg-yellow-500';
+                            return 'bg-green-500';
+                          })()
+                        } border-2 border-white`}
+                      />
+                    </span>
+                  )}
+                </button>
+                {isNotifOpen && <NotificationDropdown />}
+              </div>
               
               <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
               

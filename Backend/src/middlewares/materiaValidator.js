@@ -1,6 +1,15 @@
 const { check, validationResult } = require("express-validator");
 
 const validateMateria = [
+  check("codigo_unico")
+    .trim()
+    .notEmpty()
+    .withMessage("El código único es obligatorio")
+    .isLength({ min: 3, max: 15 })
+    .withMessage("El código único debe tener entre 3 y 15 caracteres")
+    .matches(/^[A-Za-z0-9\-]+$/)
+    .withMessage("El código único solo admite letras, números y guiones")
+    .toUpperCase(),
 
   check("nombre")
     .trim()
@@ -8,8 +17,9 @@ const validateMateria = [
     .withMessage("El nombre es obligatorio")
     .isLength({ min: 3, max: 100 })
     .withMessage("El nombre debe tener entre 3 y 100 caracteres")
-    .matches(/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/)
-    .withMessage("El nombre solo puede contener letras y espacios"),
+    // se amplió la expresión regular para soportar números y guiones propios de materias académicas
+    .matches(/^[A-Za-z0-9ÁÉÍÓÚáéíóúÑñ\s\-\.]+$/)
+    .withMessage("El nombre contiene caracteres no permitidos"),
 
   check("creditos")
     .notEmpty()
@@ -51,9 +61,10 @@ const validateMateria = [
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      // la clave "detalles" fue reemplazada por "errores" para que el frontend pueda pintar de rojo los inputs correctos
       return res.status(400).json({
         error: "Error en la validación de datos",
-        detalles: errors.array(),
+        errores: errors.array(),
       });
     }
     next();

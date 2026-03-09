@@ -13,10 +13,11 @@ export const AssignmentManagement = () => {
   const [periodosLista, setPeriodosLista] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Estados para filtros y paginación
+  // estados para filtros y paginación
   const [searchTerm, setSearchTerm] = useState('');
   const [periodoFilter, setPeriodoFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -50,11 +51,11 @@ export const AssignmentManagement = () => {
     fetchPeriodosFiltro();
   }, []);
 
-  // Motor de filtrado en frontend
+  // motor de filtrado en frontend
   const filteredAsignaciones = useMemo(() => {
     return asignaciones.filter(asignacion => {
       const busqueda = searchTerm.toLowerCase();
-      const nombreDocente = `${asignacion.docente_nombres} ${asignacion.docente_apellido_paterno}`.toLowerCase();
+      const nombreDocente = `${asignacion.docente_nombres || ''} ${asignacion.docente_apellido_paterno || ''}`.toLowerCase();
       const nombreMateria = asignacion.nombre_materia?.toLowerCase() || '';
       const nombreGrupo = asignacion.nombre_grupo?.toLowerCase() || '';
 
@@ -66,7 +67,7 @@ export const AssignmentManagement = () => {
     });
   }, [asignaciones, searchTerm, periodoFilter, statusFilter]);
 
-  // Lógica de paginación
+  // lógica de paginación
   const totalPages = Math.ceil(filteredAsignaciones.length / itemsPerPage) || 1;
   const paginatedAsignaciones = filteredAsignaciones.slice(
     (currentPage - 1) * itemsPerPage,
@@ -82,10 +83,6 @@ export const AssignmentManagement = () => {
     fetchAsignaciones();
   };
 
-  const handleNuevaAsignacion = () => {
-    setShowForm(true);
-  };
-
   const getStatusBadge = (estatus) => {
     const statusMap = {
       'ENVIADA': 'bg-blue-100 text-blue-800 border-blue-200',
@@ -96,9 +93,19 @@ export const AssignmentManagement = () => {
     
     return (
       <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${cssClass}`}>
-        {estatus}
+        {estatus || 'DESCONOCIDO'}
       </span>
     );
+  };
+
+  // diccionario para decodificar los días de la semana de base de datos a vista
+  const diasSemanaMapa = {
+    1: "Lunes",
+    2: "Martes",
+    3: "Miércoles",
+    4: "Jueves",
+    5: "Viernes",
+    6: "Sábado"
   };
 
   if (showForm) {
@@ -112,7 +119,7 @@ export const AssignmentManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Encabezado */}
+      {/* encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -122,15 +129,15 @@ export const AssignmentManagement = () => {
           <p className="mt-1 text-sm text-slate-500 font-medium">Administra la distribución de horarios, docentes y aulas.</p>
         </div>
         <button 
-          onClick={handleNuevaAsignacion} 
+          onClick={() => setShowForm(true)} 
           className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
         >
           <Plus className="w-5 h-5 mr-2" /> Nueva asignación
         </button>
       </div>
 
-      {/* Barra de Filtros */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
+      {/* barra de filtros avanzada */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
@@ -174,16 +181,15 @@ export const AssignmentManagement = () => {
         </div>
       </div>
 
-      {/* Tabla de Resultados */}
+      {/* tabla de resultados */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Docente</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Materia / Grupo</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Horario</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Aula</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Docente titular</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Materia y grupo</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Horario y aula</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
               </tr>
             </thead>
@@ -191,7 +197,7 @@ export const AssignmentManagement = () => {
             <tbody className="bg-white divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
+                  <td colSpan="4" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
                       <p className="text-sm text-slate-500 font-medium">Cargando asignaciones...</p>
@@ -200,7 +206,7 @@ export const AssignmentManagement = () => {
                 </tr>
               ) : paginatedAsignaciones.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-16 text-center">
+                  <td colSpan="4" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <CalendarDays className="h-8 w-8 text-slate-400" />
@@ -213,6 +219,8 @@ export const AssignmentManagement = () => {
               ) : (
                 paginatedAsignaciones.map((asignacion) => (
                   <tr key={asignacion.id_asignacion} className="hover:bg-blue-50/50 transition-colors duration-150 group">
+                    
+                    {/* columna docente */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center mr-3 text-slate-500">
@@ -223,30 +231,38 @@ export const AssignmentManagement = () => {
                         </span>
                       </div>
                     </td>
+
+                    {/* columna materia y grupo */}
                     <td className="px-6 py-4">
                       <div className="text-sm font-bold text-slate-800 flex items-center break-words max-w-[250px]">
                         <BookOpen className="w-4 h-4 mr-1.5 text-blue-500 shrink-0"/> 
-                        <span className="truncate">{asignacion.nombre_materia}</span>
+                        <span className="truncate" title={asignacion.nombre_materia}>{asignacion.nombre_materia}</span>
                       </div>
                       <div className="text-xs text-slate-500 font-medium mt-1">
-                        Grupo: {asignacion.nombre_grupo} | {asignacion.nombre_periodo}
+                        Grupo: {asignacion.nombre_grupo} <span className="mx-1">•</span> {asignacion.nombre_periodo}
                       </div>
                     </td>
+
+                    {/* columna horario y aula consolidada */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-slate-700 text-sm font-medium bg-slate-100/80 inline-flex px-3 py-1.5 rounded-lg border border-slate-200">
-                        <Calendar className="w-4 h-4 mr-2 text-amber-500" />
-                        {asignacion.dia_semana}: {asignacion.hora_inicio.substring(0,5)} - {asignacion.hora_fin.substring(0,5)}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center text-slate-700 text-sm font-medium bg-slate-100/80 inline-flex px-3 py-1 rounded-lg border border-slate-200 w-max">
+                          <Calendar className="w-3.5 h-3.5 mr-2 text-amber-500" />
+                          {/* se implementa el diccionario visual para los días */}
+                          {diasSemanaMapa[asignacion.dia_semana] || asignacion.dia_semana}: {asignacion.hora_inicio?.substring(0,5)} - {asignacion.hora_fin?.substring(0,5)}
+                        </div>
+                        <div className="flex items-center text-slate-600 text-xs font-medium ml-1">
+                          <MapPin className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                          {asignacion.nombre_aula}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-slate-700 text-sm font-medium">
-                        <MapPin className="w-4 h-4 mr-1.5 text-emerald-500" />
-                        {asignacion.nombre_aula}
-                      </div>
-                    </td>
+
+                    {/* columna estatus */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(asignacion.estatus_confirmacion)}
                     </td>
+
                   </tr>
                 ))
               )}
@@ -254,9 +270,9 @@ export const AssignmentManagement = () => {
           </table>
         </div>
 
-        {/* Paginación */}
+        {/* paginación estandarizada */}
         {!isLoading && filteredAsignaciones.length > 0 && (
-          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-slate-500">
                 Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}
