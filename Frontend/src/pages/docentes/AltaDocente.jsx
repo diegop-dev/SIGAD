@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw } from "lucide-react";
+import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth"; 
 
@@ -8,7 +8,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
-    const isEditing = !!docenteToEdit;
+  const isEditing = !!docenteToEdit;
 
   // Listados desde la DB
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
@@ -37,6 +37,25 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const [archivos, setArchivos] = useState({
     titulo: null, cedula: null, sat: null, ine: null, domicilio: null, cv: null
   });
+
+  // --- CONFIGURACIÓN DE DOCUMENTOS (NUEVO) ---
+  const BACKEND_URL = "http://localhost:3000"; // <--- Ajusta esto a tu puerto real de Node.js si es diferente
+  
+  const documentosRequeridos = [
+    { id: "titulo", tipoBackend: "TITULO", label: "Título" },
+    { id: "cedula", tipoBackend: "CEDULA", label: "Cédula" },
+    { id: "sat", tipoBackend: "CONSTANCIA_FISCAL", label: "Constancia SAT" },
+    { id: "ine", tipoBackend: "INE", label: "INE" },
+    { id: "domicilio", tipoBackend: "COMPROBANTE_DOMICILIO", label: "Comprobante" },
+    { id: "cv", tipoBackend: "CV", label: "CV" }
+  ];
+
+  const getDocumentoUrl = (tipoBackend) => {
+    if (!isEditing || !docenteToEdit || !docenteToEdit.documentos) return null;
+    const doc = docenteToEdit.documentos.find(d => d.tipo_documento === tipoBackend);
+    return doc ? doc.url_archivo : null;
+  };
+  // -------------------------------------------
 
   const regexRFC = /^([A-ZÑ&]{4})\d{6}([A-Z0-9]{3})$/;
   const regexCURP = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
@@ -69,7 +88,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     fetchCatalogos();
   }, [isEditing, docenteToEdit]);
 
-// EFECTO DE LLENADO DE DATOS (MODO EDICIÓN)
+  // EFECTO DE LLENADO DE DATOS (MODO EDICIÓN)
   useEffect(() => {
     if (isEditing && docenteToEdit) {
       
@@ -230,7 +249,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 required 
                 value={formData.usuario_id} 
                 onChange={handleChange} 
-                disabled={isEditing} // No deberías cambiar al usuario si ya está vinculado
+                disabled={isEditing} 
                 className={`block w-full rounded-xl border border-slate-300 shadow-sm py-3 px-4 ${isEditing ? 'bg-slate-100 cursor-not-allowed text-slate-500' : 'bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-200 cursor-pointer'}`}
               >
                 <option value="">-- Elija un usuario --</option>
@@ -334,19 +353,49 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
           </div>
         </div>
 
-        {/* SECCIÓN 4 (Archivos no obligatorios en edición) */}
+        {/* SECCIÓN 4 (Actualizada con Ver Actual) */}
         <div>
           <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4 flex items-center gap-2">
             4. Expediente Digital 
             {isEditing && <span className="text-xs font-normal text-blue-600 bg-blue-50 px-2 py-1 rounded-md ml-2">Solo subir si desea reemplazar los actuales</span>}
           </h3>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {[ { id: "titulo", label: "Título" }, { id: "cedula", label: "Cédula" }, { id: "sat", label: "Constancia SAT" }, { id: "ine", label: "INE" }, { id: "domicilio", label: "Comprobante" }, { id: "cv", label: "CV" } ].map((doc) => (
-              <div key={doc.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <label className="block text-sm font-bold text-slate-800 mb-3 flex items-center"><FileText className="w-4 h-4 mr-2 text-blue-600" /> {doc.label} {!isEditing && "*"}</label>
-                <input type="file" name={doc.id} accept="application/pdf" required={!isEditing} onChange={handleFileChange} className="block w-full text-slate-600 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer transition-colors" />
-              </div>
-            ))}
+            {documentosRequeridos.map((doc) => {
+              const urlActual = getDocumentoUrl(doc.tipoBackend);
+              const linkDescarga = urlActual ? `${BACKEND_URL}${urlActual}` : null;
+
+              return (
+                <div key={doc.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+                  <div className="flex justify-between items-start mb-3">
+                    <label className="block text-sm font-bold text-slate-800 flex items-center">
+                      <FileText className="w-4 h-4 mr-2 text-blue-600" /> {doc.label} {!isEditing && "*"}
+                    </label>
+                    
+                    {/* BOTÓN PARA VER EL DOCUMENTO ACTUAL */}
+                    {urlActual && (
+                      <a 
+                        href={linkDescarga} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline bg-blue-100/50 px-2 py-1 rounded-md transition-colors"
+                        title="Ver documento actual"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" /> Ver actual
+                      </a>
+                    )}
+                  </div>
+
+                  <input 
+                    type="file" 
+                    name={doc.id} 
+                    accept="application/pdf" 
+                    required={!isEditing} 
+                    onChange={handleFileChange} 
+                    className="block w-full text-slate-600 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer transition-colors" 
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
