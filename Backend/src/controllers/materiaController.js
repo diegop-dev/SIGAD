@@ -1,5 +1,33 @@
 const materiaModel = require("../models/materiaModel");
 
+// método exclusivo para la API de sincronización externa (HU-37 / API-03)
+const getMateriasParaSincronizacion = async (req, res) => {
+  try {
+    // extraemos los query strings definidos en el contrato del PDF
+    const { carrera_id, cuatrimestre_id } = req.query;
+
+    // validación estricta: si faltan parámetros devolvemos HTTP 400 (Bad Request)
+    if (!carrera_id || !cuatrimestre_id) {
+      return res.status(400).json({
+        message: "Parámetros incompletos. Se requiere carrera_id y cuatrimestre_id."
+      });
+    }
+
+    // delegamos la consulta al modelo pasándole los filtros
+    const materias = await materiaModel.getMateriasParaSincronizacion(carrera_id, cuatrimestre_id);
+    
+    // retornamos directamente el arreglo JSON para cumplir el contrato
+    return res.status(200).json(materias);
+  } catch (error) {
+    console.error("[Error getMateriasParaSincronizacion]:", error);
+    // retornamos HTTP 500 ocultando la traza original por seguridad
+    return res.status(500).json({ 
+      message: "Error interno al procesar el catálogo de materias." 
+    });
+  }
+};
+
+// método interno para el consumo del frontend de SIGAD
 const getMaterias = async (req, res) => {
   try {
     const materias = await materiaModel.getAllMaterias();
@@ -146,6 +174,7 @@ const toggleMateria = async (req, res) => {
 };
 
 module.exports = {
+  getMateriasParaSincronizacion, // exportamos la nueva función
   getMaterias,
   createMateria,
   updateMateria,

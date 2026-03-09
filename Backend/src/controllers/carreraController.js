@@ -18,13 +18,34 @@ const carreraController = {
     }
   },
   
+  // método para consumo interno del frontend de SIGAD
   getCarreras: async (req, res) => {
     try {
       const carreras = await carreraModel.getAllCarreras();
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error al obtener carreras:', error);
-      return res.status(500).json({ success: false, message: 'Error al obtener carreras' });
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Error al obtener carreras' 
+      });
+    }
+  },
+
+  // método exclusivo para la API de sincronización externa (HU-37 / API-01)
+  getCarrerasParaSincronizacion: async (req, res) => {
+    try {
+      // invocamos la consulta optimizada que proyecta únicamente id_carrera y nombre_carrera
+      const carreras = await carreraModel.getCarrerasParaSincronizacion();
+      
+      // retornamos directamente el arreglo para cumplir el contrato JSON del sistema externo
+      return res.status(200).json(carreras);
+    } catch (error) {
+      console.error('Error en API de sincronización de carreras:', error);
+      // retornamos HTTP 500 sin exponer detalles sensibles de la base de datos
+      return res.status(500).json({ 
+        message: 'Error interno al procesar el catálogo de carreras' 
+      });
     }
   },
 

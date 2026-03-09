@@ -1,11 +1,22 @@
 const pool = require('../config/database');
 
+// API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-05)
+const getAsignacionesParaSincronizacion = async (materia_id, grupo_id) => {
+  // validación de parámetros para evitar consultas mal formadas
+  if (!materia_id || !grupo_id) {
+    return [];
+  }
+
+  // consulta optimizada sin JOINs, proyectando estrictamente lo solicitado en el PDF
+  const rows = await pool.query(` SELECT id_asignacion, docente_id, dia_semana, hora_inicio, hora_fin FROM asignaciones WHERE materia_id = ? AND grupo_id = ? AND estatus_acta != 'CERRADA' ORDER BY dia_semana ASC, hora_inicio ASC `, [materia_id, grupo_id]);
+  return rows;
+};
+
 // ==========================================
 // VALIDACIONES DE CRUCE DE HORARIOS (HU-33)
 // ==========================================
 
 const checkDocenteConflict = async (docente_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
-  // se remueven los corchetes de destructuring para recibir el arreglo completo
   const rows = await pool.query(`
     SELECT a.id_asignacion 
     FROM asignaciones a
@@ -82,7 +93,6 @@ const createAsignaciones = async (asignacionesData) => {
     const insertedIds = [];
 
     for (const data of asignacionesData) {
-      // la inserción también debe recibir el objeto result directamente
       const result = await connection.query(insertQuery, [
         data.periodo_id,
         data.materia_id,
@@ -156,12 +166,12 @@ const getAllAsignaciones = async (filters = {}) => {
 
   query += ` ORDER BY p.fecha_inicio DESC, u.apellido_paterno ASC, a.dia_semana ASC, a.hora_inicio ASC`;
 
-  // se remueve destructuring aquí también
   const rows = await pool.query(query, queryParams);
   return rows;
 };
 
 module.exports = {
+  getAsignacionesParaSincronizacion, // se exporta el nuevo método
   checkDocenteConflict,
   checkGrupoConflict,
   checkAulaConflict,

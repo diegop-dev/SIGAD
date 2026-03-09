@@ -1,11 +1,30 @@
 const pool = require("../config/database");
 
 const materiaModel = {
+  // método dedicado a la API-03 (HU-37)
+  getMateriasParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      // validamos que los parámetros existan, de lo contrario devolvemos arreglo vacío
+      if (!carrera_id || !cuatrimestre_id) {
+        return [];
+      }
+
+      // consulta optimizada: sin JOINs y proyectando solo lo requerido por el PDF
+      const rows = await conn.query(` SELECT id_materia, codigo_unico, nombre, cupo_maximo FROM Materias WHERE carrera_id = ? AND cuatrimestre_id = ? AND estatus = 'ACTIVO' ORDER BY id_materia ASC `, [carrera_id, cuatrimestre_id]);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   getAllMaterias: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
-      // Se mantiene el JOIN para devolver la información curricular cruzada
+      // se mantiene el JOIN para devolver la información curricular cruzada al frontend interno
       const rows = await conn.query(`
         SELECT
           m.*,
@@ -29,7 +48,7 @@ const materiaModel = {
     try {
       conn = await pool.getConnection();
       
-      // Inserción directa. El codigo_unico ahora proviene del frontend.
+      // inserción directa. el codigo_unico ahora proviene del frontend.
       const result = await conn.query(
         `INSERT INTO Materias
         (codigo_unico, periodo_id, cuatrimestre_id, nombre, creditos, cupo_maximo, tipo_asignatura, carrera_id, creado_por)
@@ -61,7 +80,7 @@ const materiaModel = {
     try {
       conn = await pool.getConnection();
       
-      // Se añade codigo_unico a la sentencia UPDATE
+      // se añade codigo_unico a la sentencia UPDATE
       await conn.query(`
         UPDATE Materias
         SET

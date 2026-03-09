@@ -1,6 +1,33 @@
 const grupoModel = require('../models/grupoModel');
 
 const grupoController = {
+  // método exclusivo para la API de sincronización externa (HU-37 / API-04)
+  getGruposParaSincronizacion: async (req, res) => {
+    try {
+      // extraemos los query strings definidos en el contrato del PDF
+      const { carrera_id, cuatrimestre_id } = req.query;
+
+      // validación estricta: si faltan parámetros devolvemos HTTP 400
+      if (!carrera_id || !cuatrimestre_id) {
+        return res.status(400).json({
+          message: 'Parámetros incompletos. Se requiere carrera_id y cuatrimestre_id.'
+        });
+      }
+
+      // delegamos la consulta al modelo optimizado
+      const grupos = await grupoModel.getGruposParaSincronizacion(carrera_id, cuatrimestre_id);
+      
+      // retornamos directamente el arreglo para cumplir el contrato JSON
+      return res.status(200).json(grupos);
+    } catch (error) {
+      console.error('[Error getGruposParaSincronizacion]:', error);
+      // retornamos HTTP 500 sin exponer detalles de la base de datos
+      return res.status(500).json({ 
+        message: 'Error interno al procesar el catálogo de grupos.' 
+      });
+    }
+  },
+
   getGrupos: async (req, res) => {
     try {
       const grupos = await grupoModel.getAllGrupos();
@@ -11,7 +38,7 @@ const grupoController = {
     }
   },
 
-crearGrupo: async (req, res) => {
+  crearGrupo: async (req, res) => {
     try {
       const { identificador, carrera_id, cuatrimestre_id } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : null; 

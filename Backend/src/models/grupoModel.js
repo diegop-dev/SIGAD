@@ -1,6 +1,25 @@
 const pool = require("../config/database");
 
 const grupoModel = {
+  // método exclusivo para la API de sincronización externa (HU-37 / API-04)
+  getGruposParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      // si faltan parámetros devolvemos un arreglo vacío por seguridad
+      if (!carrera_id || !cuatrimestre_id) {
+        return [];
+      }
+
+      // consulta optimizada sin joins, proyectando estrictamente lo solicitado en el PDF
+      const rows = await conn.query(` SELECT id_grupo, identificador FROM grupos WHERE carrera_id = ? AND cuatrimestre_id = ? AND estatus = 'ACTIVO' ORDER BY id_grupo ASC `, [carrera_id, cuatrimestre_id]);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   crearGrupo: async (datosGrupo) => {
     const { identificador, carrera_id, cuatrimestre_id, creado_por } = datosGrupo;
     let conn;
@@ -21,7 +40,7 @@ const grupoModel = {
     let conn;
     try {
       conn = await pool.getConnection();
-      // Hacemos JOIN con carreras para traer el nombre en lugar del ID
+      // hacemos JOIN con carreras para traer el nombre en lugar del ID para uso del frontend
       const rows = await conn.query(`
         SELECT 
           g.id_grupo, 
