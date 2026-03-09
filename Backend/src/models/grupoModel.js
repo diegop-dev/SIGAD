@@ -36,11 +36,10 @@ const grupoModel = {
     }
   },
 
-  getAllGrupos: async () => {
+getAllGrupos: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
-      // hacemos JOIN con carreras para traer el nombre en lugar del ID para uso del frontend
       const rows = await conn.query(`
         SELECT 
           g.id_grupo, 
@@ -48,9 +47,11 @@ const grupoModel = {
           g.carrera_id, 
           g.cuatrimestre_id,
           g.estatus,
-          c.nombre_carrera
+          c.nombre_carrera,
+          cu.nombre AS nombre_cuatrimestre
         FROM grupos g
         LEFT JOIN carreras c ON g.carrera_id = c.id_carrera
+        LEFT JOIN cuatrimestres cu ON g.cuatrimestre_id = cu.id_cuatrimestre
         ORDER BY g.id_grupo DESC
       `);
       return rows;

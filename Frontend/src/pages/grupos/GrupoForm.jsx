@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, BookOpen, Loader2, Hash, Layers, Trash2, Edit3, Calendar } from "lucide-react";
+import { Save, ArrowLeft, Calendar, Loader2, Hash, Layers, Trash2, Edit3 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -10,35 +10,45 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
   const [errores, setErrores] = useState({});
   const [carreras, setCarreras] = useState([]); 
   const [cargandoCarreras, setCargandoCarreras] = useState(true);
+  const [cuatrimestres, setCuatrimestres] = useState([]);
+  const [cargandoCuatrimestres, setCargandoCuatrimestres] = useState(true);
 
   const isEditing = !!initialData;
 
   const [formData, setFormData] = useState({
     identificador: initialData?.identificador || "",
-    carrera_id: initialData?.carrera_id || "",
     cuatrimestre_id: initialData?.cuatrimestre_id || "",
+    carrera_id: initialData?.carrera_id || "",
   });
 
   useEffect(() => {
-    const fetchCarreras = async () => {
+    const fetchCatalogos = async () => {
       try {
-        const response = await api.get("/carreras");
-        const listaCarreras = Array.isArray(response.data) ? response.data : response.data.data;
+        const [resCarreras, resCuatrimestres] = await Promise.all([
+          api.get("/carreras"),
+          api.get("/cuatrimestres")
+        ]);
+        
+        const listaCarreras = Array.isArray(resCarreras.data) ? resCarreras.data : resCarreras.data.data;
         const carrerasActivas = listaCarreras.filter(c => c.estatus === 'ACTIVO');
         setCarreras(carrerasActivas || []);
+
+        const listaCuatrimestres = Array.isArray(resCuatrimestres.data) ? resCuatrimestres.data : resCuatrimestres.data.data;
+        setCuatrimestres(listaCuatrimestres || []);
+
       } catch (error) {
-        console.error("Error al cargar carreras:", error);
-        toast.error("No se pudieron cargar las carreras disponibles.");
+        console.error("Error al cargar catálogos:", error);
+        toast.error("No se pudieron cargar las opciones del formulario.");
       } finally {
         setCargandoCarreras(false);
+        setCargandoCuatrimestres(false);
       }
     };
-    fetchCarreras();
+    fetchCatalogos();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Forzar mayúsculas y máximo 10 caracteres en el identificador
     const finalValue = name === 'identificador' ? value.toUpperCase().slice(0, 10) : value;
     
     setFormData({ ...formData, [name]: finalValue });
@@ -47,21 +57,21 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const validate = () => {
     const newErrors = {};
-    const { identificador, carrera_id, cuatrimestre_id } = formData;
+    const { identificador, cuatrimestre_id, carrera_id } = formData;
     const identificadorLimpio = identificador.trim();
 
     if (!identificadorLimpio) {
-      newErrors.identificador = "El identificador es obligatorio";
-    }
-
-    if (!carrera_id) {
-      newErrors.carrera_id = "Selecciona una carrera";
+      newErrors.identificador = "El identificador del grupo es obligatorio";
+    } else if (identificadorLimpio.length > 10) {
+      newErrors.identificador = "El identificador no puede exceder los 10 caracteres";
     }
 
     if (!cuatrimestre_id) {
-      newErrors.cuatrimestre_id = "El cuatrimestre es obligatorio";
-    } else if (!Number.isInteger(Number(cuatrimestre_id)) || cuatrimestre_id < 1 || cuatrimestre_id > 15) {
-      newErrors.cuatrimestre_id = "Debe ser un número entero entre 1 y 15";
+      newErrors.cuatrimestre_id = "Selecciona un cuatrimestre";
+    }
+    
+    if (!carrera_id) {
+      newErrors.carrera_id = "Selecciona una carrera";
     }
 
     setErrores(newErrors);
@@ -77,9 +87,9 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
 
     try {
       const payload = {
-        ...formData,
-        carrera_id: Number(formData.carrera_id),
+        identificador: formData.identificador,
         cuatrimestre_id: Number(formData.cuatrimestre_id),
+        carrera_id: Number(formData.carrera_id),
       };
 
       if (isEditing) {
@@ -119,7 +129,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
           </button>
           <div>
             <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar grupo" : "Nuevo grupo"}</h2>
-            <p className="text-sm text-slate-500 font-medium">Define el identificador, carrera y cuatrimestre.</p>
+            <p className="text-sm text-slate-500 font-medium">Define el identificador, cuatrimestre y la carrera asignada.</p>
           </div>
         </div>
         
@@ -138,14 +148,14 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
             
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
-                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Identificador del grupo
+                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Identificador
               </label>
               <input
                 type="text"
                 name="identificador"
                 value={formData.identificador}
                 onChange={handleChange}
-                placeholder="Ej: ISC-8A"
+                placeholder="Ej: 1-A"
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
                   errores.identificador ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
@@ -157,17 +167,20 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Cuatrimestre
               </label>
-              <input
-                type="number"
+              <select
                 name="cuatrimestre_id"
                 value={formData.cuatrimestre_id}
                 onChange={handleChange}
-                placeholder="Ej: 1"
-                min="1"
+                disabled={cargandoCuatrimestres}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
                   errores.cuatrimestre_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
-              />
+              >
+                <option value="">{cargandoCuatrimestres ? "Cargando..." : "-- Seleccione un cuatrimestre --"}</option>
+                {cuatrimestres.map(c => (
+                  <option key={c.id_cuatrimestre} value={c.id_cuatrimestre}>{c.nombre}</option>
+                ))}
+              </select>
               {errores.cuatrimestre_id && <p className="text-xs font-bold text-red-500">{errores.cuatrimestre_id}</p>}
             </div>
 
@@ -195,12 +208,12 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
 
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             {isEditing ? (
-              <button type="submit" disabled={isSubmitting || cargandoCarreras} className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md">
+              <button type="submit" disabled={isSubmitting || cargandoCarreras || cargandoCuatrimestres} className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md">
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Edit3 className="w-5 h-5 mr-2" />}
                 Actualizar datos
               </button>
             ) : (
-              <button type="submit" disabled={isSubmitting || cargandoCarreras} className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md">
+              <button type="submit" disabled={isSubmitting || cargandoCarreras || cargandoCuatrimestres} className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md">
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
                 Guardar grupo
               </button>
