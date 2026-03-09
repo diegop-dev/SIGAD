@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit, Trash2, Home, Beaker, MapPin, Users, Filter } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Home, Beaker, MapPin, Users, Filter, ToggleLeft, ToggleRight } from 'lucide-react';
 import api from '../../services/api'; 
 import toast from 'react-hot-toast';   
 import AddAulaModal from './AddAulaModal';
@@ -12,7 +12,7 @@ const AulaManagement = () => {
   const [filtroTipo, setFiltroTipo] = useState("TODOS");
   const [cargando, setCargando] = useState(true);
   
-  // Estados para modales
+  // Estados de modales
   const [modalState, setModalState] = useState({ add: false, edit: false, del: false });
   const [aulaSeleccionada, setAulaSeleccionada] = useState(null);
 
@@ -21,9 +21,7 @@ const cargarAulas = async () => {
     setCargando(true);
     const response = await api.get('/aulas/consultar');
     
-    // VALIDACIÓN CLAVE:
-    // Si la respuesta es un arreglo, lo guardamos. 
-    // Si no, guardamos un arreglo vacío para que .filter() no falle.
+   
     if (Array.isArray(response.data)) {
       setAulas(response.data);
     } else {
@@ -32,7 +30,7 @@ const cargarAulas = async () => {
     }
   } catch (error) {
     console.error("Error al cargar aulas:", error);
-    setAulas([]); // En caso de error, mantenemos el arreglo vacío
+    setAulas([]); 
     toast.error("Error al conectar con el servidor");
   } finally {
     setCargando(false);
@@ -158,11 +156,21 @@ const cargarAulas = async () => {
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button 
+                     <button 
+                        disabled={aula.estatus === 'INACTIVO'} 
                         onClick={() => { setAulaSeleccionada(aula); setModalState({ ...modalState, del: true }); }}
-                        className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition-all" title="Eliminar"
+                        className={`flex items-center transition-all ${
+                          aula.estatus === 'INACTIVO' 
+                            ? 'opacity-30 cursor-not-allowed text-gray-400' 
+                            : 'text-emerald-500 hover:text-rose-500'
+                        }`}
+                        title={aula.estatus === 'INACTIVO' ? "Espacio ya desactivado" : "Desactivar Espacio"}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {aula.estatus === 'INACTIVO' ? (
+                          <ToggleLeft className="w-7 h-7" /> // Icono de apagado
+                        ) : (
+                          <ToggleRight className="w-7 h-7" /> // Icono de encendido
+                        )}
                       </button>
                     </div>
                   </td>
