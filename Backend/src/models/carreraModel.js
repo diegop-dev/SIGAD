@@ -1,7 +1,6 @@
 const pool = require("../config/database");
 
 const carreraModel = {
-
   findExistingCarrera: async (nombre_carrera) => {
     let conn;
     try {
@@ -10,31 +9,32 @@ const carreraModel = {
         `SELECT id_carrera, nombre_carrera 
          FROM carreras 
          WHERE nombre_carrera = ? LIMIT 1`,
-        [nombre_carrera]
+        [nombre_carrera],
       );
-      return rows[0]; 
+      return rows[0];
     } finally {
       if (conn) conn.release();
     }
   },
 
   crearCarrera: async (datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } =
+      datosCarrera;
     let conn;
-    
+
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `INSERT INTO carreras (codigo_unico, nombre_carrera, modalidad, academia_id, estatus, creado_por, fecha_creacion)
          VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, creado_por]
+        [codigo_unico, nombre_carrera, modalidad, academia_id, creado_por],
       );
-      return result; 
+      return result;
     } finally {
       if (conn) conn.release();
     }
   },
-  
+
   getAllCarreras: async () => {
     let conn;
     try {
@@ -51,6 +51,18 @@ const carreraModel = {
         LEFT JOIN academias a ON c.academia_id = a.id_academia
         ORDER BY c.id_carrera DESC
       `);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  // método optimizado para cumplir estrictamente con la HU-37 (API-01)
+  getCarrerasParaSincronizacion: async () => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(` SELECT id_carrera, nombre_carrera FROM carreras WHERE estatus = 'ACTIVO' `);
       return rows;
     } finally {
       if (conn) conn.release();

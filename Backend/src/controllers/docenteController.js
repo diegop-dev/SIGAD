@@ -1,5 +1,34 @@
 const docenteModel = require("../models/docenteModel");
 
+// API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
+const getDocenteParaSincronizacion = async (req, res) => {
+  try {
+    const { id_docente } = req.query;
+
+    // validación estricta del parámetro requerido
+    if (!id_docente) {
+      return res.status(400).json({
+        message: "Parámetro incompleto. Se requiere id_docente."
+      });
+    }
+
+    // consumimos la consulta optimizada del modelo
+    const docente = await docenteModel.getDocenteParaSincronizacion(id_docente);
+    
+    // retornamos el arreglo JSON puro
+    return res.status(200).json(docente);
+  } catch (error) {
+    console.error("[Error getDocenteParaSincronizacion]:", error);
+    // retornamos HTTP 500 protegiendo la traza del error
+    return res.status(500).json({ 
+      message: "Error interno al procesar el catálogo de docentes." 
+    });
+  }
+};
+
+// ==========================================
+// MÉTODOS INTERNOS DE SIGAD
+// ==========================================
 const getUsuariosDisponibles = async (req, res) => {
   try {
     const usuarios = await docenteModel.getUsuariosDisponibles();
@@ -69,27 +98,23 @@ const registerDocente = async (req, res) => {
   }
 };
 
-// NUEVA FUNCIÓN PARA ACTUALIZAR
 const updateDocente = async (req, res) => {
   try {
-    const { id } = req.params; // Obtenemos el ID del docente desde la URL
+    const { id } = req.params; 
     const {
       rfc, curp, celular, calle, numero, colonia, cp,
       clave_ine, nivel_academico, academia_id, modificado_por 
     } = req.body;
 
-    // Opcional: Validar que no falten datos clave
     if (!rfc || !curp || !celular || !clave_ine || !nivel_academico || !academia_id) {
       return res.status(400).json({ error: "Faltan datos obligatorios para actualizar." });
     }
 
-    // Reconstruimos el domicilio solo si nos enviaron los campos (por si cambiaron de dirección)
     let domicilio_completo = null;
     if (calle && numero && colonia && cp) {
       domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
     }
 
-    // Procesamos solo los documentos que el usuario haya decidido reemplazar
     const documentosNuevos = [];
     if (req.files?.titulo) documentosNuevos.push({ tipo: 'TITULO', url: `/uploads/docentes/${req.files.titulo[0].filename}` });
     if (req.files?.cedula) documentosNuevos.push({ tipo: 'CEDULA', url: `/uploads/docentes/${req.files.cedula[0].filename}` });
@@ -98,7 +123,6 @@ const updateDocente = async (req, res) => {
     if (req.files?.domicilio) documentosNuevos.push({ tipo: 'COMPROBANTE_DOMICILIO', url: `/uploads/docentes/${req.files.domicilio[0].filename}` });
     if (req.files?.cv) documentosNuevos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
 
-    // Mandamos todo al modelo
     await docenteModel.updateDocente(id, {
       rfc, 
       curp, 
@@ -118,27 +142,21 @@ const updateDocente = async (req, res) => {
   }
 };
 
-// NUEVA FUNCIÓN PARA DAR DE BAJA
 const deactivateDocente = async (req, res) => {
   try {
     const { id } = req.params;
     const { eliminado_por } = req.body;
 
-    // Validación de entrada
     if (!eliminado_por) {
       return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
     }
 
-    // Ejecutamos el modelo y guardamos el número de filas afectadas
     const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por);
 
-    // Validamos si la base de datos realmente encontró y actualizó el registro
     if (affectedRows === 0) {
-      // 404 Not Found es el código correcto si el ID no existe
       return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
     }
 
-    // Respuesta exitosa
     res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
 
   } catch (error) {
@@ -147,5 +165,11 @@ const deactivateDocente = async (req, res) => {
   }
 };
 
-// No olvides exportar la nueva función
-module.exports = { registerDocente, getDocentes, getUsuariosDisponibles, updateDocente, deactivateDocente };
+module.exports = { 
+  getDocenteParaSincronizacion, // exportamos la nueva función para la API-06
+  registerDocente, 
+  getDocentes, 
+  getUsuariosDisponibles, 
+  updateDocente, 
+  deactivateDocente 
+};

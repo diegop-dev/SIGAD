@@ -1,5 +1,32 @@
 const assignmentModel = require('../models/assignmentModel');
 
+// API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-05)
+const getAsignacionesParaSincronizacion = async (req, res) => {
+  try {
+    // extraemos los parámetros de consulta obligatorios según el PDF
+    const { materia_id, grupo_id } = req.query;
+
+    // validación estricta: retornamos HTTP 400 si la petición está incompleta
+    if (!materia_id || !grupo_id) {
+      return res.status(400).json({
+        message: "Parámetros incompletos. Se requiere materia_id y grupo_id."
+      });
+    }
+
+    // consumimos el método optimizado del modelo
+    const asignaciones = await assignmentModel.getAsignacionesParaSincronizacion(materia_id, grupo_id);
+    
+    // retornamos directamente el arreglo para cumplir con el contrato JSON
+    return res.status(200).json(asignaciones);
+  } catch (error) {
+    console.error("[Error en assignmentController - getAsignacionesParaSincronizacion]:", error);
+    // retornamos HTTP 500 ocultando la traza original por seguridad
+    return res.status(500).json({ 
+      message: "Error interno al procesar el catálogo de asignaciones." 
+    });
+  }
+};
+
 // ==========================================
 // HU-33: CREAR ASIGNACIÓN DOCENTE
 // ==========================================
@@ -71,6 +98,7 @@ const getAsignaciones = async (req, res) => {
 };
 
 module.exports = {
+  getAsignacionesParaSincronizacion, // exportamos el nuevo método
   createAsignacion,
   getAsignaciones
 };

@@ -1,6 +1,27 @@
 const db = require('../config/database');
 
 const docenteModel = {
+  // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
+  getDocenteParaSincronizacion: async (id_docente) => {
+    try {
+      // validación estricta para evitar consultas nulas
+      if (!id_docente) {
+        return [];
+      }
+
+      // consulta directa y optimizada proyectando solo lo requerido en el PDF
+      const query = ` SELECT matricula_empleado FROM docentes WHERE id_docente = ? AND estatus = 'ACTIVO' `; 
+      const rows = await db.query(query, [id_docente]);
+      return rows;
+    } catch (error) {
+      console.error("[Error getDocenteParaSincronizacion]:", error.message);
+      throw error;
+    }
+  },
+
+  // ==========================================
+  // MÉTODOS INTERNOS DE SIGAD
+  // ==========================================
   getUsuariosDisponibles: async () => {
     try {
       const query = `
