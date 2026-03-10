@@ -12,7 +12,8 @@ import {
   BookOpen, 
   Hash, 
   Layers, 
-  Calendar 
+  Calendar, 
+  UserCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../services/api";
@@ -207,6 +208,7 @@ export const MateriasManagement = () => {
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Ubicación curricular</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Clasificación</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Créditos/Cupo</th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
@@ -271,6 +273,17 @@ export const MateriasManagement = () => {
                         {m.cupo_maximo} <span className="text-slate-400 font-normal mx-1">MAX</span>
                       </div>
                     </td>
+                    <td className="px-6 py-4 text-center">
+  {m.estatus === "ACTIVO" ? (
+    <span className="px-3 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800">
+      ACTIVO
+    </span>
+  ) : (
+    <span className="px-3 py-1 text-xs font-bold rounded-lg bg-red-100 text-red-800">
+      INACTIVO
+    </span>
+  )}
+</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
                         <button
@@ -287,13 +300,45 @@ export const MateriasManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        <button
-                          title="Eliminar materia"
-                          onClick={() => setDeletingMateria(m)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                       {m.estatus === "ACTIVO" ? (
+
+<button
+  title="Desactivar materia"
+  onClick={() => setDeletingMateria(m)}
+  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+>
+  <Trash2 className="w-5 h-5" />
+</button>
+
+) : (
+
+<button
+  title="Reactivar materia"
+  onClick={async () => {
+
+    const toastId = toast.loading("Reactivando...");
+
+    try{
+
+      await api.patch(`/materias/${m.id_materia}/toggle`);
+
+      toast.success("Materia reactivada",{id:toastId});
+
+      fetchMaterias();
+
+    }catch{
+
+      toast.error("Error reactivando",{id:toastId});
+
+    }
+
+  }}
+  className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+>
+  <UserCheck className="w-5 h-5" />
+</button>
+
+)}
                       </div>
                     </td>
                   </tr>

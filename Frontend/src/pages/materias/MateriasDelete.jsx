@@ -58,49 +58,63 @@ toast.error("Error aplicando baja lógica",{id:toastId});
 
 };
 
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+ return (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
 
-        <div className="flex justify-between items-center px-6 py-5 border-b bg-red-50">
-          <h2 className="text-lg font-black text-red-700 flex items-center">
-            <AlertTriangle className="w-5 h-5 mr-2" />
-            Confirmar eliminación
-          </h2>
+      <div className="flex justify-between items-center px-6 py-5 border-b bg-red-50">
+        <h2 className="text-lg font-black text-red-700 flex items-center">
+          <AlertTriangle className="w-5 h-5 mr-2"/>
+          Administrar materia
+        </h2>
 
-          <button onClick={onClose}>
-            <X />
-          </button>
-        </div>
+        <button onClick={onClose}>
+          <X/>
+        </button>
+      </div>
 
-        <div className="p-6 space-y-4 text-sm text-slate-700">
-          <p>
-            ¿Está seguro de eliminar la materia{" "}
-            <span className="font-bold">{materia.nombre}</span>?
-          </p>
+      <div className="p-6 space-y-4 text-sm text-slate-700">
 
-          <p className="text-red-600 font-semibold">
-            Esta acción no se puede deshacer y afectará los catálogos académicos.
-          </p>
-        </div>
+        <p>
+          ¿Qué desea hacer con la materia
+          <span className="font-bold"> {materia.nombre}</span>?
+        </p>
 
-        <div className="flex justify-end space-x-4 px-6 py-4 border-t bg-slate-50">
+        <div className="space-y-3">
+
           <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-200 font-bold"
+            onClick={handleLogicalDelete}
+            className="w-full flex items-center justify-center px-4 py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600"
           >
-            Cancelar
+            Desactivar materia
           </button>
 
           <button
             onClick={handleDelete}
-            className="flex items-center px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
+            className="w-full flex items-center justify-center px-4 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Eliminar
+            <Trash2 className="w-4 h-4 mr-2"/>
+            Eliminar permanentemente
           </button>
+
         </div>
+
+        <p className="text-xs text-slate-500">
+          Desactivar mantiene el historial. Eliminar borra completamente si no tiene relaciones.
+        </p>
+
       </div>
+
+      <div className="flex justify-end px-6 py-4 border-t bg-slate-50">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded-xl bg-slate-200 font-bold"
+        >
+          Cancelar
+        </button>
+      </div>
+
     </div>
-  );
+  </div>
+);
 };

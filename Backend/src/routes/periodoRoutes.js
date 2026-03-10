@@ -42,4 +42,11 @@ router.patch(
   periodoController.togglePeriodo
 );
 
+router.patch(
+  "/:id/toggle",
+  verifyToken,
+  requireRole([1]),
+  periodoController.togglePeriodo
+);
+
 module.exports = router;

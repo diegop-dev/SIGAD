@@ -2,119 +2,169 @@ const pool = require("../config/database");
 
 const periodoModel = {
 
-  getAllPeriodos: async () => {
-    let conn;
+getPeriodoById: async (id)=>{
 
-    try {
+let conn;
 
-      conn = await pool.getConnection();
+try{
 
-      const rows = await conn.query(`
-        SELECT 
-          id_periodo,
-          codigo,
-          anio,
-          fecha_inicio,
-          fecha_fin,
-          fecha_limite_calif,
-          estatus
-        FROM Periodos
-        ORDER BY fecha_inicio DESC
-      `);
+conn = await pool.getConnection();
 
-      return rows;
+const rows = await conn.query(`
+SELECT *
+FROM Periodos
+WHERE id_periodo = ?
+`,[id]);
 
-    } finally {
-      if (conn) conn.release();
-    }
-  },
+return rows[0];
 
-  createPeriodo: async (data) => {
+}finally{
+if(conn) conn.release();
+}
 
-    let conn;
+},
 
-    try {
+getAllPeriodos: async ()=>{
 
-      conn = await pool.getConnection();
+let conn;
 
-      const result = await conn.query(`
-        INSERT INTO Periodos
-        (codigo, anio, fecha_inicio, fecha_fin, fecha_limite_calif, creado_por)
-        VALUES (?,?,?,?,?,?)
-      `,[
-        data.codigo,
-        data.anio,
-        data.fecha_inicio,
-        data.fecha_fin,
-        data.fecha_limite_calif,
-        data.creado_por
-      ]);
+try{
 
-      return {
-        id: result.insertId
-      };
+conn = await pool.getConnection();
 
-    } finally {
-      if (conn) conn.release();
-    }
-  },
+const rows = await conn.query(`
+SELECT
+id_periodo,
+codigo,
+anio,
+fecha_inicio,
+fecha_fin,
+fecha_limite_calif,
+estatus
+FROM Periodos
+ORDER BY fecha_inicio DESC
+`);
 
-  updatePeriodo: async (id,data) => {
+return rows;
 
-    let conn;
+}finally{
+if(conn) conn.release();
+}
 
-    try {
+},
 
-      conn = await pool.getConnection();
+createPeriodo: async (data)=>{
 
-      await conn.query(`
-        UPDATE Periodos
-        SET
-          codigo = ?,
-          anio = ?,
-          fecha_inicio = ?,
-          fecha_fin = ?,
-          fecha_limite_calif = ?,
-          modificado_por = ?
-        WHERE id_periodo = ?
-      `,[
-        data.codigo,
-        data.anio,
-        data.fecha_inicio,
-        data.fecha_fin,
-        data.fecha_limite_calif,
-        data.modificado_por,
-        id
-      ]);
+let conn;
 
-    } finally {
-      if (conn) conn.release();
-    }
+try{
 
-  },
+conn = await pool.getConnection();
 
-  inactivarPeriodo: async (id,usuario) => {
+const result = await conn.query(`
+INSERT INTO Periodos
+(codigo,anio,fecha_inicio,fecha_fin,fecha_limite_calif,creado_por)
+VALUES (?,?,?,?,?,?)
+`,[
+data.codigo,
+data.anio,
+data.fecha_inicio,
+data.fecha_fin,
+data.fecha_limite_calif,
+data.creado_por
+]);
 
-    let conn;
+return {id:result.insertId};
 
-    try {
+}finally{
+if(conn) conn.release();
+}
 
-      conn = await pool.getConnection();
+},
 
-      await conn.query(`
-        UPDATE Periodos
-        SET
-          estatus = 'INACTIVO',
-          eliminado_por = ?,
-          fecha_eliminacion = NOW()
-        WHERE id_periodo = ?
-      `,[usuario,id]);
+updatePeriodo: async (id,data)=>{
 
-    } finally {
-      if (conn) conn.release();
-    }
+let conn;
 
+try{
+
+conn = await pool.getConnection();
+
+await conn.query(`
+UPDATE Periodos
+SET
+codigo=?,
+anio=?,
+fecha_inicio=?,
+fecha_fin=?,
+fecha_limite_calif=?,
+modificado_por=?
+WHERE id_periodo=?
+`,[
+data.codigo,
+data.anio,
+data.fecha_inicio,
+data.fecha_fin,
+data.fecha_limite_calif,
+data.modificado_por,
+id
+]);
+
+}finally{
+if(conn) conn.release();
+}
+
+},
+
+
+
+
+
+
+
+deletePeriodoFisico: async (id) => {
+
+  let conn;
+
+  try {
+
+    conn = await pool.getConnection();
+
+    await conn.query(
+      `DELETE FROM Periodos WHERE id_periodo = ?`,
+      [id]
+    );
+
+  } finally {
+    if (conn) conn.release();
   }
+
+},
+
+
+togglePeriodoStatus: async (id, usuario) => {
+
+  let conn;
+
+  try {
+
+    conn = await pool.getConnection();
+
+    await conn.query(`
+      UPDATE Periodos
+      SET
+        estatus = IF(estatus='ACTIVO','INACTIVO','ACTIVO'),
+        eliminado_por = IF(estatus='ACTIVO', ?, NULL),
+        fecha_eliminacion = IF(estatus='ACTIVO', NOW(), NULL),
+        modificado_por = ?
+      WHERE id_periodo = ?
+    `,[usuario,usuario,id]);
+
+  } finally {
+    if (conn) conn.release();
+  }
+
+}
 
 };
 

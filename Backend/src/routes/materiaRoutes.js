@@ -35,7 +35,7 @@ router.delete(
 );
 
 router.patch(
-  "/:id",
+  "/:id/toggle",
   verifyToken,
   requireRole([1]),
   materiaController.toggleMateria
