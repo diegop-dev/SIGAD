@@ -1,175 +1,223 @@
 const periodoModel = require("../models/periodoModel");
 
+const meses = [
+"ENERO","FEBRERO","MARZO","ABRIL",
+"MAYO","JUNIO","JULIO","AGOSTO",
+"SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"
+];
+
+const generarCodigoPeriodo = (anio,fecha_inicio,fecha_fin)=>{
+
+const inicio = new Date(fecha_inicio);
+const fin = new Date(fecha_fin);
+
+const mesInicio = meses[inicio.getMonth()];
+const mesFin = meses[fin.getMonth()];
+
+return `${anio}-${mesInicio}-${mesFin}`;
+
+};
+
 const getPeriodos = async (req,res)=>{
 
-  try{
+try{
 
-    const periodos = await periodoModel.getAllPeriodos();
+const periodos = await periodoModel.getAllPeriodos();
 
-    res.status(200).json(periodos);
+res.status(200).json(periodos);
 
-  }catch(error){
+}catch(error){
 
-    console.error("[Error getPeriodos]:",error);
+console.error("[Error getPeriodos]:",error);
 
-    res.status(500).json({
-      error:"Error al consultar periodos"
-    });
+res.status(500).json({
+error:"Error al consultar periodos"
+});
 
-  }
+}
 
 };
 
 const createPeriodo = async (req,res)=>{
 
-  try{
+try{
 
-    const {
-      codigo,
-      anio,
-      fecha_inicio,
-      fecha_fin,
-      fecha_limite_calif
-    } = req.body;
+const{
+anio,
+fecha_inicio,
+fecha_fin,
+fecha_limite_calif
+}=req.body;
 
-    const creado_por = req.user.id_usuario;
+const creado_por = req.user.id_usuario;
 
-    // regla de negocio
-    if(new Date(fecha_fin) <= new Date(fecha_inicio)){
-      return res.status(400).json({
-        error:"La fecha_fin debe ser mayor que fecha_inicio"
-      });
-    }
+if(new Date(fecha_fin)<=new Date(fecha_inicio)){
+return res.status(400).json({
+error:"La fecha_fin debe ser mayor que fecha_inicio"
+});
+}
 
-    const result = await periodoModel.createPeriodo({
-      codigo,
-      anio,
-      fecha_inicio,
-      fecha_fin,
-      fecha_limite_calif,
-      creado_por
-    });
+const codigo = generarCodigoPeriodo(anio,fecha_inicio,fecha_fin);
 
-    res.status(201).json({
-      message:"Periodo creado correctamente",
-      id_periodo:result.id
-    });
+const result = await periodoModel.createPeriodo({
+codigo,
+anio,
+fecha_inicio,
+fecha_fin,
+fecha_limite_calif,
+creado_por
+});
 
-  }catch(error){
+res.status(201).json({
+message:"Periodo creado correctamente",
+id_periodo:result.id
+});
 
-    console.error("[Error createPeriodo]:",error);
+}catch(error){
 
-    res.status(500).json({
-      error:"Error al crear periodo"
-    });
+console.error("[Error createPeriodo]:",error);
 
-  }
+res.status(500).json({
+error:"Error al crear periodo"
+});
+
+}
 
 };
 
 const updatePeriodo = async (req,res)=>{
 
-  try{
+try{
+
+const {id}=req.params;
+
+const{
+anio,
+fecha_inicio,
+fecha_fin,
+fecha_limite_calif
+}=req.body;
+
+const modificado_por = req.user.id_usuario;
+
+if(new Date(fecha_fin)<=new Date(fecha_inicio)){
+return res.status(400).json({
+error:"La fecha_fin debe ser mayor que fecha_inicio"
+});
+}
+
+const codigo = generarCodigoPeriodo(anio,fecha_inicio,fecha_fin);
+
+await periodoModel.updatePeriodo(id,{
+codigo,
+anio,
+fecha_inicio,
+fecha_fin,
+fecha_limite_calif,
+modificado_por
+});
+
+res.status(200).json({
+message:"Periodo actualizado correctamente"
+});
+
+}catch(error){
+
+console.error("[Error updatePeriodo]:",error);
+
+res.status(500).json({
+error:"Error al actualizar periodo"
+});
+
+}
+
+};
+
+ /*
+=========================
+BORRADO FISICO
+=========================
+*/
+
+const deletePeriodo = async (req, res) => {
+
+  try {
 
     const { id } = req.params;
 
-    const {
-      codigo,
-      anio,
-      fecha_inicio,
-      fecha_fin,
-      fecha_limite_calif
-    } = req.body;
+    const periodo = await periodoModel.getPeriodoById(id);
 
-    const modificado_por = req.user.id_usuario;
-
-    if(new Date(fecha_fin) <= new Date(fecha_inicio)){
-      return res.status(400).json({
-        error:"La fecha_fin debe ser mayor que fecha_inicio"
+    if (!periodo) {
+      return res.status(404).json({
+        error: "Periodo no encontrado"
       });
     }
 
-    await periodoModel.updatePeriodo(id,{
-      codigo,
-      anio,
-      fecha_inicio,
-      fecha_fin,
-      fecha_limite_calif,
-      modificado_por
+    
+
+    await periodoModel.deletePeriodoFisico(id);
+
+    res.json({
+      message: "Periodo eliminado"
     });
 
-    res.status(200).json({
-      message:"Periodo actualizado correctamente"
-    });
+  } catch (error) {
 
-  }catch(error){
+    console.error(error);
 
-    console.error("[Error updatePeriodo]:",error);
+    if (error.code === "ER_ROW_IS_REFERENCED_2") {
+
+      return res.status(409).json({
+        error: "El periodo tiene materias asociadas"
+      });
+
+    }
 
     res.status(500).json({
-      error:"Error al actualizar periodo"
+      error: "Error eliminando periodo"
     });
 
   }
 
 };
 
-const deletePeriodo = async (req,res)=>{
 
-  try{
+/*
+=========================
+BAJA LOGICA
+=========================
+*/
+
+const togglePeriodo = async (req, res) => {
+
+  try {
 
     const { id } = req.params;
 
-    const eliminado_por = req.user.id_usuario;
+    const usuario = req.user?.id_usuario;
 
-    await periodoModel.inactivarPeriodo(id,eliminado_por);
+    await periodoModel.togglePeriodoStatus(id, usuario);
 
     res.status(200).json({
-      message:"Periodo inactivado correctamente"
+      message: "Estatus actualizado"
     });
 
-  }catch(error){
+  } catch (error) {
 
-    console.error("[Error deletePeriodo]:",error);
+    console.error("Error cambiando estatus:", error);
 
     res.status(500).json({
-      error:"Error al eliminar periodo"
+      error: "Error cambiando estatus"
     });
 
   }
 
 };
-  
-const togglePeriodo = async (req,res)=>{
 
-  try{
-
-    const { id } = req.params;
-
-    const toggled_by = req.user.id_usuario;
-
-    await periodoModel.togglePeriodo(id,toggled_by);
-
-    res.status(200).json({
-      message:"Periodo actualizado correctamente"
-    });
-
-  }catch(error){
-
-    console.error("[Error togglePeriodo]:",error);
-
-    res.status(500).json({
-      error:"Error al actualizar periodo"
-    });
-
-  }
-
-};
-        
-module.exports = {
-  getPeriodos,
-  createPeriodo,
-  updatePeriodo,
-  deletePeriodo,
-  togglePeriodo
+module.exports={
+getPeriodos,
+createPeriodo,
+updatePeriodo,
+deletePeriodo,
+togglePeriodo
 };

@@ -91,7 +91,7 @@ export const MateriasModal = ({
                 Cuatrimestre
               </p>
               <p className="text-lg font-semibold text-slate-900">
-                {materia.cuatrimestre}
+                {materia.cuatrimestre_id}
               </p>
             </div>
 
@@ -164,32 +164,6 @@ export const MateriasModal = ({
           </div>
         </div>
 
-        {/* FOOTER */}
-        <div className="flex justify-end space-x-4 px-6 py-4 border-t bg-slate-50">
-
-          <button
-            onClick={() => {
-              onClose();
-              onEdit(materia);
-            }}
-            className="flex items-center px-4 py-2 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600"
-          >
-            <Pencil className="w-4 h-4 mr-2" />
-            Editar
-          </button>
-
-          <button
-            onClick={() => {
-              onClose();
-              onDelete(materia);
-            }}
-            className="flex items-center px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Eliminar
-          </button>
-
-        </div>
       </div>
     </div>
   );
