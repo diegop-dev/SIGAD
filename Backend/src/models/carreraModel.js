@@ -1,15 +1,26 @@
 const pool = require("../config/database");
 
 const carreraModel = {
-  findExistingCarrera: async (nombre_carrera) => {
+  getCarreraById: async (id_carrera) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query("SELECT * FROM carreras WHERE id_carrera = ?", [id_carrera]);
+      return rows[0];
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  findExistingCarrera: async (nombre_carrera, modalidad) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(
         `SELECT id_carrera, nombre_carrera 
          FROM carreras 
-         WHERE nombre_carrera = ? LIMIT 1`,
-        [nombre_carrera],
+         WHERE nombre_carrera = ? AND modalidad = ? LIMIT 1`,
+        [nombre_carrera, modalidad],
       );
       return rows[0];
     } finally {
@@ -17,11 +28,36 @@ const carreraModel = {
     }
   },
 
-  crearCarrera: async (datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } =
-      datosCarrera;
+  verificarSiglasExistentes: async (siglas) => {
     let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(
+        "SELECT COUNT(*) AS total FROM carreras WHERE codigo_unico = ?",
+        [siglas]
+      );
+      return rows[0].total > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
 
+  getAcademiasActivas: async () => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(
+        "SELECT id_academia, nombre FROM academias WHERE estatus = 'ACTIVO'"
+      );
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  crearCarrera: async (datosCarrera) => {
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } = datosCarrera;
+    let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
@@ -57,7 +93,6 @@ const carreraModel = {
     }
   },
 
-  // método optimizado para cumplir estrictamente con la HU-37 (API-01)
   getCarrerasParaSincronizacion: async () => {
     let conn;
     try {
@@ -67,7 +102,7 @@ const carreraModel = {
     } finally {
       if (conn) conn.release();
     }
-  },
+  }
 };
 
 module.exports = carreraModel;

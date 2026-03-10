@@ -1,5 +1,47 @@
 const carreraModel = require('../models/carreraModel');
 
+const generarSiglas = async (nombreCarrera, modalidad) => {
+  const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
+  
+  const nombreLimpio = nombreCarrera.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  const palabras = nombreLimpio.split(/\s+/);
+  const palabrasValidas = palabras.filter(palabra => !palabrasIgnoradas.includes(palabra));
+
+  let baseSiglas = "";
+
+  // Si la carrera es de una sola palabra (ej. "Derecho") tomamos 3 letras
+  if (palabrasValidas.length === 1) {
+    baseSiglas = palabrasValidas[0].substring(0, 3);
+  } else {
+    // Si tiene más palabras, tomamos la inicial de cada una (máximo 4)
+    baseSiglas = palabrasValidas.map(p => p[0]).join('').substring(0, 4);
+  }
+
+  // Determinar sufijo por modalidad
+  let sufijo = '';
+  if (modalidad === 'EJECUTIVA') sufijo = 'E';
+  if (modalidad === 'HÍBRIDA') sufijo = 'H';
+
+  let siglas = baseSiglas + sufijo;
+
+  const existe = await carreraModel.verificarSiglasExistentes(siglas);
+
+  if (existe) {
+    // Plan B en caso de colisión
+    if (palabrasValidas.length === 1) {
+      // Si era de 1 palabra, extendemos a 4 letras (ej. DERE)
+      baseSiglas = palabrasValidas[0].substring(0, 4);
+    } else {
+      // Si era de varias, tomamos las 2 primeras letras de cada una
+      baseSiglas = palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
+    }
+    siglas = baseSiglas + sufijo;
+  }
+
+  return siglas;
+};
+
 const carreraController = {
 
   getAcademiasDisponibles: async (req, res) => {
@@ -18,7 +60,6 @@ const carreraController = {
     }
   },
   
-  // método para consumo interno del frontend de SIGAD
   getCarreras: async (req, res) => {
     try {
       const carreras = await carreraModel.getAllCarreras();
@@ -32,17 +73,12 @@ const carreraController = {
     }
   },
 
-  // método exclusivo para la API de sincronización externa (HU-37 / API-01)
   getCarrerasParaSincronizacion: async (req, res) => {
     try {
-      // invocamos la consulta optimizada que proyecta únicamente id_carrera y nombre_carrera
       const carreras = await carreraModel.getCarrerasParaSincronizacion();
-      
-      // retornamos directamente el arreglo para cumplir el contrato JSON del sistema externo
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error en API de sincronización de carreras:', error);
-      // retornamos HTTP 500 sin exponer detalles sensibles de la base de datos
       return res.status(500).json({ 
         message: 'Error interno al procesar el catálogo de carreras' 
       });
@@ -51,21 +87,23 @@ const carreraController = {
 
   crearCarrera: async (req, res) => {
     try {
-      const { codigo_unico, nombre_carrera, modalidad, academia_id } = req.body;
+      const { nombre_carrera, modalidad, academia_id } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : req.body.creado_por;
 
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera);
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
       
       if (carreraExistente) {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe una carrera registrada con ese nombre exacto.'
+          message: 'Ya existe esta carrera registrada en la misma modalidad.'
         });
       }
 
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad);
+
       const datosNuevaCarrera = {
-        codigo_unico: codigo_unico.toUpperCase(),
-        nombre_carrera,
+        codigo_unico, 
+        nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
         academia_id,
         creado_por
@@ -79,7 +117,7 @@ const carreraController = {
         data: {
           id_carrera: Number(resultado.insertId), 
           codigo_unico: datosNuevaCarrera.codigo_unico,
-          nombre_carrera,
+          nombre_carrera: datosNuevaCarrera.nombre_carrera,
           modalidad,
           academia_id
         }

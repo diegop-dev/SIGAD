@@ -1,33 +1,7 @@
 const grupoModel = require('../models/grupoModel');
+const carreraModel = require('../models/carreraModel');
 
 const grupoController = {
-  // método exclusivo para la API de sincronización externa (HU-37 / API-04)
-  getGruposParaSincronizacion: async (req, res) => {
-    try {
-      // extraemos los query strings definidos en el contrato del PDF
-      const { carrera_id, cuatrimestre_id } = req.query;
-
-      // validación estricta: si faltan parámetros devolvemos HTTP 400
-      if (!carrera_id || !cuatrimestre_id) {
-        return res.status(400).json({
-          message: 'Parámetros incompletos. Se requiere carrera_id y cuatrimestre_id.'
-        });
-      }
-
-      // delegamos la consulta al modelo optimizado
-      const grupos = await grupoModel.getGruposParaSincronizacion(carrera_id, cuatrimestre_id);
-      
-      // retornamos directamente el arreglo para cumplir el contrato JSON
-      return res.status(200).json(grupos);
-    } catch (error) {
-      console.error('[Error getGruposParaSincronizacion]:', error);
-      // retornamos HTTP 500 sin exponer detalles de la base de datos
-      return res.status(500).json({ 
-        message: 'Error interno al procesar el catálogo de grupos.' 
-      });
-    }
-  },
-
   getGrupos: async (req, res) => {
     try {
       const grupos = await grupoModel.getAllGrupos();
@@ -40,32 +14,32 @@ const grupoController = {
 
   crearGrupo: async (req, res) => {
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
-      const creado_por = req.usuario ? req.usuario.id_usuario : null; 
-
-      const identificadorMayusculas = identificador.toUpperCase();
-
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
+      const { carrera_id } = req.body;
+      const creado_por = req.usuario ? req.usuario.id_usuario : null;
 
       const datosNuevoGrupo = {
-        identificador: identificadorMayusculas, 
+        identificador: 'TEMP',
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: 1, 
         creado_por
       };
 
       const resultado = await grupoModel.crearGrupo(datosNuevoGrupo);
+      const nuevoId = resultado.insertId;
+
+      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
+      const anio = new Date().getFullYear();
+
+      const idFormateado = String(nuevoId).padStart(3, '0');
+      const identificadorFinal = `${anio}${codigo_unico}${idFormateado}`;
+
+      await grupoModel.actualizarIdentificador(nuevoId, identificadorFinal);
 
       return res.status(201).json({
         success: true,
-        message: 'Grupo registrado correctamente.',
-        data: { id_grupo: Number(resultado.insertId), ...datosNuevoGrupo }
+        message: 'Grupo registrado y autogenerado correctamente.',
+        data: { id_grupo: nuevoId, identificador: identificadorFinal, carrera_id, cuatrimestre_id: 1 }
       });
 
     } catch (error) {
@@ -77,22 +51,16 @@ const grupoController = {
   actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
+      const { carrera_id } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
-      const identificadorMayusculas = identificador.toUpperCase();
 
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id, id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
+      const grupoExistente = await grupoModel.getGrupoById(id);
+      if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
       const datosActualizar = {
-        identificador: identificadorMayusculas,
+        identificador: grupoExistente.identificador,
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: grupoExistente.cuatrimestre_id,
         modificado_por
       };
 
