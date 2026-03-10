@@ -97,8 +97,7 @@ const docenteModel = {
     }
   },
 
-  getAllDocentes: async () => {
-    // 🎁 EXTRA: Agregamos el correo y el nombre de la academia con un JOIN
+getAllDocentes: async () => {
     const query = `
       SELECT 
         d.*, 
@@ -108,7 +107,16 @@ const docenteModel = {
       JOIN usuarios u ON d.usuario_id = u.id_usuario
       LEFT JOIN academias a ON d.academia_id = a.id_academia
     `;
-    return await db.query(query);
+    const docentes = await db.query(query);
+
+    //Por cada docente, buscamos sus documentos y se los pegamos
+    for (let i = 0; i < docentes.length; i++) {
+      const docsQuery = 'SELECT tipo_documento, url_archivo FROM documentos_docentes WHERE docente_id = ?';
+      const docs = await db.query(docsQuery, [docentes[i].id_docente]);
+      docentes[i].documentos = docs; 
+    }
+
+    return docentes;
   },
 
   // ✨ NUEVA FUNCIÓN PARA ACTUALIZAR ✨
