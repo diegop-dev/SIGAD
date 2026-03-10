@@ -1,12 +1,6 @@
 const { check, validationResult } = require('express-validator');
 
 const validarCreacionCarrera = [
-  check('codigo_unico')
-    .trim()
-    .toUpperCase()
-    .notEmpty().withMessage('El código de la carrera es obligatorio').bail()
-    .matches(/^[A-Z]{3}[0-9]{2}$/).withMessage('El código debe tener exactamente 3 letras seguidas de 2 números (ej. INF01)'),
-
   check('nombre_carrera')
     .trim()
     .notEmpty().withMessage('El nombre de la carrera es obligatorio').bail()
@@ -16,16 +10,24 @@ const validarCreacionCarrera = [
       if (/\s{2,}/.test(value)) {
         throw new Error('No se permiten espacios dobles o múltiples');
       }
-      if (/(.)\1{2,}/.test(value)) {
+      // Agregamos la "i" al final para que aAa y aaa sean lo mismo
+      if (/(.)\1{2,}/i.test(value)) {
         throw new Error('El nombre no parece válido (caracteres repetidos)');
       }
       
-      const palabras = value.split(' ');
+      const palabras = value.trim().split(/\s+/);
       const purasLetrasSueltas = palabras.length > 1 && palabras.every(palabra => palabra.length <= 1);
       
       if (purasLetrasSueltas) {
         throw new Error('El nombre no puede estar formado solo por letras sueltas');
       }
+
+      // Nueva regla: Evita palabras como "Aa", "aa", "ee"
+      const palabrasSinSentido = palabras.some(palabra => palabra.length > 1 && /^(.)\1+$/i.test(palabra));
+      if (palabrasSinSentido) {
+        throw new Error('El nombre contiene palabras no válidas (ej. "Aa")');
+      }
+
       return true;
     }),
 

@@ -48,6 +48,7 @@ getAllGrupos: async () => {
           g.cuatrimestre_id,
           g.estatus,
           c.nombre_carrera,
+          c.modalidad,
           cu.nombre AS nombre_cuatrimestre
         FROM grupos g
         LEFT JOIN carreras c ON g.carrera_id = c.id_carrera

@@ -59,14 +59,16 @@ export const GrupoManagement = () => {
     fetchCatalogosFiltro();
   }, []);
 
-  const filteredGrupos = useMemo(() => {
+const filteredGrupos = useMemo(() => {
     return grupos.filter(grupo => {
       const busqueda = searchTerm.toLowerCase();
       const identificadorGrupo = grupo.identificador?.toLowerCase() || '';
       const nombreCarrera = grupo.nombre_carrera?.toLowerCase() || '';
 
       const coincideBusqueda = identificadorGrupo.includes(busqueda) || nombreCarrera.includes(busqueda);
-      const coincideCarrera = carreraFilter ? grupo.nombre_carrera === carreraFilter : true;
+      
+      const coincideCarrera = carreraFilter ? grupo.carrera_id === Number(carreraFilter) : true;
+      
       const coincideCuatrimestre = cuatrimestreFilter ? grupo.nombre_cuatrimestre === cuatrimestreFilter : true;
       const coincideEstatus = statusFilter ? grupo.estatus === statusFilter : true;
 
@@ -159,8 +161,9 @@ export const GrupoManagement = () => {
             >
               <option value="">Todas las carreras</option>
               {carrerasLista.map(carrera => (
-                <option key={carrera.id_carrera} value={carrera.nombre_carrera}>
-                  {carrera.nombre_carrera}
+                // ⚡ Usamos el ID como valor y mostramos la modalidad en el texto
+                <option key={carrera.id_carrera} value={carrera.id_carrera}>
+                  {carrera.nombre_carrera} ({carrera.modalidad})
                 </option>
               ))}
             </select>
@@ -201,6 +204,7 @@ export const GrupoManagement = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Identificador</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Modalidad</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cuatrimestre</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
@@ -242,6 +246,11 @@ export const GrupoManagement = () => {
                       <div className="text-sm font-medium text-slate-700 leading-relaxed break-words">
                         <BookOpen className="w-4 h-4 inline mr-1 text-slate-400" />
                         {grupo.nombre_carrera || 'Sin asignar'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-slate-600 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg inline-flex items-center">
+                        {grupo.modalidad || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

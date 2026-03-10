@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react"; 
+import { useState, useEffect, useMemo } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Layers, Loader2, Trash2 } from "lucide-react";
+import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen } from "lucide-react";
 import api from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 
 export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
+  const { user } = useAuth(); // Recuperamos el hook de autenticación
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
   const [carreras, setCarreras] = useState([]); 
@@ -11,9 +13,8 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const isEditing = !!initialData;
 
-  const [formData, setFormData] = useState({
-    carrera_id: initialData?.carrera_id || "",
-  });
+  const [modalidadSeleccionada, setModalidadSeleccionada] = useState("");
+  const [carreraId, setCarreraId] = useState(initialData?.carrera_id || "");
 
   useEffect(() => {
     const fetchCarreras = async () => {
@@ -22,6 +23,14 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
         const listaCarreras = Array.isArray(response.data) ? response.data : response.data.data;
         const carrerasActivas = listaCarreras.filter(c => c.estatus === 'ACTIVO');
         setCarreras(carrerasActivas || []);
+
+        // Si estamos editando, autoseleccionamos la modalidad basada en la carrera guardada
+        if (initialData?.carrera_id) {
+          const carreraActual = carrerasActivas.find(c => c.id_carrera === initialData.carrera_id);
+          if (carreraActual) {
+            setModalidadSeleccionada(carreraActual.modalidad);
+          }
+        }
       } catch (error) {
         console.error("Error al cargar carreras:", error);
         toast.error("No se pudieron cargar las carreras disponibles.");
@@ -30,17 +39,31 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       }
     };
     fetchCarreras();
-  }, []);
+  }, [initialData]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    if (errores[name]) setErrores({ ...errores, [name]: null });
+  const carrerasFiltradas = useMemo(() => {
+    if (!modalidadSeleccionada) return [];
+    return carreras.filter(c => c.modalidad === modalidadSeleccionada);
+  }, [carreras, modalidadSeleccionada]);
+
+  const handleModalidadChange = (e) => {
+    setModalidadSeleccionada(e.target.value);
+    setCarreraId(""); 
+    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
+    if (errores.modalidad) setErrores({ ...errores, modalidad: null });
+  };
+
+  const handleCarreraChange = (e) => {
+    setCarreraId(e.target.value);
+    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
   };
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.carrera_id) {
+    if (!modalidadSeleccionada) {
+      newErrors.modalidad = "Selecciona una modalidad primero";
+    }
+    if (!carreraId) {
       newErrors.carrera_id = "Selecciona una carrera";
     }
     setErrores(newErrors);
@@ -55,7 +78,11 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     const toastId = toast.loading(isEditing ? "Actualizando..." : "Generando grupo...");
 
     try {
-      const payload = { carrera_id: Number(formData.carrera_id) };
+      // Agregamos el id_usuario al payload
+      const payload = { 
+        carrera_id: Number(carreraId),
+        creado_por: user?.id_usuario 
+      };
 
       if (isEditing) {
         await api.put(`/grupos/${initialData.id_grupo}`, payload);
@@ -73,6 +100,14 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     }
   };
 
+  const carreraSeleccionada = carreras.find(c => c.id_carrera === Number(carreraId));
+  const codigoUnico = carreraSeleccionada?.codigo_unico || "XXXX";
+  const anioActual = new Date().getFullYear();
+  
+  const previewIdentificador = isEditing 
+    ? initialData.identificador 
+    : `${anioActual}${codigoUnico}[###]`;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
@@ -83,33 +118,85 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
           <div>
             <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar grupo" : "Nuevo grupo"}</h2>
             <p className="text-sm text-slate-500 font-medium">
-              {isEditing ? "Modifica la asignación de carrera." : "El identificador y cuatrimestre se autogenerarán."}
+              {isEditing ? "Modifica la asignación de carrera." : "Filtra por modalidad y elige la carrera."}
             </p>
           </div>
         </div>
+        
+        {isEditing && (
+          <div className="flex gap-2">
+            <button type="button" className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar" onClick={() => toast("Función de eliminación en desarrollo", { icon: "🚧" })}>
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-bold text-slate-700">
-              <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
-            </label>
-            <select
-              name="carrera_id"
-              value={formData.carrera_id}
-              onChange={handleChange}
-              disabled={cargandoCarreras}
-              className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-              }`}
-            >
-              <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione una carrera --"}</option>
-              {carreras.map(c => (
-                <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
-              ))}
-            </select>
-            {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
+              </label>
+              <select
+                value={modalidadSeleccionada}
+                onChange={handleModalidadChange}
+                disabled={cargandoCarreras}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.modalidad ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione una modalidad --"}</option>
+                <option value="ESCOLARIZADA">ESCOLARIZADA</option>
+                <option value="EJECUTIVA">EJECUTIVA</option>
+                <option value="HÍBRIDA">HÍBRIDA</option>
+              </select>
+              {errores.modalidad && <p className="text-xs font-bold text-red-500">{errores.modalidad}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
+              </label>
+              <select
+                value={carreraId}
+                onChange={handleCarreraChange}
+                disabled={!modalidadSeleccionada || cargandoCarreras}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+                }`}
+              >
+                <option value="">-- Seleccione una carrera --</option>
+                {carrerasFiltradas.map(c => (
+                  <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                ))}
+              </select>
+              {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
+            </div>
+
+            <div className="md:col-span-2 space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Identificador {isEditing ? "actual" : "generado"}
+              </label>
+              <div className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm flex items-center justify-between">
+                <span className="font-bold">
+                  {carreraId || isEditing ? previewIdentificador : "Esperando selección de carrera..."}
+                </span>
+                {!isEditing && carreraId && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-bold uppercase tracking-wider">
+                    Vista previa
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                {isEditing 
+                  ? "El identificador original no se puede modificar." 
+                  : "El fragmento [###] será reemplazado por el ID automático de la base de datos."}
+              </p>
+            </div>
+
           </div>
 
           <div className="flex justify-end pt-6 border-t border-slate-100">

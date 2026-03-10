@@ -1,7 +1,7 @@
 const grupoModel = require('../models/grupoModel');
+const carreraModel = require('../models/carreraModel');
 
 const grupoController = {
-  // 1. Obtener todos los grupos para la tabla
   getGrupos: async (req, res) => {
     try {
       const grupos = await grupoModel.getAllGrupos();
@@ -12,13 +12,11 @@ const grupoController = {
     }
   },
 
-  // 2. Crear grupo y autogenerar identificador
   crearGrupo: async (req, res) => {
     try {
       const { carrera_id } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : null;
 
-      // Insertar con cuatrimestre 1 y un identificador temporal
       const datosNuevoGrupo = {
         identificador: 'TEMP',
         carrera_id,
@@ -29,14 +27,13 @@ const grupoController = {
       const resultado = await grupoModel.crearGrupo(datosNuevoGrupo);
       const nuevoId = resultado.insertId;
 
-      // Obtener las siglas de la carrera y el año actual
-      const siglas = await grupoModel.getCarreraSiglas(carrera_id);
+      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
       const anio = new Date().getFullYear();
 
-      // Construir el identificador final (Ej. 2026123SIS)
-      const identificadorFinal = `${anio}${nuevoId}${siglas}`;
+      const idFormateado = String(nuevoId).padStart(3, '0');
+      const identificadorFinal = `${anio}${codigo_unico}${idFormateado}`;
 
-      // Actualizar el registro con el identificador final
       await grupoModel.actualizarIdentificador(nuevoId, identificadorFinal);
 
       return res.status(201).json({
@@ -51,14 +48,12 @@ const grupoController = {
     }
   },
 
-  // 3. Actualizar grupo existente (solo se cambia la carrera)
   actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
       const { carrera_id } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
 
-      // Recuperamos los datos actuales para no borrar el identificador ni el cuatrimestre
       const grupoExistente = await grupoModel.getGrupoById(id);
       if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
@@ -78,7 +73,6 @@ const grupoController = {
     }
   },
 
-  // 4. Cambiar el estatus (Activo/Inactivo)
   cambiarEstatusGrupo: async (req, res) => {
     const { id } = req.params;
     const { estatus } = req.body; 
