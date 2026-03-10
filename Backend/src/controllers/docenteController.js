@@ -142,28 +142,34 @@ const updateDocente = async (req, res) => {
   }
 };
 
-const deactivateDocente = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { eliminado_por } = req.body;
+  const deactivateDocente = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { eliminado_por, motivo_baja } = req.body;
 
-    if (!eliminado_por) {
-      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
+      if (!eliminado_por) {
+        return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
+      }
+      
+      // Validación del nuevo campo
+      if (!motivo_baja || motivo_baja.trim() === '') {
+        return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
+      }
+
+      // Pasamos el motivo_baja al modelo
+      const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
+
+      if (affectedRows === 0) {
+        return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
+      }
+
+      res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
+
+    } catch (error) {
+      console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
+      res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
     }
-
-    const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por);
-
-    if (affectedRows === 0) {
-      return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
-    }
-
-    res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
-
-  } catch (error) {
-    console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
-    res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
-  }
-};
+  };
 
 module.exports = { 
   getDocenteParaSincronizacion, // exportamos la nueva función para la API-06

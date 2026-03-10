@@ -182,14 +182,14 @@ getAllDocentes: async () => {
     }
   },
 
-  // Soft delete a docente
-  deactivateDocente: async (id_docente, eliminado_por) => {
+// Soft delete a docente
+  deactivateDocente: async (id_docente, eliminado_por, motivo_baja) => {
     const query = `
       UPDATE docentes
-      SET estatus = 'BAJA', eliminado_por = ?, fecha_eliminacion = NOW()
+      SET estatus = 'BAJA', eliminado_por = ?, fecha_eliminacion = NOW(), motivo_baja = ?
       WHERE id_docente = ?
     `;
-    const result = await db.query(query, [eliminado_por, id_docente]);
+    const result = await db.query(query, [eliminado_por, motivo_baja, id_docente]);
     return result.affectedRows;
   }
 };
