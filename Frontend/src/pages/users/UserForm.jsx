@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Save, ArrowLeft, User, RefreshCw, Copy, CheckCircle, Mail, KeyRound, Shield, ImagePlus, Loader2 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { TOAST_USUARIOS, TOAST_COMMON } from "../../../constants/toastMessages";
 
 export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const { user } = useAuth();
@@ -99,7 +100,6 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
     setFormData((prev) => ({ ...prev, [name]: finalValue }));
   };
 
-  // Validación manual reactiva para reemplazar el comportamiento del navegador
   const validateForm = () => {
     const newErrors = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -130,12 +130,14 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      toast.error("Por favor, corrige los campos señalados en rojo.");
+      toast.error(TOAST_USUARIOS.camposInvalidos);
       return;
     }
 
     setIsSubmitting(true);
-    const toastId = toast.loading(isEditing ? "Actualizando expediente..." : "Registrando usuario...");
+    const toastId = toast.loading(
+      isEditing ? TOAST_USUARIOS.loadingActualizar : TOAST_USUARIOS.loadingRegistrar
+    );
 
     try {
       const form = new FormData();
@@ -151,12 +153,12 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
       if (isEditing) {
         form.append("modificado_por", user.id_usuario);
         await api.put(`/users/${userToEdit.id_usuario}`, form);
-        toast.success("Usuario actualizado exitosamente", { id: toastId });
+        toast.success(TOAST_USUARIOS.actualizadoOk, { id: toastId });
         onSuccess(); 
       } else {
         form.append("creado_por", user.id_usuario);
         const response = await api.post("/users/register", form);
-        toast.success("Usuario registrado exitosamente", { id: toastId });
+        toast.success(TOAST_USUARIOS.registradoOk, { id: toastId });
         
         if (response.data && response.data.password_temporal) {
           setGeneratedPassword(response.data.password_temporal);
@@ -171,10 +173,10 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
           backendErrors[err.path || err.param] = err.msg;
         });
         setErrores(backendErrors);
-        toast.error("El servidor rechazó algunos datos. Revisa el formulario.", { id: toastId });
+        toast.error(TOAST_USUARIOS.errorCamposBackend, { id: toastId });
       } else {
-        const errorMsg = error.response?.data?.error || "Error al conectar con el servidor";
-        toast.error(`Error: ${errorMsg}`, { id: toastId });
+        const errorMsg = error.response?.data?.error || TOAST_COMMON.errorServidor;
+        toast.error(errorMsg, { id: toastId });
       }
     } finally {
       setIsSubmitting(false);
@@ -184,7 +186,7 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const handleCopyPassword = () => {
     navigator.clipboard.writeText(generatedPassword);
     setCopied(true);
-    toast.success("Contraseña copiada al portapapeles");
+    toast.success(TOAST_COMMON.contrasenaCopiadaPortapapeles);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -243,14 +245,13 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
       </div>
 
       <div className="p-6 md:p-8">
-        {/* Se añadió noValidate para desactivar los tooltips nativos del navegador */}
         <form onSubmit={handleSubmit} noValidate className="space-y-8">
           
           {/* Nombres y Apellidos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className={`flex items-center text-sm font-bold ${errores.nombres ? 'text-red-600' : 'text-slate-700'}`}>
-                <User className={`w-4 h-4 mr-2 ${errores.nombres ? 'text-red-500' : 'text-blue-500'}`} /> Nombres *
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <User className="w-4 h-4 mr-2 text-blue-500" /> Nombres *
               </label>
               <input 
                 type="text" 
@@ -260,15 +261,15 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 onChange={handleChange} 
                 onBlur={handleBlur}
                 placeholder="Ej. Juan Carlos"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.nombres ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-slate-300 focus:ring-blue-100"
-                }`} 
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.nombres ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
               />
               {errores.nombres && <p className="text-xs font-bold text-red-500 mt-1">{errores.nombres}</p>}
             </div>
             
             <div className="space-y-2">
-              <label className={`flex items-center text-sm font-bold ${errores.apellido_paterno ? 'text-red-600' : 'text-slate-700'}`}>
+              <label className="flex items-center text-sm font-bold text-slate-700">
                 <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno *
               </label>
               <input 
@@ -279,15 +280,15 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 onChange={handleChange} 
                 onBlur={handleBlur}
                 placeholder="Ej. Pérez"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.apellido_paterno ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-slate-300 focus:ring-blue-100"
-                }`} 
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.apellido_paterno ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
               />
               {errores.apellido_paterno && <p className="text-xs font-bold text-red-500 mt-1">{errores.apellido_paterno}</p>}
             </div>
             
             <div className="space-y-2">
-              <label className={`flex items-center text-sm font-bold ${errores.apellido_materno ? 'text-red-600' : 'text-slate-700'}`}>
+              <label className="flex items-center text-sm font-bold text-slate-700">
                 <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno *
               </label>
               <input 
@@ -298,9 +299,9 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 onChange={handleChange} 
                 onBlur={handleBlur}
                 placeholder="Ej. López"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.apellido_materno ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-slate-300 focus:ring-blue-100"
-                }`} 
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.apellido_materno ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
               />
               {errores.apellido_materno && <p className="text-xs font-bold text-red-500 mt-1">{errores.apellido_materno}</p>}
             </div>
@@ -309,8 +310,8 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
           {/* Correos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
             <div className="space-y-2">
-              <label className={`flex items-center text-sm font-bold ${errores.personal_email ? 'text-red-600' : 'text-slate-700'}`}>
-                <Mail className={`w-4 h-4 mr-2 ${errores.personal_email ? 'text-red-500' : 'text-blue-500'}`} /> Correo personal *
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo personal *
               </label>
               <input 
                 type="email" 
@@ -321,16 +322,16 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDownStrict}
                 placeholder="juan@gmail.com"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.personal_email ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-slate-300 focus:ring-blue-100"
-                }`} 
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.personal_email ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
               />
               {errores.personal_email && <p className="text-xs font-bold text-red-500 mt-1">{errores.personal_email}</p>}
             </div>
             
             <div className="space-y-2">
-              <label className={`flex items-center text-sm font-bold ${errores.institutional_email ? 'text-red-600' : 'text-slate-700'}`}>
-                <Mail className={`w-4 h-4 mr-2 ${errores.institutional_email ? 'text-red-500' : 'text-blue-500'}`} /> Correo institucional *
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo institucional *
               </label>
               <input 
                 type="email" 
@@ -341,9 +342,9 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDownStrict}
                 placeholder="j.perez@unid.edu.mx"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.institutional_email ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-slate-300 focus:ring-blue-100"
-                }`} 
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                  errores.institutional_email ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
               />
               {errores.institutional_email && <p className="text-xs font-bold text-red-500 mt-1">{errores.institutional_email}</p>}
             </div>
@@ -359,7 +360,7 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                 name="rol_id" 
                 value={formData.rol_id} 
                 onChange={handleChange} 
-                className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-blue-100 text-sm transition-all appearance-none cursor-pointer"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-100 text-sm transition-all appearance-none cursor-pointer"
               >
                 {user?.rol_id === 1 && <option value="1">Superadministrador</option>}
                 {user?.rol_id === 1 && <option value="2">Administrador</option>}
@@ -381,9 +382,9 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
                   onBlur={handleBlur}
                   onKeyDown={handleKeyDownStrict}
                   placeholder="Dejar en blanco para conservar la actual" 
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                    errores.password_raw ? "border-red-300 focus:ring-red-100 bg-red-50/30" : "border-amber-200 focus:border-amber-300 focus:ring-amber-100"
-                  }`} 
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                    errores.password_raw ? "border-red-300 focus:ring-red-100" : "border-amber-200 focus:border-amber-300 focus:ring-amber-100"
+                  }`}
                 />
                 {errores.password_raw 
                   ? <p className="text-xs font-bold text-red-500 mt-1">{errores.password_raw}</p>

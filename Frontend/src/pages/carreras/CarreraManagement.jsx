@@ -4,6 +4,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { CarreraForm } from './CarreraForm';
 import { useAuth } from '../../hooks/useAuth';
+import { TOAST_CARRERAS, TOAST_COMMON } from '../../../constants/toastMessages';
 
 export const CarreraManagement = () => {
   const { user } = useAuth();
@@ -28,7 +29,7 @@ export const CarreraManagement = () => {
       setCarreras(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error al cargar carreras:", error);
-      toast.error('Error al cargar el listado de carreras');
+      toast.error(TOAST_CARRERAS.errorCarga);
       setCarreras([]);
     } finally {
       setIsLoading(false);
@@ -90,7 +91,7 @@ export const CarreraManagement = () => {
   };
 
   const handleEliminarRapido = () => {
-    toast("Función de eliminación en desarrollo", { icon: "🚧" });
+    toast(TOAST_COMMON.enDesarrollo, { icon: '🚧' });
   };
 
   if (showForm) {
@@ -212,11 +213,11 @@ export const CarreraManagement = () => {
                         {carrera.codigo_unico || 'N/A'}
                       </div>
                     </td>
-<td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
-  <div className="text-sm font-bold text-slate-900 leading-relaxed break-words">
-    {carrera.nombre_carrera}
-  </div>
-</td>
+                    <td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
+                      <div className="text-sm font-bold text-slate-900 leading-relaxed break-words">
+                        {carrera.nombre_carrera}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm font-medium text-slate-600">
                         <Layers className="w-4 h-4 mr-1 text-slate-400" />

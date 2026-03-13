@@ -81,7 +81,8 @@ const carreraModel = {
           c.codigo_unico,
           c.nombre_carrera, 
           c.modalidad,
-          c.estatus, 
+          c.estatus,
+          c.academia_id, 
           a.nombre AS nombre_academia
         FROM carreras c
         LEFT JOIN academias a ON c.academia_id = a.id_academia

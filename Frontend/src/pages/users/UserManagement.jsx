@@ -7,6 +7,7 @@ import { UserModal } from './UserModal';
 import { DeactivateUserModal } from './DeactivateUserModal';
 import { ActivateUserModal } from './ActivateUserModal';
 import { useAuth } from '../../hooks/useAuth';
+import { TOAST_USUARIOS } from '../../../constants/toastMessages';
 
 export const UserManagement = () => {
   const { user: currentUser } = useAuth(); 
@@ -32,7 +33,7 @@ export const UserManagement = () => {
       const response = await api.get('/users');
       setUsers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      toast.error('Error al cargar el listado de usuarios');
+      toast.error(TOAST_USUARIOS.errorCarga);
     } finally {
       setIsLoading(false);
     }
@@ -86,11 +87,11 @@ export const UserManagement = () => {
 
     if (!isSelf) {
       if (currentRoleId === 1 && targetRoleId === 1) {
-        toast.error("Acceso denegado: No puedes visualizar expedientes de otros Superadministradores.");
+        toast.error(TOAST_USUARIOS.accesoDenegadoVerSuperAdmin);
         return;
       }
       if (currentRoleId === 2 && (targetRoleId === 1 || targetRoleId === 2)) {
-        toast.error("Acceso denegado: Tu rol solo permite ver expedientes de docentes.");
+        toast.error(TOAST_USUARIOS.accesoDenegadoVerRol);
         return;
       }
     }
@@ -104,17 +105,17 @@ export const UserManagement = () => {
     const isSelf = Number(currentUser?.id_usuario) === Number(targetUser.id_usuario);
 
     if (isSelf && (currentRoleId === 1 || currentRoleId === 2)) {
-      toast.error("Acceso denegado: Para modificar tus propios datos, utiliza la sección 'Mi Perfil'.");
+      toast.error(TOAST_USUARIOS.accesoDenegadoPropioPerfil);
       return;
     }
 
     if (currentRoleId === 1 && targetRoleId === 1) {
-      toast.error("Acceso denegado para modificar a un superadministrador.");
+      toast.error(TOAST_USUARIOS.accesoDenegadoModificarSuperAdmin);
       return;
     }
 
     if (currentRoleId === 2 && (targetRoleId === 1 || targetRoleId === 2)) {
-      toast.error("Acceso denegado para modificar a directivos.");
+      toast.error(TOAST_USUARIOS.accesoDenegadoModificarDirectivos);
       return;
     }
 
@@ -123,13 +124,13 @@ export const UserManagement = () => {
       setShowForm(true);
     } else if (action === 'delete') {
       if (targetUser.estatus === 'INACTIVO') {
-        toast.error("Este usuario ya se encuentra inactivo.");
+        toast.error(TOAST_USUARIOS.yaInactivo);
         return;
       }
       setUserToDeactivate(targetUser);
     } else if (action === 'activate') {
       if (targetUser.estatus === 'ACTIVO') {
-        toast.error("Este usuario ya se encuentra activo.");
+        toast.error(TOAST_USUARIOS.yaActivo);
         return;
       }
       setUserToActivate(targetUser);
@@ -139,7 +140,7 @@ export const UserManagement = () => {
   const getRoleBadgeStyle = (rol) => {
     if (rol === 'Superadministrador') return 'bg-purple-100 text-purple-800 border-purple-200';
     if (rol === 'Administrador') return 'bg-blue-100 text-blue-800 border-blue-200';
-    return 'bg-slate-100 text-slate-800 border-slate-200'; // Docente
+    return 'bg-slate-100 text-slate-800 border-slate-200';
   };
 
   if (showForm) {
@@ -155,7 +156,7 @@ export const UserManagement = () => {
   return (
     <div className="space-y-6">
       
-      {/* Encabezado estandarizado */}
+      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -172,7 +173,7 @@ export const UserManagement = () => {
         </button>
       </div>
 
-      {/* Barra de filtros avanzada */}
+      {/* Barra de filtros */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -214,7 +215,7 @@ export const UserManagement = () => {
         </div>
       </div>
 
-      {/* Tabla de resultados */}
+      {/* Tabla */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -253,11 +254,9 @@ export const UserManagement = () => {
                 paginatedUsers.map((u) => (
                   <tr key={u.id_usuario} className="hover:bg-blue-50/50 transition-colors duration-150">
                     
-                    {/* Columna de Identidad consolidada (Nombre + Correo) */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center mr-3 text-slate-500 overflow-hidden shrink-0">
-                          {/* Asumiendo que u.foto_perfil_url viene del backend si existe */}
                           {u.foto_perfil_url ? (
                             <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'}${u.foto_perfil_url}`} alt="Perfil" className="h-full w-full object-cover" />
                           ) : (
@@ -276,7 +275,6 @@ export const UserManagement = () => {
                       </div>
                     </td>
 
-                    {/* Columna Rol con Badge */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`inline-flex items-center px-3 py-1 rounded-lg border ${getRoleBadgeStyle(u.nombre_rol)}`}>
                         <Shield className="w-3.5 h-3.5 mr-1.5" />
@@ -284,7 +282,6 @@ export const UserManagement = () => {
                       </div>
                     </td>
 
-                    {/* Columna Estatus */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
                         u.estatus === 'ACTIVO' 
@@ -295,7 +292,6 @@ export const UserManagement = () => {
                       </span>
                     </td>
 
-                    {/* Columna Acciones */}
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
                         <button 
@@ -340,9 +336,8 @@ export const UserManagement = () => {
           </table>
         </div>
 
-        {/* Paginación responsiva */}
         {!isLoading && filteredUsers.length > 0 && (
-          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-500">
                 Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}

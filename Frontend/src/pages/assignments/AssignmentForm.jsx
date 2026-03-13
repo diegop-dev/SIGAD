@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { Save, ArrowLeft, Plus, Trash2, Clock, CalendarDays, MapPin, User, BookOpen, Users, Loader2 } from "lucide-react";
 import api from "../../services/api";
@@ -13,13 +13,13 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   const [materias, setMaterias] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [aulas, setAulas] = useState([]);
+  const [carreras, setCarreras] = useState([]); // nuevo estado para resolver la academia
 
-  // el estado inicial ahora utiliza el número 1 en lugar del string "Lunes"
   const [formData, setFormData] = useState({
     periodo_id: "",
+    grupo_id: "",
     docente_id: "",
     materia_id: "",
-    grupo_id: "",
     horarios: [
       { dia_semana: 1, hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }
     ]
@@ -28,12 +28,14 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   useEffect(() => {
     const fetchCatalogs = async () => {
       try {
-        const [resPeriodos, resDocentes, resMaterias, resGrupos, resAulas] = await Promise.all([
+        // agregamos la carga concurrente del catálogo de carreras
+        const [resPeriodos, resDocentes, resMaterias, resGrupos, resAulas, resCarreras] = await Promise.all([
           api.get('/periodos').catch(() => ({ data: [] })),
           api.get('/docentes').catch(() => ({ data: [] })),
           api.get('/materias').catch(() => ({ data: [] })),
           api.get('/grupos').catch(() => ({ data: [] })),
-          api.get('/aulas/consultar').catch(() => ({ data: [] }))
+          api.get('/aulas/consultar').catch(() => ({ data: [] })),
+          api.get('/carreras').catch(() => ({ data: [] }))
         ]);
 
         setPeriodos(resPeriodos.data?.data || resPeriodos.data || []);
@@ -41,6 +43,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
         setMaterias(resMaterias.data?.data || resMaterias.data || []);
         setGrupos(resGrupos.data?.data || resGrupos.data || []);
         setAulas(resAulas.data?.data || resAulas.data || []);
+        setCarreras(resCarreras.data?.data || resCarreras.data || []);
       } catch (error) {
         toast.error("Error al cargar los catálogos del sistema.");
       } finally {
@@ -50,23 +53,78 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
     fetchCatalogs();
   }, []);
 
+  // motor de filtrado reactivo para docentes con logs de diagnóstico
+  const docentesFiltrados = useMemo(() => {
+    if (!formData.grupo_id) return [];
+
+    // validamos forzando el tipo numérico para evitar errores de string vs int
+    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
+    if (!grupoSeleccionado) {
+      console.warn("Diagnóstico: No se encontró el grupo seleccionado en el arreglo de grupos.");
+      return [];
+    }
+
+    const carreraDelGrupo = carreras.find(c => Number(c.id_carrera) === Number(grupoSeleccionado.carrera_id));
+    if (!carreraDelGrupo) {
+      console.warn("Diagnóstico: No se encontró la carrera. ¿Está el arreglo 'carreras' vacío o le falta el carrera_id al grupo?", { 
+        totalCarrerasCargadas: carreras.length, 
+        carreraIdBuscado: grupoSeleccionado.carrera_id 
+      });
+      return [];
+    }
+
+    if (!carreraDelGrupo.academia_id) {
+      console.warn("Diagnóstico: La carrera se encontró, pero no incluye el campo 'academia_id'. Revisa la consulta SQL en tu backend para GET /carreras.");
+    }
+
+    const docentesResultantes = docentes.filter(d => Number(d.academia_id) === Number(carreraDelGrupo.academia_id));
+    
+    if (docentesResultantes.length === 0) {
+      console.warn("Diagnóstico: Filtro vacío. Revisa si los docentes incluyen el campo 'academia_id' en el JSON de GET /docentes.", { 
+        academiaRequerida: carreraDelGrupo.academia_id 
+      });
+    }
+
+    return docentesResultantes;
+  }, [docentes, grupos, carreras, formData.grupo_id]);
+
+  // motor de filtrado reactivo para materias (validación de carrera y cuatrimestre)
+  const materiasFiltradas = useMemo(() => {
+    if (!formData.grupo_id) return [];
+
+    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
+    if (!grupoSeleccionado) return [];
+
+    return materias.filter(m => 
+      (Number(m.carrera_id) === Number(grupoSeleccionado.carrera_id) && Number(m.cuatrimestre_id) === Number(grupoSeleccionado.cuatrimestre_id)) || 
+      m.tipo_asignatura === 'TRONCO_COMUN'
+    );
+  }, [materias, grupos, formData.grupo_id]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     const finalValue = value !== "" ? Number(value) : "";
     
-    setFormData({ ...formData, [name]: finalValue });
+    setFormData(prev => {
+      const newData = { ...prev, [name]: finalValue };
+      
+      // lógica de seguridad estricta: resetear materia y docente si el grupo cambia
+      if (name === 'grupo_id') {
+        newData.materia_id = "";
+        newData.docente_id = "";
+      }
+      
+      return newData;
+    });
+
     if (errores[name]) setErrores({ ...errores, [name]: null });
   };
 
   const handleHorarioChange = (index, field, value) => {
     const nuevosHorarios = [...formData.horarios];
-    
-    // casteo a entero tanto para aula_id como para dia_semana
     nuevosHorarios[index][field] = (field === 'aula_id' || field === 'dia_semana') && value !== "" ? Number(value) : value;
-    
     setFormData({ ...formData, horarios: nuevosHorarios });
     
-    // limpiar errores específicos del bloque de horario si existen
     if (errores[`horario_${index}_${field}`]) {
       setErrores({ ...errores, [`horario_${index}_${field}`]: null });
     }
@@ -75,7 +133,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   const addHorarioBlock = () => {
     setFormData({
       ...formData,
-      // el nuevo bloque por defecto también inicia con el entero 1
       horarios: [...formData.horarios, { dia_semana: 1, hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }]
     });
   };
@@ -93,9 +150,9 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
     const { periodo_id, docente_id, materia_id, grupo_id, horarios } = formData;
 
     if (!periodo_id) newErrors.periodo_id = "Seleccione un periodo";
+    if (!grupo_id) newErrors.grupo_id = "Seleccione un grupo";
     if (!docente_id) newErrors.docente_id = "Seleccione un docente";
     if (!materia_id) newErrors.materia_id = "Seleccione una materia";
-    if (!grupo_id) newErrors.grupo_id = "Seleccione un grupo";
 
     horarios.forEach((h, index) => {
       if (!h.hora_inicio) newErrors[`horario_${index}_hora_inicio`] = "Requerido";
@@ -156,7 +213,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Periodo Escolar */}
+            {/* periodo escolar */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <CalendarDays className="w-4 h-4 mr-2 text-blue-500" /> Periodo escolar
@@ -176,47 +233,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               {errores.periodo_id && <p className="text-xs font-bold text-red-500">{errores.periodo_id}</p>}
             </div>
 
-            {/* Docente */}
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <User className="w-4 h-4 mr-2 text-blue-500" /> Docente titular
-              </label>
-              <select 
-                name="docente_id" 
-                value={formData.docente_id} 
-                onChange={handleChange} 
-                disabled={cargandoCatalogos}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.docente_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              >
-                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el docente --"}</option>
-                {docentes.map(d => <option key={d.id_docente} value={d.id_docente}>{d.nombres} {d.apellido_paterno}</option>)}
-              </select>
-              {errores.docente_id && <p className="text-xs font-bold text-red-500">{errores.docente_id}</p>}
-            </div>
-
-            {/* Materia */}
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Asignatura
-              </label>
-              <select 
-                name="materia_id" 
-                value={formData.materia_id} 
-                onChange={handleChange} 
-                disabled={cargandoCatalogos}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.materia_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              >
-                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la materia --"}</option>
-                {materias.map(m => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
-              </select>
-              {errores.materia_id && <p className="text-xs font-bold text-red-500">{errores.materia_id}</p>}
-            </div>
-
-            {/* Grupo */}
+            {/* grupo - reordenado como primer paso lógico */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado
@@ -235,9 +252,62 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               </select>
               {errores.grupo_id && <p className="text-xs font-bold text-red-500">{errores.grupo_id}</p>}
             </div>
+
+            {/* docente - depende del grupo para validar academia */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <User className="w-4 h-4 mr-2 text-blue-500" /> Docente titular
+              </label>
+              <select 
+                name="docente_id" 
+                value={formData.docente_id} 
+                onChange={handleChange} 
+                disabled={cargandoCatalogos || !formData.grupo_id}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.docente_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                } disabled:bg-slate-50 disabled:text-slate-400`}
+              >
+                <option value="">
+                  {cargandoCatalogos 
+                    ? "Cargando..." 
+                    : !formData.grupo_id 
+                      ? "Seleccione un grupo primero" 
+                      : "-- Seleccione el docente --"}
+                </option>
+                {docentesFiltrados.map(d => <option key={d.id_docente} value={d.id_docente}>{d.nombres} {d.apellido_paterno}</option>)}
+              </select>
+              {errores.docente_id && <p className="text-xs font-bold text-red-500">{errores.docente_id}</p>}
+            </div>
+
+            {/* materia - depende del grupo para validar carrera y cuatrimestre */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Asignatura
+              </label>
+              <select 
+                name="materia_id" 
+                value={formData.materia_id} 
+                onChange={handleChange} 
+                disabled={cargandoCatalogos || !formData.grupo_id}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.materia_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                } disabled:bg-slate-50 disabled:text-slate-400`}
+              >
+                <option value="">
+                  {cargandoCatalogos 
+                    ? "Cargando..." 
+                    : !formData.grupo_id 
+                      ? "Seleccione un grupo primero" 
+                      : "-- Seleccione la materia --"}
+                </option>
+                {materiasFiltradas.map(m => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
+              </select>
+              {errores.materia_id && <p className="text-xs font-bold text-red-500">{errores.materia_id}</p>}
+            </div>
+
           </div>
 
-          {/* Bloque de Horarios */}
+          {/* bloque de horarios */}
           <div className="border-t border-slate-100 pt-8">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -267,7 +337,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                         onChange={(e) => handleHorarioChange(index, "dia_semana", e.target.value)} 
                         className="w-full rounded-xl border-slate-300 py-2.5 px-3 border shadow-sm focus:ring-2 focus:ring-blue-100 transition-all bg-white text-sm"
                       >
-                        {/* cambiamos los valores a numéricos */}
                         <option value={1}>Lunes</option>
                         <option value={2}>Martes</option>
                         <option value={3}>Miércoles</option>
@@ -330,7 +399,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
             </div>
           </div>
 
-          {/* Footer */}
+          {/* footer */}
           <div className="flex justify-end pt-6 border-t border-slate-100">
             <button 
               type="submit" 
