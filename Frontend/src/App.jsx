@@ -15,6 +15,9 @@ import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 import { GrupoManagement } from "./pages/grupos/GrupoManagement";
 import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
 
+// ✨ AQUÍ IMPORTAMOS LA NUEVA PANTALLA ✨
+import { MiPerfil } from "./pages/docentes/MiPerfil"; 
+
 function App() {
   return (
     <>
@@ -22,14 +25,14 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        {/* 1. Capa de seguridad global: Protege todo el layout para evitar el parpadeo */}
+        {/* 1. Capa de seguridad global */}
         <Route element={<ProtectedRoute />}>
           
           <Route element={<MainLayout />}>
             {/* Rutas accesibles para cualquier usuario autenticado */}
             <Route path="/dashboard" element={<Dashboard />} />
 
-            {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
+            {/* 2. Capa de seguridad granular: (RBAC Admin) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
               <Route path="/usuarios" element={<UserManagement />} />
               <Route path="/docentes" element={<DocenteManagement />} />
@@ -40,11 +43,12 @@ function App() {
               <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/grupos" element={<GrupoManagement />} />
               <Route path="/asignaciones" element={<AssignmentManagement />} />
-              {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
+              {/* ✨ AQUÍ COLOCAMOS EL COMPONENTE ✨ */}
+              <Route path="/mi-perfil" element={<MiPerfil />} />
               {/* <Route path="/mi-horario" element={<TeacherSchedule />} /> */}
             </Route>
           </Route>

@@ -28,6 +28,20 @@ router.post('/registrar', verifyToken, requireRole([1, 2]), upload.fields([
   { name: 'cv', maxCount: 1 }
 ]), docenteController.registerDocente);
 
+// ✨ RUTAS EXCLUSIVAS PARA "MI PERFIL" (Solo Rol 3: Docentes) ✨
+router.get('/mi-perfil', verifyToken, requireRole([3]), docenteController.getMiPerfil);
+
+router.put('/mi-perfil', verifyToken, requireRole([3]), upload.fields([
+  { name: 'foto_perfil_url', maxCount: 1 },
+  { name: 'titulo', maxCount: 1 },
+  { name: 'cedula', maxCount: 1 },
+  { name: 'sat', maxCount: 1 },
+  { name: 'ine', maxCount: 1 },
+  { name: 'domicilio', maxCount: 1 },
+  { name: 'cv', maxCount: 1 }
+]), docenteController.updateMiPerfil);
+
+
 // 4. Ruta para actualizar un docente existente
 router.put('/:id', verifyToken, requireRole([1, 2]), upload.fields([
   { name: 'foto_perfil_url', maxCount: 1 },
