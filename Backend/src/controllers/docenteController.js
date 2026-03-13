@@ -1,34 +1,30 @@
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const docenteModel = require("../models/docenteModel");
+const userModel = require("../models/userModel");
 
 // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
 const getDocenteParaSincronizacion = async (req, res) => {
   try {
     const { id_docente } = req.query;
 
-    // validación estricta del parámetro requerido
     if (!id_docente) {
       return res.status(400).json({
         message: "Parámetro incompleto. Se requiere id_docente."
       });
     }
 
-    // consumimos la consulta optimizada del modelo
     const docente = await docenteModel.getDocenteParaSincronizacion(id_docente);
-    
-    // retornamos el arreglo JSON puro
     return res.status(200).json(docente);
   } catch (error) {
     console.error("[Error getDocenteParaSincronizacion]:", error);
-    // retornamos HTTP 500 protegiendo la traza del error
     return res.status(500).json({ 
       message: "Error interno al procesar el catálogo de docentes." 
     });
   }
 };
 
-// ==========================================
 // MÉTODOS INTERNOS DE SIGAD
-// ==========================================
 const getUsuariosDisponibles = async (req, res) => {
   try {
     const usuarios = await docenteModel.getUsuariosDisponibles();
@@ -47,23 +43,45 @@ const getDocentes = async (req, res) => {
   }
 };
 
+// ✨ NUEVA FUNCIÓN REFACTORIZADA PARA ALTA UNIFICADA ✨
 const registerDocente = async (req, res) => {
   try {
-    const {
-      usuario_id, rfc, curp, celular, calle, numero, colonia, cp,
+    let {
+      // datos del usuario
+      nombres, apellido_paterno, apellido_materno,
+      personal_email, institutional_email,
+      // datos del expediente docente
+      rfc, curp, celular, calle, numero, colonia, cp,
       clave_ine, fecha_ingreso, nivel_academico, creado_por, academia_id 
     } = req.body;
 
-    if (!usuario_id || !rfc || !curp || !celular || !calle || !numero || !colonia || !cp ||
+    // normalización de datos para evitar espacios en blanco e inconsistencias
+    nombres = nombres?.trim();
+    apellido_paterno = apellido_paterno?.trim();
+    apellido_materno = apellido_materno?.trim();
+    personal_email = personal_email?.trim().toLowerCase();
+    institutional_email = institutional_email?.trim().toLowerCase();
+
+    // validación estricta de campos obligatorios unificados
+    if (!nombres || !apellido_paterno || !apellido_materno ||
+        !personal_email || !institutional_email ||
+        !rfc || !curp || !celular || !calle || !numero || !colonia || !cp ||
         !clave_ine || !fecha_ingreso || !nivel_academico || !creado_por || !academia_id) {
-      return res.status(400).json({ error: "Faltan datos obligatorios." });
+      return res.status(400).json({ error: "Faltan datos obligatorios para el registro unificado." });
     }
 
-    const existingDocente = await docenteModel.verifyDuplicates(rfc, curp);
-    if (existingDocente) {
-      return res.status(409).json({ error: "El RFC o CURP ya están registrados." });
+    // prevención de colisiones y validaciones de unicidad (correos, RFC, CURP)
+    const emailExiste = await userModel.findExistingEmails(personal_email, institutional_email);
+    if (emailExiste) {
+      return res.status(409).json({ error: "Uno de los correos proporcionados ya se encuentra registrado." });
     }
 
+    const docExiste = await docenteModel.verifyDuplicates(rfc, curp);
+    if (docExiste) {
+      return res.status(409).json({ error: "El RFC o CURP ya están registrados en otro expediente." });
+    }
+
+    // validación del expediente digital (archivos PDF)
     const documentos = [];
     if (req.files?.titulo) documentos.push({ tipo: 'TITULO', url: `/uploads/docentes/${req.files.titulo[0].filename}` });
     if (req.files?.cedula) documentos.push({ tipo: 'CEDULA', url: `/uploads/docentes/${req.files.cedula[0].filename}` });
@@ -72,8 +90,25 @@ const registerDocente = async (req, res) => {
     if (req.files?.domicilio) documentos.push({ tipo: 'COMPROBANTE_DOMICILIO', url: `/uploads/docentes/${req.files.domicilio[0].filename}` });
     if (req.files?.cv) documentos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
 
-    if (documentos.length < 6) return res.status(400).json({ error: "Se requieren los 6 archivos PDF." });
+    if (documentos.length < 6) return res.status(400).json({ error: "Se requieren los 6 archivos PDF obligatorios para el expediente." });
 
+    // ✨ extracción de la ruta de la fotografía de perfil
+    const foto_perfil_url = req.files?.foto_perfil_url 
+      ? `/uploads/profiles/${req.files.foto_perfil_url[0].filename}` 
+      : null;
+
+    // generación de contraseña temporal segura (criptografía)
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+    let password_generada = "";
+    for (let i = 0; i < length; i++) {
+      const randomIndex = crypto.randomInt(0, charset.length);
+      password_generada += charset[randomIndex];
+    }
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password_generada, saltRounds);
+
+    // generación secuencial de matrícula
     const ultimaMatricula = await docenteModel.getLastMatricula();
     let matricula = "00000001"; 
     
@@ -84,17 +119,26 @@ const registerDocente = async (req, res) => {
 
     const domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
 
-    await docenteModel.createDocente({
-      usuario_id, creado_por, matricula, rfc, curp, clave_ine,
+    // invocación de la transacción ACID en el modelo incluyendo la foto de perfil
+    const resultado = await docenteModel.createUsuarioYDocente({
+      nombres, apellido_paterno, apellido_materno,
+      personal_email, institutional_email, password_hash,
+      foto_perfil_url,
+      creado_por, matricula, rfc, curp, clave_ine,
       domicilio: domicilio_completo, celular, nivel_academico, 
       antiguedad_fecha: fecha_ingreso, documentos,
       academia_id
     });
 
-    res.status(201).json({ message: "Éxito", matricula_generada: matricula });
+    res.status(201).json({ 
+      message: "Expediente de docente y credenciales de usuario creados con éxito.", 
+      matricula_generada: matricula,
+      password_temporal: password_generada,
+      ids_generados: resultado
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error interno del servidor." });
+    console.error("[Error en registerDocente]:", error);
+    res.status(500).json({ error: "Error interno del servidor al procesar el alta." });
   }
 };
 
@@ -124,15 +168,8 @@ const updateDocente = async (req, res) => {
     if (req.files?.cv) documentosNuevos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
 
     await docenteModel.updateDocente(id, {
-      rfc, 
-      curp, 
-      clave_ine, 
-      celular, 
-      nivel_academico, 
-      academia_id, 
-      modificado_por,
-      domicilio: domicilio_completo,
-      documentos: documentosNuevos
+      rfc, curp, clave_ine, celular, nivel_academico, academia_id, modificado_por,
+      domicilio: domicilio_completo, documentos: documentosNuevos
     });
 
     res.status(200).json({ message: "Docente actualizado correctamente" });
@@ -142,37 +179,35 @@ const updateDocente = async (req, res) => {
   }
 };
 
-  const deactivateDocente = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { eliminado_por, motivo_baja } = req.body;
+const deactivateDocente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { eliminado_por, motivo_baja } = req.body;
 
-      if (!eliminado_por) {
-        return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
-      }
-      
-      // Validación del nuevo campo
-      if (!motivo_baja || motivo_baja.trim() === '') {
-        return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
-      }
-
-      // Pasamos el motivo_baja al modelo
-      const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
-
-      if (affectedRows === 0) {
-        return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
-      }
-
-      res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
-
-    } catch (error) {
-      console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
-      res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
+    if (!eliminado_por) {
+      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
     }
-  };
+    
+    if (!motivo_baja || motivo_baja.trim() === '') {
+      return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
+    }
+
+    const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
+    }
+
+    res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
+
+  } catch (error) {
+    console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
+    res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
+  }
+};
 
 module.exports = { 
-  getDocenteParaSincronizacion, // exportamos la nueva función para la API-06
+  getDocenteParaSincronizacion,
   registerDocente, 
   getDocentes, 
   getUsuariosDisponibles, 

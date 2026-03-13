@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Save, ArrowLeft, BookOpen, Loader2, Layers, Trash2, Edit3 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { TOAST_CARRERAS, TOAST_COMMON } from "../../../constants/toastMessages";
 
 export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
@@ -27,7 +28,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
         setAcademias(Array.isArray(dataAcademias) ? dataAcademias : []);
       } catch (error) {
         console.error("Error al cargar academias:", error);
-        toast.error("No se pudieron cargar las academias.");
+        toast.error(TOAST_CARRERAS.errorCargaAcademias);
       } finally {
         setCargandoAcademias(false);
       }
@@ -82,7 +83,9 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
     if (!validate()) return;
 
     setIsSubmitting(true);
-    const toastId = toast.loading(isEditing ? "Actualizando..." : "Guardando...");
+    const toastId = toast.loading(
+      isEditing ? TOAST_CARRERAS.loadingActualizar : TOAST_CARRERAS.loadingGuardar
+    );
 
     try {
       const payload = {
@@ -93,11 +96,12 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
       if (isEditing) {
         await api.put(`/carreras/${initialData.id_carrera}`, payload);
+        // FIX: mensaje de éxito diferenciado por operación (antes era genérico "Operación exitosa")
+        toast.success(TOAST_CARRERAS.actualizadoOk, { id: toastId });
       } else {
         await api.post("/carreras", payload);
+        toast.success(TOAST_CARRERAS.guardadoOk, { id: toastId });
       }
-      
-      toast.success("Operación exitosa", { id: toastId });
       
       if (onSuccess) onSuccess();
       if (onBack) onBack();
@@ -108,9 +112,9 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
           backendErrors[err.path || err.param] = err.msg;
         });
         setErrores(backendErrors);
-        toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
+        toast.error(TOAST_CARRERAS.errorCamposBackend, { id: toastId });
       } else {
-        const msg = error.response?.data?.message || "Error al procesar la solicitud";
+        const msg = error.response?.data?.message || TOAST_COMMON.errorServidor;
         toast.error(msg, { id: toastId });
       }
     } finally {
@@ -118,7 +122,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
     }
   };
 
-  const handleDeletePlaceholder = () => toast("Función de eliminación en desarrollo", { icon: "🚧" });
+  const handleDeletePlaceholder = () => toast(TOAST_COMMON.enDesarrollo, { icon: '🚧' });
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -169,7 +173,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
               </label>
-            <select
+              <select
                 name="modalidad"
                 value={formData.modalidad}
                 onChange={handleChange}
@@ -209,11 +213,20 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             {isEditing ? (
-              <button type="button" className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 transition-all shadow-md">
-                <Edit3 className="w-5 h-5 mr-2" /> Actualizar datos
+              <button
+                type="submit"
+                disabled={isSubmitting || cargandoAcademias}
+                className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Edit3 className="w-5 h-5 mr-2" />}
+                Actualizar datos
               </button>
             ) : (
-              <button type="submit" disabled={isSubmitting || cargandoAcademias} className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md">
+              <button
+                type="submit"
+                disabled={isSubmitting || cargandoAcademias}
+                className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md"
+              >
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
                 Guardar carrera
               </button>
