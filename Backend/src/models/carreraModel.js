@@ -103,6 +103,40 @@ const carreraModel = {
     } finally {
       if (conn) conn.release();
     }
+  },
+
+  // MÉTODOS PARA MODIFICAR Y ELIMINAR 
+  actualizarCarrera: async (id_carrera, datosCarrera) => {
+    const { nombre_carrera, modalidad, academia_id, modificado_por } = datosCarrera;
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const result = await conn.query(
+        `UPDATE carreras 
+         SET nombre_carrera = ?, modalidad = ?, academia_id = ?, modificado_por = ?, fecha_modificacion = NOW()
+         WHERE id_carrera = ?`,
+        [nombre_carrera, modalidad, academia_id, modificado_por, id_carrera]
+      );
+      return result;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  deactivateCarrera: async (id_carrera, eliminado_por, motivo_baja) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const result = await conn.query(
+        `UPDATE carreras 
+         SET estatus = 'INACTIVO', eliminado_por = ?, motivo_baja = ?, fecha_eliminacion = NOW()
+         WHERE id_carrera = ?`,
+        [eliminado_por, motivo_baja, id_carrera]
+      );
+      return result;
+    } finally {
+      if (conn) conn.release();
+    }
   }
 };
 
