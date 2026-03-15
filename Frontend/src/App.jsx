@@ -14,6 +14,8 @@ import AulaManagement from "./pages/aulas/AulaManagement";
 import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 import { GrupoManagement } from "./pages/grupos/GrupoManagement";
 import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
+import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
+import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
 
 function App() {
   return (
@@ -28,6 +30,11 @@ function App() {
           <Route element={<MainLayout />}>
             {/* Rutas accesibles para cualquier usuario autenticado */}
             <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Rutas exclusivas para superadministradores (rol_id = 1) */}
+            <Route element={<ProtectedRoute allowedRoles={[1]} />}>
+              <Route path="/metricas" element={<DashboardMetricas />} />
+            </Route>
 
             {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
@@ -45,7 +52,7 @@ function App() {
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
-              {/* <Route path="/mi-horario" element={<TeacherSchedule />} /> */}
+              <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
             </Route>
           </Route>
           

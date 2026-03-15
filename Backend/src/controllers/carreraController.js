@@ -60,9 +60,16 @@ const carreraController = {
     }
   },
   
+  // ==========================================
+  // SE ACTUALIZÓ PARA RECIBIR periodo_id (HU-41)
+  // ==========================================
   getCarreras: async (req, res) => {
     try {
-      const carreras = await carreraModel.getAllCarreras();
+      const { periodo_id } = req.query; // Extraemos el parámetro de la URL si existe
+      
+      // Se lo pasamos al modelo. Si viene vacío (null), el modelo traerá todas las carreras
+      const carreras = await carreraModel.getAllCarreras(periodo_id); 
+      
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error al obtener carreras:', error);
