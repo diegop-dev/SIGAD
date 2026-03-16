@@ -2,7 +2,18 @@ import React, { useState } from 'react';
 import { Save, X, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../services/api'; 
 import toast from 'react-hot-toast'
+const EDIFICIOS_DISPONIBLES = [
+  "Edificio A",
+  "Edificio B",
+  "Edificio C",
+  "Edificio D",
+  "Planta Baja",
+  "Planta Alta"
+];
 const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
+  const ubicacionesFinales = EDIFICIOS_DISPONIBLES.includes(aula.ubicacion)
+    ? EDIFICIOS_DISPONIBLES
+    : [...EDIFICIOS_DISPONIBLES, aula.ubicacion].filter(Boolean);
   const [formData, setFormData] = useState({
     nombre: aula.nombre_codigo || '',
     tipo: aula.tipo || 'AULA',
@@ -48,7 +59,7 @@ const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 font-['Figtree']">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm  flex items-center justify-center z-50 font-['Figtree']p-4 transition-all">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Actualizar Espacio</h2>
@@ -92,6 +103,23 @@ const EditAulaModal = ({ aula, alCerrar, alExito, adminId }) => {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Edificio / Ubicación</label>
+            <select 
+              name="ubicacion" 
+              value={formData.ubicacion} 
+              onChange={handleChange} 
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="" disabled>Selecciona un edificio...</option>
+              {ubicacionesFinales.map((edificio) => (
+                <option key={edificio} value={edificio}>
+                  {edificio}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
