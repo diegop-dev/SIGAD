@@ -2,6 +2,15 @@ import React, { useState } from 'react';
 import { Save, X, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../services/api'; 
 import toast from 'react-hot-toast';
+
+const EDIFICIOS_DISPONIBLES = [
+  "Edificio A",
+  "Edificio B",
+  "Edificio C",
+  "Edificio D",
+  "Planta Baja",
+  "Planta Alta"
+];
 const AddAulaModal = ({ alCerrar, alExito, adminId }) => {
   const [formData, setFormData] = useState({
     nombre: '',
@@ -45,7 +54,7 @@ try {
 };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 font-['Figtree']">
+    <div className="fixed inset-0 bg-black/50  backdrop-blur-sm flex items-center justify-center z-50 font-['Figtree'] transition-all">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Registrar Nuevo Espacio</h2>
@@ -95,12 +104,27 @@ try {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Edificio / Ubicación</label>
-            <input 
+          { /* <input 
               type="text" name="ubicacion" value={formData.ubicacion} onChange={handleChange} 
               required placeholder="Ej. Edificio B, Planta Baja"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+            /> */}
+            <select 
+              name="ubicacion" 
+              value={formData.ubicacion} 
+              onChange={handleChange} 
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="" disabled>Selecciona un edificio...</option>
+              {EDIFICIOS_DISPONIBLES.map((edificio) => (
+                <option key={edificio} value={edificio}>
+                  {edificio}
+                </option>
+              ))}
+            </select>
           </div>
+
 
           <div className="flex justify-end gap-3 mt-6">
             <button 

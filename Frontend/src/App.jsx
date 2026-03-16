@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "react-hot-toast";
 import { MainLayout } from "./components/MainLayout";
-
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
@@ -16,6 +15,7 @@ import { GrupoManagement } from "./pages/grupos/GrupoManagement";
 import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
 import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
 import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
+import { MiPerfil } from "./pages/docentes/MiPerfil"; 
 
 function App() {
   return (
@@ -24,7 +24,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        {/* 1. Capa de seguridad global: Protege todo el layout para evitar el parpadeo */}
+        {/* 1. Capa de seguridad global */}
         <Route element={<ProtectedRoute />}>
           
           <Route element={<MainLayout />}>
@@ -47,17 +47,16 @@ function App() {
               <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/grupos" element={<GrupoManagement />} />
               <Route path="/asignaciones" element={<AssignmentManagement />} />
-              {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
               <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
-            </Route>
-          </Route>
-          
-        </Route>
+              <Route path="/mi-perfil" element={<MiPerfil />} />
 
+            </Route>
+          </Route> 
+        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </>

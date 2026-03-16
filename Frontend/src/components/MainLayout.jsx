@@ -44,7 +44,8 @@ export const MainLayout = () => {
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
     { name: 'Gestión de asignaciones', path: '/asignaciones', icon: Calendar, roles: [1, 2]},
     { name: 'Métricas institucionales', path: '/metricas', icon: GraduationCap, roles: [1]},
-    { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]}
+    { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]},
+    { name: 'Mi perfil', path: '/mi-perfil', icon: User, roles: [3] }
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.rol_id));

@@ -138,6 +138,71 @@ const carreraController = {
         error: error.message
       });
     }
+  },
+
+  //  FUNCIONES PARA MODIFICAR Y ELIMINAR 
+  actualizarCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nombre_carrera, modalidad, academia_id, modificado_por } = req.body;
+      const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
+
+      const datosUpdate = {
+        nombre_carrera: nombre_carrera.toUpperCase().trim(),
+        modalidad,
+        academia_id,
+        modificado_por: idUsuario
+      };
+
+      await carreraModel.actualizarCarrera(id, datosUpdate);
+
+      return res.status(200).json({
+        success: true,
+        message: 'La carrera se ha actualizado correctamente.'
+      });
+    } catch (error) {
+      console.error('Error al actualizar la carrera:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Ocurrió un error en el servidor al intentar actualizar la carrera.',
+        error: error.message
+      });
+    }
+  },
+
+  deactivateCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { eliminado_por, motivo_baja } = req.body;
+
+      if (!motivo_baja || motivo_baja.trim() === '') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Debe especificar un motivo para la baja.' 
+        });
+      }
+
+      const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Carrera no encontrada. No se pudo cambiar el estatus.' 
+        });
+      }
+
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Carrera dada de baja exitosamente del sistema.' 
+      });
+
+    } catch (error) {
+      console.error("Error al dar de baja la carrera:", error);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Error interno del servidor al procesar la baja de la carrera." 
+      });
+    }
   }
 };
 

@@ -206,11 +206,75 @@ const deactivateDocente = async (req, res) => {
   }
 };
 
+// ✨ FUNCIONES EXCLUSIVAS PARA "MI PERFIL" DOCENTE ✨
+const getMiPerfil = async (req, res) => {
+  try {
+    const id_usuario = req.user.id_usuario; // Esto viene de tu token de login
+    
+    // Buscamos a todos y filtramos (funciona perfecto para el tamaño del sistema sin alterar el modelo)
+    const docentes = await docenteModel.getAllDocentes();
+    const miPerfil = docentes.find(d => d.usuario_id === id_usuario);
+
+    if (!miPerfil) return res.status(404).json({ error: "No se encontró tu expediente." });
+
+    res.status(200).json(miPerfil);
+  } catch (error) {
+    console.error("Error en getMiPerfil:", error);
+    res.status(500).json({ error: "Error al cargar tu perfil." });
+  }
+};
+
+const updateMiPerfil = async (req, res) => {
+  try {
+    const id_usuario = req.user.id_usuario;
+    const docentes = await docenteModel.getAllDocentes();
+    const miPerfil = docentes.find(d => d.usuario_id === id_usuario);
+
+    if (!miPerfil) return res.status(404).json({ error: "No se encontró tu expediente." });
+
+    // Extraemos SOLO lo que el docente SÍ tiene permiso de cambiar
+    const { celular, calle, numero, colonia, cp, nivel_academico } = req.body;
+
+    let domicilio_completo = miPerfil.domicilio;
+    if (calle && numero && colonia && cp) {
+      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+    }
+
+    const documentosNuevos = [];
+    if (req.files?.titulo) documentosNuevos.push({ tipo: 'TITULO', url: `/uploads/docentes/${req.files.titulo[0].filename}` });
+    if (req.files?.cedula) documentosNuevos.push({ tipo: 'CEDULA', url: `/uploads/docentes/${req.files.cedula[0].filename}` });
+    if (req.files?.sat) documentosNuevos.push({ tipo: 'CONSTANCIA_FISCAL', url: `/uploads/docentes/${req.files.sat[0].filename}` });
+    if (req.files?.ine) documentosNuevos.push({ tipo: 'INE', url: `/uploads/docentes/${req.files.ine[0].filename}` });
+    if (req.files?.domicilio) documentosNuevos.push({ tipo: 'COMPROBANTE_DOMICILIO', url: `/uploads/docentes/${req.files.domicilio[0].filename}` });
+    if (req.files?.cv) documentosNuevos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
+
+    // 🛡️ REGLA DE SEGURIDAD (RBAC): Inyectamos los datos legales originales para que no se modifiquen
+    await docenteModel.updateDocente(miPerfil.id_docente, {
+      rfc: miPerfil.rfc,             
+      curp: miPerfil.curp,           
+      clave_ine: miPerfil.clave_ine, 
+      academia_id: miPerfil.academia_id, 
+      celular: celular || miPerfil.celular,
+      nivel_academico: nivel_academico || miPerfil.nivel_academico,
+      modificado_por: id_usuario,
+      domicilio: domicilio_completo,
+      documentos: documentosNuevos
+    });
+
+    res.status(200).json({ message: "Tu perfil se actualizó correctamente." });
+  } catch (error) {
+    console.error("Error al actualizar mi perfil:", error);
+    res.status(500).json({ error: "Error interno al actualizar tu perfil." });
+  }
+};
+
 module.exports = { 
   getDocenteParaSincronizacion,
   registerDocente, 
   getDocentes, 
   getUsuariosDisponibles, 
   updateDocente, 
-  deactivateDocente 
+  deactivateDocente,
+  getMiPerfil,      // <--- AGREGA ESTA
+  updateMiPerfil    // <--- Y ESTA
 };

@@ -1,14 +1,58 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2, Lock } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth"; 
 import { TOAST_DOCENTES, TOAST_COMMON } from "../../../constants/toastMessages";
+
+const calcularRaizRFC = (nombres, paterno, materno) => {
+  if (!nombres || !paterno) return "";
+  const limpia = (str) => str.toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-ZÑ\s]/g, '');
+
+  const nom = limpia(nombres);
+  const pat = limpia(paterno);
+  const mat = limpia(materno) || "X";
+
+  const partesNom = nom.split(/\s+/).filter(n => n.length > 0);
+  let nombreUsar = partesNom[0];
+  if (partesNom.length > 1 && ["JOSE", "MARIA", "MA", "J"].includes(nombreUsar)) {
+    nombreUsar = partesNom[1];
+  }
+
+  const patInicial = pat.charAt(0) || "X";
+  
+  let patVocal = "X";
+  for (let i = 1; i < pat.length; i++) {
+    if (["A", "E", "I", "O", "U"].includes(pat.charAt(i))) {
+      patVocal = pat.charAt(i);
+      break;
+    }
+  }
+
+  const matInicial = mat.charAt(0) || "X";
+  const nomInicial = nombreUsar.charAt(0) || "X";
+
+  let raiz = `${patInicial}${patVocal}${matInicial}${nomInicial}`.replace(/Ñ/g, 'X');
+
+  const groserias = ["BACA","BAKA","BUEI","BUEY","CACA","CACO","CAGA","CAGO","CAKA","CAKO","COGE","COGI","COJA","COJE","COJI","COJO","COLA","CULO","FALO","JETA","JOTO","MACA","MACO","MAME","MAMI","MAMO","MEAR","MEAS","MEON","MIAR","MION","MOCO","OKUP","PEDA","PEDO","PENE","PIPI","PITO","POPO","PUTA","PUTO","QULO","RATA","ROBA","ROBE","ROBO","RUIN","SENO","TETA","VACA","VAGA","VAGO","VAKA","VUEI","VUEY","WUEI","WUEY"];
+
+  if (groserias.includes(raiz)) {
+    raiz = raiz.substring(0, 3) + 'X';
+  }
+
+  return raiz;
+};
 
 export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const { user } = useAuth();
   const isEditing = !!docenteToEdit;
   
+// --- REGLA DE ROLES (RBAC) EXPLICITA Y SEGURA ---
+  const rolId = Number(user?.rol_id);
+  const tienePrivilegiosAdmin = rolId === 1 || rolId === 2 || user?.rol === 'Superadministrador' || user?.rol === 'Administrador';
+  
+  const bloquearCamposLegales = isEditing && !tienePrivilegiosAdmin;
+
   const [paso, setPaso] = useState(isEditing ? 2 : 1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -42,12 +86,12 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const BACKEND_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:3000';
   
   const documentosRequeridos = [
-    { id: "titulo",    tipoBackend: "TITULO",               label: "Título" },
-    { id: "cedula",    tipoBackend: "CEDULA",               label: "Cédula" },
-    { id: "sat",       tipoBackend: "CONSTANCIA_FISCAL",    label: "Constancia SAT" },
-    { id: "ine",       tipoBackend: "INE",                  label: "INE" },
+    { id: "titulo",    tipoBackend: "TITULO",             label: "Título" },
+    { id: "cedula",    tipoBackend: "CEDULA",             label: "Cédula" },
+    { id: "sat",       tipoBackend: "CONSTANCIA_FISCAL",  label: "Constancia SAT" },
+    { id: "ine",       tipoBackend: "INE",                label: "INE" },
     { id: "domicilio", tipoBackend: "COMPROBANTE_DOMICILIO", label: "Comprobante" },
-    { id: "cv",        tipoBackend: "CV",                   label: "CV" }
+    { id: "cv",        tipoBackend: "CV",                 label: "CV" }
   ];
 
   const getDocumentoUrl = (tipoBackend) => {
@@ -85,6 +129,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       }
       setFormData(prev => ({
         ...prev,
+        nombres: docenteToEdit.nombres || "",
+        apellido_paterno: docenteToEdit.apellido_paterno || "",
+        apellido_materno: docenteToEdit.apellido_materno || "",
         rfc: docenteToEdit.rfc || "",
         curp: docenteToEdit.curp || "",
         celular: docenteToEdit.celular || "",
@@ -135,8 +182,18 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._-]/g, '').toLowerCase(); 
     } else if (name === "rfc" || name === "curp" || name === "clave_ine") {
       sanitizedValue = sanitizedValue.toUpperCase().replace(/[^A-Z0-9Ñ]/g, "");
-      if (name === "rfc")  setErrores(prev => ({ ...prev, rfc:  regexRFC.test(sanitizedValue)  || sanitizedValue === "" ? null : "Formato inválido" }));
-      if (name === "curp") setErrores(prev => ({ ...prev, curp: regexCURP.test(sanitizedValue) || sanitizedValue === "" ? null : "Formato inválido" }));
+      
+      let errorMsj = null;
+      if (name === "rfc" && !regexRFC.test(sanitizedValue) && sanitizedValue !== "") errorMsj = "Formato inválido";
+      if (name === "curp" && !regexCURP.test(sanitizedValue) && sanitizedValue !== "") errorMsj = "Formato inválido";
+
+      if (!errorMsj && sanitizedValue.length >= 4 && formData.nombres) {
+        const raizEsperada = calcularRaizRFC(formData.nombres, formData.apellido_paterno, formData.apellido_materno);
+        const raizIngresada = sanitizedValue.substring(0, 4).replace(/Ñ/g, 'X');
+        if (raizIngresada !== raizEsperada) errorMsj = `No coincide, porfavor verifique`;
+      }
+
+      setErrores(prev => ({ ...prev, [name]: errorMsj }));
     } else if (name === "celular" || name === "cp") {
       sanitizedValue = sanitizedValue.replace(/[^0-9]/g, "");
     }
@@ -177,7 +234,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const handleOpenModal = (e) => {
     e.preventDefault();
     if (errores.rfc || errores.curp || formData.rfc.length < 13 || formData.curp.length < 18) {
-      toast.error(TOAST_DOCENTES.rfcCurpInvalido);
+      toast.error("Por favor, corrige los formatos de RFC o CURP antes de continuar.");
       return;
     }
     setShowModal(true);
@@ -230,7 +287,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Pantalla final de éxito
   if (registroExitoso) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
@@ -287,10 +343,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
       <form onSubmit={paso === 2 ? handleOpenModal : (e) => e.preventDefault()} className="p-6 md:p-8">
         
-        {/* PASO 1: Creación de usuario */}
         {paso === 1 && !isEditing && (
           <div className="space-y-6 animate-in fade-in duration-300">
-
+            {/* ... Contenido del Paso 1 sin cambios ... */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-slate-700">
@@ -384,6 +439,12 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         {/* PASO 2: Expediente docente */}
         {paso === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+            {bloquearCamposLegales && (
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-xl flex items-start gap-3 text-sm font-medium border border-blue-100">
+                <Lock className="w-5 h-5 text-blue-600 mt-0.5" />
+                <p>Por políticas de seguridad, los datos legales (RFC, CURP, INE) solo pueden ser modificados por un Administrador.</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -391,8 +452,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <input
                   type="text" name="rfc" required maxLength="13" value={formData.rfc}
                   onChange={handleChange} onKeyDown={handleKeyDownStrict}
+                  disabled={bloquearCamposLegales}
                   placeholder="XAXX010101000"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.rfc ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.rfc ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
                 />
                 {errores.rfc && <p className="text-xs font-bold text-red-500">{errores.rfc}</p>}
               </div>
@@ -401,8 +463,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <input
                   type="text" name="curp" required maxLength="18" value={formData.curp}
                   onChange={handleChange} onKeyDown={handleKeyDownStrict}
+                  disabled={bloquearCamposLegales}
                   placeholder="XAXX010101HXXXXXX0"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.curp ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.curp ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
                 />
                 {errores.curp && <p className="text-xs font-bold text-red-500">{errores.curp}</p>}
               </div>
@@ -471,8 +534,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <label className="flex items-center text-sm font-bold text-slate-700">Clave INE *</label>
                 <input
                   type="text" name="clave_ine" required value={formData.clave_ine} onChange={handleChange}
+                  disabled={bloquearCamposLegales}
                   placeholder="IDMEX..."
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all uppercase"
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all uppercase ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} border-slate-200 focus:ring-blue-100`}
                 />
               </div>
             </div>
