@@ -5,5 +5,6 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 const cuatrimestreController = require("../controllers/cuatrimestreController");
 
 router.get("/", verifyToken, cuatrimestreController.getCuatrimestres);
+router.get("/sincronizacion", verifyToken, cuatrimestreController.getCuatrimestres);
 
 module.exports = router;

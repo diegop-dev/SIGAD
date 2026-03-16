@@ -75,6 +75,15 @@ export const DocenteModal = ({ docente, onClose }) => {
                   {docente.estatus}
                 </span>
               </div>
+              
+              {/* Nuevo bloque para Motivo de Baja condicional */}
+              {docente.estatus === 'BAJA' && (
+                <div className="sm:col-span-2 bg-red-50 p-3 rounded-lg border border-red-100 mt-2">
+                  <span className="block text-red-800 font-bold mb-1">Motivo de la Baja</span>
+                  <span className="text-red-900 italic">{docente.motivo_baja || 'Motivo no registrado en el sistema.'}</span>
+                </div>
+              )}
+
             </div>
           </div>
 

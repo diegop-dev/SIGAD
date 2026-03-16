@@ -7,6 +7,8 @@ import { useAuth } from '../../hooks/useAuth';
 export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
   const { user: currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+// Nuevo estado para capturar el motivo
+  const [motivoBaja, setMotivoBaja] = useState('');
 
   if (!docente) return null;
 
@@ -18,12 +20,18 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
     : null;
 
   const handleDeactivate = async () => {
+    if (!motivoBaja.trim()) {
+      toast.error("Por favor, ingresa un motivo para la baja.");
+      return;
+    }
+
     setIsSubmitting(true);
     const toastId = toast.loading("Procesando baja...");
 
     try {
       await api.patch(`/docentes/${docente.id_docente}/deactivate`, {
-        eliminado_por: currentUser.id_usuario
+        eliminado_por: currentUser.id_usuario,
+        motivo_baja: motivoBaja
       });
       toast.success("Docente dado de baja correctamente.", { id: toastId });
       onSuccess();
@@ -74,6 +82,21 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
             </div>
           </div>
 
+          {/* Nuevo campo para el Motivo de Baja */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Motivo de la baja <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows="3"
+              className="w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-200 text-sm p-3 transition-all duration-200 resize-none"
+              placeholder="Explica brevemente por qué se da de baja al docente..."
+              value={motivoBaja}
+              onChange={(e) => setMotivoBaja(e.target.value)}
+              disabled={isSubmitting}
+            ></textarea>
+          </div>
+
           <div className="bg-red-50 p-4 rounded-xl border border-red-100">
             <p className="text-sm text-red-800 font-medium">
               <strong>Aviso de seguridad:</strong> El estatus cambiará a <span className="font-bold">BAJA</span> y el docente perderá acceso a la plataforma. Se registrará tu ID como auditor de esta acción.
@@ -90,7 +113,7 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
           </button>
           <button
             onClick={handleDeactivate}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !motivoBaja.trim()}
             className="flex items-center px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 hover:shadow-md hover:shadow-red-200 focus:ring-2 focus:ring-red-200 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (

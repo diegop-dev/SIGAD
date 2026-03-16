@@ -2,92 +2,121 @@ import { X, Trash2, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../services/api";
 
-export const PeriodosDelete = ({periodo,onClose,onSuccess})=>{
+export const PeriodosDelete = ({
+  periodo,
+  onClose,
+  onSuccess,
+}) => {
 
-const handleDelete = async ()=>{
+  const handleDelete = async () => {
 
-const toastId = toast.loading("Inactivando periodo...");
+    const toastId = toast.loading("Procesando eliminación...");
 
-try{
+    try {
 
-await api.delete(`/periodos/${periodo.id_periodo}`);
+      await api.delete(`/periodos/${periodo.id_periodo}`);
 
-toast.success("Periodo inactivado",{id:toastId});
+      toast.success("Periodo eliminado correctamente",{id:toastId});
 
-onSuccess();
+      onSuccess();
 
-}catch{
+    } catch (error) {
 
-toast.error("Error al eliminar",{id:toastId});
+      if (error.response?.status === 409) {
 
-}
+        toast.error("Tiene materias asociadas. Se aplicará baja lógica.",{id:toastId});
 
-};
+        await handleLogicalDelete();
 
-return(
+      } else {
 
-<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        toast.error("Error eliminando",{id:toastId});
 
-<div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+      }
 
-<div className="flex justify-between items-center px-6 py-5 border-b bg-red-50">
+    }
 
-<h2 className="text-lg font-black text-red-700 flex items-center">
+  };
 
-<AlertTriangle className="w-5 h-5 mr-2"/>
 
-Cerrar periodo
+  const handleLogicalDelete = async ()=>{
 
-</h2>
+    const toastId = toast.loading("Aplicando baja lógica...");
 
-<button onClick={onClose}><X/></button>
+    try{
 
-</div>
+      await api.patch(`/periodos/${periodo.id_periodo}/toggle`);
 
-<div className="p-6 text-sm text-slate-700 space-y-4">
+      toast.success("Periodo desactivado",{id:toastId});
 
-<p>
+      onSuccess();
 
-¿Está seguro de cerrar el periodo{" "}
+    }catch{
 
-<span className="font-bold">{periodo.codigo}</span>?
+      toast.error("Error aplicando baja lógica",{id:toastId});
 
-</p>
+    }
 
-<p className="text-red-600 font-semibold">
+  };
 
-El periodo pasará a estatus INACTIVO y no podrá usarse en nuevas asignaciones.
 
-</p>
+ return (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
 
-</div>
+      <div className="flex justify-between items-center px-6 py-5 border-b bg-red-50">
+        <h2 className="text-lg font-black text-red-700 flex items-center">
+          <AlertTriangle className="w-5 h-5 mr-2"/>
+          Administrar periodo
+        </h2>
 
-<div className="flex justify-end space-x-4 px-6 py-4 border-t bg-slate-50">
+        <button onClick={onClose}>
+          <X/>
+        </button>
+      </div>
 
-<button
-onClick={onClose}
-className="px-4 py-2 rounded-xl bg-slate-200 font-bold"
->
-Cancelar
-</button>
+      <div className="p-6 space-y-4 text-sm text-slate-700">
 
-<button
-onClick={handleDelete}
-className="flex items-center px-4 py-2 rounded-xl bg-red-600 text-white font-bold"
->
+        <p>
+          ¿Qué desea hacer con el periodo
+          <span className="font-bold"> {periodo.codigo}</span>?
+        </p>
 
-<Trash2 className="w-4 h-4 mr-2"/>
+        <div className="space-y-3">
 
-Cerrar periodo
+          <button
+            onClick={handleLogicalDelete}
+            className="w-full flex items-center justify-center px-4 py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600"
+          >
+            Desactivar periodo
+          </button>
 
-</button>
+          <button
+            onClick={handleDelete}
+            className="w-full flex items-center justify-center px-4 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
+          >
+            <Trash2 className="w-4 h-4 mr-2"/>
+            Eliminar permanentemente
+          </button>
 
-</div>
+        </div>
 
-</div>
+        <p className="text-xs text-slate-500">
+          Desactivar mantiene el historial. Eliminar borra completamente si no tiene relaciones.
+        </p>
 
-</div>
+      </div>
 
+      <div className="flex justify-end px-6 py-4 border-t bg-slate-50">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded-xl bg-slate-200 font-bold"
+        >
+          Cancelar
+        </button>
+      </div>
+
+    </div>
+  </div>
 );
-
 };

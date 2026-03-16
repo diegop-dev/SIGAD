@@ -11,11 +11,13 @@ export const GrupoManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [grupos, setGrupos] = useState([]);
   const [carrerasLista, setCarrerasLista] = useState([]);
+  const [cuatrimestresLista, setCuatrimestresLista] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [grupoAEditar, setGrupoAEditar] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [carreraFilter, setCarreraFilter] = useState('');
+  const [cuatrimestreFilter, setCuatrimestreFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -35,34 +37,44 @@ export const GrupoManagement = () => {
     }
   };
 
-  const fetchCarrerasFiltro = async () => {
+  const fetchCatalogosFiltro = async () => {
     try {
-      const response = await api.get('/carreras');
-      const data = response.data.data || response.data;
-      setCarrerasLista(Array.isArray(data) ? data : []);
+      const [resCarreras, resCuatrimestres] = await Promise.all([
+        api.get('/carreras'),
+        api.get('/cuatrimestres')
+      ]);
+      
+      const dataCarreras = resCarreras.data.data || resCarreras.data;
+      setCarrerasLista(Array.isArray(dataCarreras) ? dataCarreras : []);
+
+      const dataCuatrimestres = resCuatrimestres.data.data || resCuatrimestres.data;
+      setCuatrimestresLista(Array.isArray(dataCuatrimestres) ? dataCuatrimestres : []);
     } catch (error) {
-      console.error("Error al cargar carreras para el filtro:", error);
+      console.error("Error al cargar catálogos para filtros:", error);
     }
   };
 
   useEffect(() => {
     fetchGrupos();
-    fetchCarrerasFiltro();
+    fetchCatalogosFiltro();
   }, []);
 
-  const filteredGrupos = useMemo(() => {
+const filteredGrupos = useMemo(() => {
     return grupos.filter(grupo => {
       const busqueda = searchTerm.toLowerCase();
       const identificadorGrupo = grupo.identificador?.toLowerCase() || '';
       const nombreCarrera = grupo.nombre_carrera?.toLowerCase() || '';
 
       const coincideBusqueda = identificadorGrupo.includes(busqueda) || nombreCarrera.includes(busqueda);
-      const coincideCarrera = carreraFilter ? grupo.nombre_carrera === carreraFilter : true;
+      
+      const coincideCarrera = carreraFilter ? grupo.carrera_id === Number(carreraFilter) : true;
+      
+      const coincideCuatrimestre = cuatrimestreFilter ? grupo.nombre_cuatrimestre === cuatrimestreFilter : true;
       const coincideEstatus = statusFilter ? grupo.estatus === statusFilter : true;
 
-      return coincideBusqueda && coincideCarrera && coincideEstatus;
+      return coincideBusqueda && coincideCarrera && coincideCuatrimestre && coincideEstatus;
     });
-  }, [grupos, searchTerm, carreraFilter, statusFilter]);
+  }, [grupos, searchTerm, carreraFilter, cuatrimestreFilter, statusFilter]);
 
   const totalPages = Math.ceil(filteredGrupos.length / itemsPerPage) || 1;
   const paginatedGrupos = filteredGrupos.slice(
@@ -72,7 +84,7 @@ export const GrupoManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, carreraFilter, statusFilter]);
+  }, [searchTerm, carreraFilter, cuatrimestreFilter, statusFilter]);
 
   const handleSuccessAction = () => {
     setShowForm(false);
@@ -125,22 +137,22 @@ export const GrupoManagement = () => {
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
+        <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            placeholder="Buscar por identificador o carrera..."
+            placeholder="Buscar por identificador del grupo o carrera..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
           />
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex items-center min-w-[220px]">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="relative flex items-center">
             <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
               value={carreraFilter}
@@ -149,8 +161,25 @@ export const GrupoManagement = () => {
             >
               <option value="">Todas las carreras</option>
               {carrerasLista.map(carrera => (
-                <option key={carrera.id_carrera} value={carrera.nombre_carrera}>
-                  {carrera.nombre_carrera}
+                // ⚡ Usamos el ID como valor y mostramos la modalidad en el texto
+                <option key={carrera.id_carrera} value={carrera.id_carrera}>
+                  {carrera.nombre_carrera} ({carrera.modalidad})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative flex items-center">
+            <Calendar className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+            <select
+              value={cuatrimestreFilter}
+              onChange={(e) => setCuatrimestreFilter(e.target.value)}
+              className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
+            >
+              <option value="">Todos los cuatrimestres</option>
+              {cuatrimestresLista.map(cuatrimestre => (
+                <option key={cuatrimestre.id_cuatrimestre} value={cuatrimestre.nombre}>
+                  {cuatrimestre.nombre}
                 </option>
               ))}
             </select>
@@ -159,7 +188,7 @@ export const GrupoManagement = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="block w-full min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+            className="block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
             <option value="">Todos los estatus</option>
             <option value="ACTIVO">Activo</option>
@@ -173,8 +202,9 @@ export const GrupoManagement = () => {
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50/50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Grupo</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Identificador</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Modalidad</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cuatrimestre</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
@@ -219,9 +249,14 @@ export const GrupoManagement = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-slate-600 bg-slate-50 border border-slate-100 px-3 py-1 rounded-lg inline-flex items-center">
+                        {grupo.modalidad || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg inline-flex items-center">
                         <Calendar className="w-3 h-3 mr-1" />
-                        {grupo.cuatrimestre_id}
+                        {grupo.nombre_cuatrimestre || `Cuatrimestre ${grupo.cuatrimestre_id}`}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

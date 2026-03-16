@@ -1,4 +1,5 @@
 const grupoModel = require('../models/grupoModel');
+const carreraModel = require('../models/carreraModel');
 
 const grupoController = {
   getGrupos: async (req, res) => {
@@ -11,34 +12,34 @@ const grupoController = {
     }
   },
 
-crearGrupo: async (req, res) => {
+  crearGrupo: async (req, res) => {
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
-      const creado_por = req.usuario ? req.usuario.id_usuario : null; 
-
-      const identificadorMayusculas = identificador.toUpperCase();
-
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
+      const { carrera_id } = req.body;
+      const creado_por = req.usuario ? req.usuario.id_usuario : null;
 
       const datosNuevoGrupo = {
-        identificador: identificadorMayusculas, 
+        identificador: 'TEMP',
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: 1, 
         creado_por
       };
 
       const resultado = await grupoModel.crearGrupo(datosNuevoGrupo);
+      const nuevoId = resultado.insertId;
+
+      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
+      const anio = new Date().getFullYear();
+
+      const idFormateado = String(nuevoId).padStart(3, '0');
+      const identificadorFinal = `${anio}${codigo_unico}${idFormateado}`;
+
+      await grupoModel.actualizarIdentificador(nuevoId, identificadorFinal);
 
       return res.status(201).json({
         success: true,
-        message: 'Grupo registrado correctamente.',
-        data: { id_grupo: Number(resultado.insertId), ...datosNuevoGrupo }
+        message: 'Grupo registrado y autogenerado correctamente.',
+        data: { id_grupo: nuevoId, identificador: identificadorFinal, carrera_id, cuatrimestre_id: 1 }
       });
 
     } catch (error) {
@@ -50,22 +51,16 @@ crearGrupo: async (req, res) => {
   actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
-      const { identificador, carrera_id, cuatrimestre_id } = req.body;
+      const { carrera_id } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
-      const identificadorMayusculas = identificador.toUpperCase();
 
-      const existe = await grupoModel.validarExistencia(identificadorMayusculas, carrera_id, id);
-      if (existe) {
-        return res.status(400).json({
-          success: false,
-          errores: [{ path: 'identificador', msg: 'Este identificador ya está registrado en la carrera seleccionada.' }]
-        });
-      }
+      const grupoExistente = await grupoModel.getGrupoById(id);
+      if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
       const datosActualizar = {
-        identificador: identificadorMayusculas,
+        identificador: grupoExistente.identificador,
         carrera_id,
-        cuatrimestre_id,
+        cuatrimestre_id: grupoExistente.cuatrimestre_id,
         modificado_por
       };
 

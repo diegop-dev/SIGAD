@@ -6,34 +6,31 @@ import { AltaDocente } from './AltaDocente';
 import { DocenteModal } from './DocenteModal';
 import { DeactivateDocenteModal } from './DeactivateDocenteModal';
 import { useAuth } from '../../hooks/useAuth';
+import { TOAST_DOCENTES } from '../../../constants/toastMessages';
 
 export const DocenteManagement = () => {
   const { user: currentUser } = useAuth(); 
   
-  // Estados para controlar qué vista se muestra
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState('create'); // Puede ser 'create', 'view' o 'edit'
+  const [formMode, setFormMode] = useState('create'); // 'create', 'view' o 'edit'
   const [selectedDocente, setSelectedDocente] = useState(null);
   const [docenteToDeactivate, setDocenteToDeactivate] = useState(null);
   
-  // Estados para la lista de docentes
   const [docentes, setDocentes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Estados para filtros y paginación
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Función para obtener la lista de docentes
   const fetchDocentes = async () => {
     setIsLoading(true);
     try {
       const response = await api.get('/docentes'); 
-      setDocentes(response.data);
+      setDocentes(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      toast.error('Error al cargar el listado de docentes');
+      toast.error(TOAST_DOCENTES.errorCarga);
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +40,6 @@ export const DocenteManagement = () => {
     fetchDocentes();
   }, []);
 
-  // Filtrado
   const filteredDocentes = useMemo(() => {
     return docentes.filter(docente => {
       const fullName = `${docente.nombres} ${docente.apellido_paterno} ${docente.apellido_materno}`.toLowerCase();
@@ -58,7 +54,6 @@ export const DocenteManagement = () => {
     });
   }, [docentes, searchTerm, statusFilter]);
 
-  // Paginación
   const totalPages = Math.ceil(filteredDocentes.length / itemsPerPage) || 1;
   const paginatedDocentes = filteredDocentes.slice(
     (currentPage - 1) * itemsPerPage,
@@ -69,12 +64,11 @@ export const DocenteManagement = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter]);
 
-  // Manejadores de vistas
   const handleSuccessAction = () => {
     setShowForm(false);
     setSelectedDocente(null);
     setDocenteToDeactivate(null);
-    fetchDocentes(); // Recargamos la tabla al guardar
+    fetchDocentes();
   };
 
   const handleCloseForm = () => {
@@ -96,35 +90,39 @@ export const DocenteManagement = () => {
   const handleEditClick = (docente) => {
     setFormMode('edit');
     setSelectedDocente(docente);
-    setShowForm(true); // <-- Esto abrirá el AltaDocente
+    setShowForm(true);
   };
 
   const handleDeactivateClick = (docente) => {
     if (docente.estatus === 'INACTIVO') {
-      toast.error('El docente ya se encuentra inactivo.');
+      toast.error(TOAST_DOCENTES.yaInactivo);
       return;
     }
     setDocenteToDeactivate(docente);
   };
 
-// 1. VISTA DE FORMULARIO (Crear y Editar)
+  // Vista de formulario (Crear y Editar)
   if (showForm && (formMode === 'create' || formMode === 'edit')) {
     return (
       <AltaDocente 
         onBack={handleCloseForm} 
         onSuccess={handleSuccessAction} 
-        docenteToEdit={formMode === 'edit' ? selectedDocente : null} // <-- ESTA LÍNEA ES LA NUEVA
+        docenteToEdit={formMode === 'edit' ? selectedDocente : null}
       />
     );
   }
 
-  // 2. VISTA PRINCIPAL: Tabla de Gestión
+  // Vista principal: Tabla de Gestión
   return (
     <div className="space-y-6">
+
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Gestión de docentes</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+            <Users className="w-8 h-8 mr-3 text-blue-600" />
+            Gestión de docentes
+          </h1>
           <p className="mt-1 text-sm text-slate-500 font-medium">Administra los expedientes y asignaciones académicas.</p>
         </div>
         <button 
@@ -160,7 +158,7 @@ export const DocenteManagement = () => {
             >
               <option value="">Todos los estatus</option>
               <option value="ACTIVO">Activo</option>
-              <option value="INACTIVO">Inactivo</option>
+              <option value="BAJA">Baja</option>
             </select>
           </div>
         </div>
@@ -214,14 +212,16 @@ export const DocenteManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-600">
                       {d.matricula_empleado}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-500">
-                      {d.nombre_academia || 'Sin asignar'}
-                       </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg ${
+                      <span className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                        {d.nombre_academia || 'Sin asignar'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
                         d.estatus === 'ACTIVO' 
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                          : 'bg-red-100 text-red-800 border border-red-200'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : 'bg-red-100 text-red-800 border-red-200'
                       }`}>
                         {d.estatus}
                       </span>
@@ -289,7 +289,11 @@ export const DocenteManagement = () => {
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
-            {/* RENDERIZAMOS EL MODAL DE VISUALIZAR */}
+          </div>
+        )}
+      </div>
+
+      {/* Modales */}
       {formMode === 'view' && selectedDocente && (
         <DocenteModal 
           docente={selectedDocente} 
@@ -297,15 +301,11 @@ export const DocenteManagement = () => {
         />
       )}
 
-      {/* MODAL PARA CONFIRMAR BAJA */}
       <DeactivateDocenteModal
         docente={docenteToDeactivate}
         onClose={() => setDocenteToDeactivate(null)}
         onSuccess={handleSuccessAction}
       />
-          </div>
-        )}
-      </div>
     </div>
   );
 };

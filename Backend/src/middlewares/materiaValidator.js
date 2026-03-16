@@ -1,15 +1,6 @@
 const { check, validationResult } = require("express-validator");
 
 const validateMateria = [
-  check("codigo_unico")
-    .trim()
-    .notEmpty()
-    .withMessage("El código único es obligatorio")
-    .isLength({ min: 3, max: 15 })
-    .withMessage("El código único debe tener entre 3 y 15 caracteres")
-    .matches(/^[A-Za-z0-9\-]+$/)
-    .withMessage("El código único solo admite letras, números y guiones")
-    .toUpperCase(),
 
   check("nombre")
     .trim()

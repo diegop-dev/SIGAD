@@ -4,6 +4,11 @@ const { verifyToken, requireRole } = require("../middlewares/authMiddleware");
 const { validateMateria } = require("../middlewares/materiaValidator");
 const materiaController = require("../controllers/materiaController");
 
+// ruta exclusiva para la API de sincronización externa (HU-37 / API-03)
+// el sistema externo deberá consumir: GET /api/materias/sincronizacion?carrera_id=X&cuatrimestre_id=Y
+router.get("/sincronizacion", verifyToken, materiaController.getMateriasParaSincronizacion);
+
+// rutas originales para el consumo interno del frontend de SIGAD
 router.get("/", verifyToken, materiaController.getMaterias);
 
 router.post(
@@ -30,7 +35,7 @@ router.delete(
 );
 
 router.patch(
-  "/:id",
+  "/:id/toggle",
   verifyToken,
   requireRole([1]),
   materiaController.toggleMateria

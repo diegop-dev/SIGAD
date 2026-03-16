@@ -1,7 +1,34 @@
 const assignmentModel = require('../models/assignmentModel');
 
+// API de sincronización externa (HU-37 / API-05)
+const getAsignacionesParaSincronizacion = async (req, res) => {
+  try {
+    // extraemos los parámetros de consulta obligatorios según el PDF
+    const { materia_id, grupo_id } = req.query;
+
+    // validación estricta: retornamos HTTP 400 si la petición está incompleta
+    if (!materia_id || !grupo_id) {
+      return res.status(400).json({
+        message: "Parámetros incompletos. Se requiere materia_id y grupo_id."
+      });
+    }
+
+    // consumimos el método optimizado del modelo
+    const asignaciones = await assignmentModel.getAsignacionesParaSincronizacion(materia_id, grupo_id);
+    
+    // retornamos directamente el arreglo para cumplir con el contrato JSON
+    return res.status(200).json(asignaciones);
+  } catch (error) {
+    console.error("[Error en assignmentController - getAsignacionesParaSincronizacion]:", error);
+    // retornamos HTTP 500 ocultando la traza original por seguridad
+    return res.status(500).json({ 
+      message: "Error interno al procesar el catálogo de asignaciones." 
+    });
+  }
+};
+
 // ==========================================
-// HU-33: CREAR ASIGNACIÓN DOCENTE
+// HU-33: Crear asignación docente
 // ==========================================
 const createAsignacion = async (req, res) => {
   try {
@@ -10,6 +37,14 @@ const createAsignacion = async (req, res) => {
 
     if (!periodo_id || !materia_id || !docente_id || !grupo_id || !horarios || horarios.length === 0) {
       return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios." });
+    }
+
+    // validación de congruencia académica estricta (carrera, cuatrimestre y academia)
+    const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id);
+    if (!cumpleReglasAcademicas) {
+      return res.status(422).json({ 
+        error: "Incongruencia de datos: Verifica que la materia corresponda a la carrera y cuatrimestre del grupo, y que el docente pertenezca a la academia correcta." 
+      });
     }
 
     for (const bloque of horarios) {
@@ -57,7 +92,7 @@ const createAsignacion = async (req, res) => {
 };
 
 // ==========================================
-// HU-34: CONSULTAR ASIGNACIONES DOCENTE
+// HU-34: Consultar asignaciones docente
 // ==========================================
 const getAsignaciones = async (req, res) => {
   try {
@@ -71,6 +106,7 @@ const getAsignaciones = async (req, res) => {
 };
 
 module.exports = {
+  getAsignacionesParaSincronizacion,
   createAsignacion,
   getAsignaciones
 };

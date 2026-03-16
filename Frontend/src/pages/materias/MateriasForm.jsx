@@ -20,7 +20,6 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [formData, setFormData] = useState({
-    codigo_unico: initialData?.codigo_unico || "",
     nombre: initialData?.nombre || "",
     creditos: initialData?.creditos || 1,
     cupo_maximo: initialData?.cupo_maximo || 30,
@@ -76,9 +75,8 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const validate = () => {
     const newErrors = {};
-    const { codigo_unico, nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, carrera_id } = formData;
+    const {  nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, carrera_id } = formData;
 
-    if (!codigo_unico.trim()) newErrors.codigo_unico = "El código único es obligatorio";
     if (!nombre.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
     
     if (!creditos || creditos < 1) newErrors.creditos = "Debe asignar al menos 1 crédito";
@@ -137,8 +135,6 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     }
   };
 
-  const handleDeletePlaceholder = () => toast("Función de eliminación en desarrollo", { icon: "🚧" });
-
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
@@ -154,36 +150,14 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
           </div>
         </div>
         
-        {isEditing && (
-          <div className="flex gap-2">
-            <button onClick={handleDeletePlaceholder} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+       
       </div>
 
       <div className="p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* Código único */}
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Código único
-              </label>
-              <input
-                type="text"
-                name="codigo_unico"
-                value={formData.codigo_unico}
-                onChange={handleChange}
-                placeholder="Ej. MAT-101"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.codigo_unico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.codigo_unico && <p className="text-xs font-bold text-red-500">{errores.codigo_unico}</p>}
-            </div>
+            
 
             {/* Nombre de la materia */}
             <div className="space-y-2">

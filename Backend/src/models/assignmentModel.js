@@ -1,11 +1,22 @@
 const pool = require('../config/database');
 
+// API de sincronización externa (HU-37 / API-05)
+const getAsignacionesParaSincronizacion = async (materia_id, grupo_id) => {
+  // validación de parámetros para evitar consultas mal formadas
+  if (!materia_id || !grupo_id) {
+    return [];
+  }
+
+  // consulta optimizada sin JOINs, proyectando estrictamente lo solicitado en el PDF
+  const rows = await pool.query(` SELECT id_asignacion, docente_id, dia_semana, hora_inicio, hora_fin FROM asignaciones WHERE materia_id = ? AND grupo_id = ? AND estatus_acta != 'CERRADA' ORDER BY dia_semana ASC, hora_inicio ASC `, [materia_id, grupo_id]);
+  return rows;
+};
+
 // ==========================================
-// VALIDACIONES DE CRUCE DE HORARIOS (HU-33)
+// Validaciones de cruce de horarios (HU-33)
 // ==========================================
 
 const checkDocenteConflict = async (docente_id, periodo_id, dia_semana, hora_inicio, hora_fin) => {
-  // se remueven los corchetes de destructuring para recibir el arreglo completo
   const rows = await pool.query(`
     SELECT a.id_asignacion 
     FROM asignaciones a
@@ -57,7 +68,29 @@ const checkAulaConflict = async (aula_id, periodo_id, dia_semana, hora_inicio, h
 };
 
 // ==========================================
-// TRANSACCIÓN DE CREACIÓN (HU-33)
+// Validación de congruencia académica integral
+// ==========================================
+
+const checkReglasNegocioAsignacion = async (materia_id, grupo_id, docente_id) => {
+  // ejecuta la validación cruzada múltiple proyectando solo el id para minimizar la carga de memoria
+  const rows = await pool.query(`
+    SELECT m.id_materia 
+    FROM materias m
+    INNER JOIN grupos g ON g.id_grupo = ?
+    INNER JOIN carreras c ON c.id_carrera = g.carrera_id
+    INNER JOIN docentes d ON d.id_docente = ?
+    WHERE m.id_materia = ? 
+      AND (m.carrera_id = g.carrera_id OR m.tipo_asignatura = 'TRONCO_COMUN')
+      AND m.cuatrimestre_id = g.cuatrimestre_id
+      AND d.academia_id = c.academia_id
+  `, [grupo_id, docente_id, materia_id]);
+  
+  // retorna true si todas las reglas académicas se cumplen, false si hay alguna incongruencia
+  return rows.length > 0;
+};
+
+// ==========================================
+// Transacción de creación (HU-33)
 // ==========================================
 
 const createAsignaciones = async (asignacionesData) => {
@@ -82,7 +115,6 @@ const createAsignaciones = async (asignacionesData) => {
     const insertedIds = [];
 
     for (const data of asignacionesData) {
-      // la inserción también debe recibir el objeto result directamente
       const result = await connection.query(insertQuery, [
         data.periodo_id,
         data.materia_id,
@@ -109,7 +141,7 @@ const createAsignaciones = async (asignacionesData) => {
 };
 
 // ==========================================
-// CONSULTA RELACIONAL CON FILTROS (HU-34)
+// Consulta relacional con filtros (HU-34)
 // ==========================================
 
 const getAllAsignaciones = async (filters = {}) => {
@@ -156,15 +188,16 @@ const getAllAsignaciones = async (filters = {}) => {
 
   query += ` ORDER BY p.fecha_inicio DESC, u.apellido_paterno ASC, a.dia_semana ASC, a.hora_inicio ASC`;
 
-  // se remueve destructuring aquí también
   const rows = await pool.query(query, queryParams);
   return rows;
 };
 
 module.exports = {
+  getAsignacionesParaSincronizacion,
   checkDocenteConflict,
   checkGrupoConflict,
   checkAulaConflict,
+  checkReglasNegocioAsignacion,
   createAsignaciones,
   getAllAsignaciones
 };
