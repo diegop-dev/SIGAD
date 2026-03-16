@@ -75,7 +75,7 @@ const grupoController = {
     }
   },
 
-  actualizarGrupo: async (req, res) => {
+actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
       const { carrera_id } = req.body;
@@ -84,8 +84,20 @@ const grupoController = {
       const grupoExistente = await grupoModel.getGrupoById(id);
       if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
+      let identificadorFinal = grupoExistente.identificador;
+
+      // Detectamos si el usuario cambió la carrera asignada al grupo
+      if (Number(grupoExistente.carrera_id) !== Number(carrera_id)) {
+        const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+        const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
+        
+        const anio = grupoExistente.identificador.substring(0, 4);
+        const idFormateado = String(id).padStart(3, '0');
+        identificadorFinal = `${anio}${codigo_unico}${idFormateado}`;
+      }
+
       const datosActualizar = {
-        identificador: grupoExistente.identificador,
+        identificador: identificadorFinal,
         carrera_id,
         cuatrimestre_id: grupoExistente.cuatrimestre_id,
         modificado_por
@@ -93,7 +105,11 @@ const grupoController = {
 
       await grupoModel.actualizarGrupo(id, datosActualizar);
 
-      return res.status(200).json({ success: true, message: 'Grupo actualizado correctamente.' });
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Grupo actualizado correctamente.',
+        nuevo_identificador: identificadorFinal 
+      });
     } catch (error) {
       console.error('Error al actualizar grupo:', error);
       return res.status(500).json({ success: false, message: 'Error en el servidor al actualizar grupo' });
