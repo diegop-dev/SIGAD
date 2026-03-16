@@ -15,4 +15,8 @@ router.get('/academias-activas', verifyToken, carreraController.getAcademiasDisp
 router.get('/', verifyToken, carreraController.getCarreras);
 router.post('/', verifyToken, validarCreacionCarrera, carreraController.crearCarrera);
 
+// RUTAS PARA MODIFICAR Y ELIMINAR 
+router.put('/:id', verifyToken, validarCreacionCarrera, carreraController.actualizarCarrera);
+router.patch('/:id/deactivate', verifyToken, carreraController.deactivateCarrera);
+
 module.exports = router;

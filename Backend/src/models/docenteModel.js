@@ -53,15 +53,14 @@ const docenteModel = {
     return rows.length > 0 ? rows[0] : null;
   },
 
-  // ✨ NUEVO MÉTODO PARA TRANSACCIÓN UNIFICADA (Usuario + Docente) ✨
+// ✨ NUEVO MÉTODO PARA TRANSACCIÓN UNIFICADA (Usuario + Docente) ✨
   createUsuarioYDocente: async (datos) => {
     let conn;
     try {
       conn = await db.getConnection();
-      // iniciamos la transacción para garantizar integridad ACID
       await conn.beginTransaction();
 
-      // 1. insertar en la tabla usuarios (rol_id = 3 para docentes)
+      // 1. insertar en la tabla usuarios
       const userQuery = `
         INSERT INTO usuarios (
           nombres, apellido_paterno, apellido_materno, 
@@ -73,16 +72,14 @@ const docenteModel = {
       const userRes = await conn.query(userQuery, [
         datos.nombres, datos.apellido_paterno, datos.apellido_materno,
         datos.personal_email, datos.institutional_email, datos.password_hash,
-        datos.foto_perfil_url || null, // mapeo correcto de la URL de la imagen
+        datos.foto_perfil_url || null, 
         datos.creado_por
       ]);
 
-      // capturamos el ID del usuario recién creado
       const idUsuario = Number(userRes.insertId || userRes[0]?.insertId);
-
       if (!idUsuario) throw new Error("Fallo al generar el ID del usuario.");
 
-      // 2. insertar en la tabla docentes usando el idUsuario
+      // 2. insertar en la tabla docentes (¡AQUÍ ESTÁ LA CORRECCIÓN DE VARIABLES Y ORDEN!)
       const docenteQuery = `
         INSERT INTO docentes (
           usuario_id, matricula_empleado, rfc, curp, clave_ine, 
@@ -91,15 +88,25 @@ const docenteModel = {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?, NOW(), ?)
       `;
 
-      const docenteRes = await conn.query(docenteQuery, [
-        idUsuario, datos.matricula, datos.rfc, datos.curp, datos.clave_ine,
-        datos.domicilio, datos.celular, datos.nivel_academico, datos.antiguedad_fecha,
-        datos.creado_por, datos.academia_id
-      ]);
+      // Fíjate cómo cambié 'antiguedad_fecha' por 'fecha_ingreso' que es lo que manda tu Frontend
+      const paramsDocente = [
+        idUsuario, 
+        datos.matricula, 
+        datos.rfc, 
+        datos.curp, 
+        datos.clave_ine,
+        datos.domicilio, 
+        datos.celular, 
+        datos.nivel_academico, 
+        datos.fecha_ingreso, // <-- CORREGIDO
+        datos.creado_por, 
+        datos.academia_id    // <-- AHORA SÍ CAERÁ EN SU LUGAR
+      ];
 
+      const docenteRes = await conn.query(docenteQuery, paramsDocente);
       const idDocente = Number(docenteRes.insertId || docenteRes[0]?.insertId);
 
-      // 3. insertar documentos asociados al expediente si existen
+      // 3. insertar documentos asociados al expediente
       if (datos.documentos && datos.documentos.length > 0) {
         const docQuery = `
           INSERT INTO documentos_docentes (docente_id, tipo_documento, url_archivo, fecha_subida)
@@ -110,12 +117,9 @@ const docenteModel = {
         }
       }
 
-      // si todo sale bien, confirmamos los cambios en la base de datos
       await conn.commit();
-      
       return { idUsuario, idDocente };
     } catch (error) {
-      // si cualquier paso falla, deshacemos todos los cambios
       if (conn) await conn.rollback();
       console.error("[Transacción unificada fallida]:", error.message);
       throw error;

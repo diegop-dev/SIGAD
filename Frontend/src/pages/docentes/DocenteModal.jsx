@@ -3,6 +3,9 @@ import { X, User, Briefcase, MapPin, GraduationCap, ShieldCheck } from 'lucide-r
 export const DocenteModal = ({ docente, onClose }) => {
   if (!docente) return null;
 
+// AGREGAR ESTA LÍNEA PARA ESPIAR LOS DATOS 👀
+  console.log("Datos que llegan al modal:", docente);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-hidden flex flex-col max-h-[90vh]">
