@@ -3,12 +3,12 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../context/NotificationContext';
 import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon } from 'lucide-react';
-import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal'; // NUEVO: Importamos el modal aquí
+import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal';
 import { NotificationDropdown } from './NotificationDropdown';
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
-  const { notifications, clearNotifications } = useNotifications();
+  const { notifications } = useNotifications(); // Ya no necesitamos clearNotifications aquí
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const navigate = useNavigate();
@@ -43,7 +43,8 @@ export const MainLayout = () => {
     { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
     { name: 'Gestión de asignaciones', path: '/asignaciones', icon: Calendar, roles: [1, 2]},
-    { name: 'Mi horario', path: '/mi-horario', icon: Calendar, roles: [3] },
+    { name: 'Métricas institucionales', path: '/metricas', icon: GraduationCap, roles: [1]},
+    { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]},
     { name: 'Mi perfil', path: '/mi-perfil', icon: User, roles: [3] }
   ];
 
@@ -60,7 +61,6 @@ export const MainLayout = () => {
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
       
-      {/* NUEVO: El modal ahora vive dentro del Layout del Dashboard */}
       <ForceChangePasswordModal />
       
       {isSidebarOpen && (
@@ -168,13 +168,7 @@ export const MainLayout = () => {
             <div className="flex items-center gap-4">
               <div className="relative notif-container">
                 <button
-                  onClick={() => {
-                    setIsNotifOpen(prev => {
-                      const next = !prev;
-                      if (!prev) clearNotifications(); // limpia al abrir
-                      return next;
-                    });
-                  }}
+                  onClick={() => setIsNotifOpen(!isNotifOpen)} // Forma correcta y limpia
                   className="relative p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200"
                 >
                   <Bell className="h-5 w-5" />
@@ -182,16 +176,16 @@ export const MainLayout = () => {
                     <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
                       <span
                         className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                          // determine highest severity color
+                          // Determinamos el color basado en la severidad real de la DB
                           (() => {
-                            const rank = { baja: 1, media: 2, alta: 3 };
-                            let top = 'baja';
+                            const rank = { BAJA: 1, MEDIA: 2, ALTA: 3 };
+                            let top = 'BAJA';
                             notifications.forEach(n => {
-                              if (rank[n.severity] > rank[top]) top = n.severity;
+                              if (rank[n.severidad] > rank[top]) top = n.severidad;
                             });
-                            if (top === 'alta') return 'bg-red-500';
-                            if (top === 'media') return 'bg-yellow-500';
-                            return 'bg-green-500';
+                            if (top === 'ALTA') return 'bg-red-500';
+                            if (top === 'MEDIA') return 'bg-amber-400';
+                            return 'bg-emerald-500';
                           })()
                         } border-2 border-white`}
                       />

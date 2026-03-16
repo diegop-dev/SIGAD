@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "react-hot-toast";
 import { MainLayout } from "./components/MainLayout";
-
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
@@ -14,8 +13,8 @@ import AulaManagement from "./pages/aulas/AulaManagement";
 import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 import { GrupoManagement } from "./pages/grupos/GrupoManagement";
 import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
-
-// ✨ AQUÍ IMPORTAMOS LA NUEVA PANTALLA ✨
+import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
+import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
 import { MiPerfil } from "./pages/docentes/MiPerfil"; 
 
 function App() {
@@ -32,7 +31,12 @@ function App() {
             {/* Rutas accesibles para cualquier usuario autenticado */}
             <Route path="/dashboard" element={<Dashboard />} />
 
-            {/* 2. Capa de seguridad granular: (RBAC Admin) */}
+            {/* Rutas exclusivas para superadministradores (rol_id = 1) */}
+            <Route element={<ProtectedRoute allowedRoles={[1]} />}>
+              <Route path="/metricas" element={<DashboardMetricas />} />
+            </Route>
+
+            {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
               <Route path="/usuarios" element={<UserManagement />} />
               <Route path="/docentes" element={<DocenteManagement />} />
@@ -47,14 +51,12 @@ function App() {
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
-              {/* ✨ AQUÍ COLOCAMOS EL COMPONENTE ✨ */}
+              <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
               <Route path="/mi-perfil" element={<MiPerfil />} />
-              {/* <Route path="/mi-horario" element={<TeacherSchedule />} /> */}
-            </Route>
-          </Route>
-          
-        </Route>
 
+            </Route>
+          </Route> 
+        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </>

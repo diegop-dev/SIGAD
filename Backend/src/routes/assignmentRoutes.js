@@ -27,4 +27,38 @@ router.get(
   assignmentController.getAsignaciones
 );
 
+// HU-35: Modificar asignación docente (solo SuperAdmin y Admin)
+router.put(
+  '/', 
+  verifyToken, 
+  requireRole([1, 2]), 
+  assignmentController.updateAsignacion
+);
+
+// HU-36: Cancelar asignación docente mediante borrado lógico (solo SuperAdmin y Admin)
+router.delete(
+  '/', 
+  verifyToken, 
+  requireRole([1, 2]), 
+  assignmentController.cancelarAsignacion
+);
+
+// Reactivar asignación previamente cancelada (solo SuperAdmin y Admin)
+router.patch(
+  '/reactivar', 
+  verifyToken, 
+  requireRole([1, 2]), 
+  assignmentController.reactivarAsignacion
+);
+
+// ==========================================
+// HU-46: Aceptar o Rechazar asignación (Docentes)
+// ==========================================
+router.patch(
+  '/confirmacion', 
+  verifyToken, 
+  requireRole([1, 2, 3]), // Permitimos rol 3 (Docente) y directivos
+  assignmentController.actualizarConfirmacion
+);
+
 module.exports = router;

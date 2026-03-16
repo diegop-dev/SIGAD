@@ -71,24 +71,47 @@ const carreraModel = {
     }
   },
 
-  getAllCarreras: async () => {
+  // ==========================================
+  // SE ACTUALIZÓ PARA ACEPTAR periodo_id (HU-41)
+  // ==========================================
+  getAllCarreras: async (periodo_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      const rows = await conn.query(`
-        SELECT 
-          c.id_carrera, 
-          c.codigo_unico,
-          c.nombre_carrera, 
-          c.modalidad,
-          c.estatus,
-          c.academia_id, 
-          a.nombre AS nombre_academia
-        FROM carreras c
-        LEFT JOIN academias a ON c.academia_id = a.id_academia
-        ORDER BY c.id_carrera DESC
-      `);
-      return rows;
+      
+      if (periodo_id) {
+        // Retorna SOLO carreras activas que tienen al menos una materia en ese periodo (Para el Dashboard)
+        const rows = await conn.query(`
+          SELECT DISTINCT 
+            c.id_carrera, 
+            c.codigo_unico,
+            c.nombre_carrera, 
+            c.modalidad,
+            c.estatus,
+            c.academia_id
+          FROM carreras c
+          INNER JOIN materias m ON c.id_carrera = m.carrera_id
+          WHERE m.periodo_id = ? AND c.estatus = 'ACTIVO'
+          ORDER BY c.nombre_carrera ASC
+        `, [periodo_id]);
+        return rows;
+      } else {
+        // Consulta normal que retorna todas las carreras (Para el Catálogo de Gestión)
+        const rows = await conn.query(`
+          SELECT 
+            c.id_carrera, 
+            c.codigo_unico,
+            c.nombre_carrera, 
+            c.modalidad,
+            c.estatus,
+            c.academia_id, 
+            a.nombre AS nombre_academia
+          FROM carreras c
+          LEFT JOIN academias a ON c.academia_id = a.id_academia
+          ORDER BY c.id_carrera DESC
+        `);
+        return rows;
+      }
     } finally {
       if (conn) conn.release();
     }

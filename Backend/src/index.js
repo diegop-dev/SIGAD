@@ -17,6 +17,8 @@ const periodoRoutes = require("./routes/periodoRoutes");
 const aulasRoutes = require('./routes/aulasRoutes');
 const grupoRoutes = require('./routes/grupoRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const metricasRoutes = require('./routes/metricasRoutes');
 
 // --- NUEVA RUTA PARA HU-37 ---
 const externalRoutes = require('./routes/externalRoutes'); 
@@ -49,6 +51,8 @@ app.use('/api/aulas', aulasRoutes);
 app.use('/api/grupos', grupoRoutes);
 app.use('/api/asignaciones', assignmentRoutes);
 app.use('/api/external', externalRoutes);
+app.use('/api/notificaciones', notificationRoutes);
+app.use('/api/metricas', metricasRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
