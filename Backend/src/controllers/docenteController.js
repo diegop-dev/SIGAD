@@ -2,6 +2,8 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const docenteModel = require("../models/docenteModel");
 const userModel = require("../models/userModel");
+// Importamos el servicio de correos
+const { enviarPasswordTemporal } = require("../services/emailService"); 
 
 // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
 const getDocenteParaSincronizacion = async (req, res) => {
@@ -43,7 +45,7 @@ const getDocentes = async (req, res) => {
   }
 };
 
-// ✨ NUEVA FUNCIÓN REFACTORIZADA PARA ALTA UNIFICADA ✨
+// ✨ NUEVA FUNCIÓN REFACTORIZADA PARA ALTA UNIFICADA BLINDADA ✨
 const registerDocente = async (req, res) => {
   try {
     let {
@@ -52,7 +54,7 @@ const registerDocente = async (req, res) => {
       personal_email, institutional_email,
       // datos del expediente docente
       rfc, curp, celular, calle, numero, colonia, cp,
-      clave_ine, fecha_ingreso, nivel_academico, creado_por, academia_id 
+      clave_ine, fecha_ingreso, antiguedad_fecha, nivel_academico, creado_por, academia_id 
     } = req.body;
 
     // normalización de datos para evitar espacios en blanco e inconsistencias
@@ -62,11 +64,17 @@ const registerDocente = async (req, res) => {
     personal_email = personal_email?.trim().toLowerCase();
     institutional_email = institutional_email?.trim().toLowerCase();
 
+    // =======================================================
+    // BLINDAJE CONTRA ERRORES DE FECHA NULA
+    // =======================================================
+    let fecha_real = fecha_ingreso || antiguedad_fecha;
+    if (fecha_real === "null" || fecha_real === "undefined") fecha_real = null;
+
     // validación estricta de campos obligatorios unificados
     if (!nombres || !apellido_paterno || !apellido_materno ||
         !personal_email || !institutional_email ||
         !rfc || !curp || !celular || !calle || !numero || !colonia || !cp ||
-        !clave_ine || !fecha_ingreso || !nivel_academico || !creado_por || !academia_id) {
+        !clave_ine || !fecha_real || !nivel_academico || !creado_por || !academia_id) {
       return res.status(400).json({ error: "Faltan datos obligatorios para el registro unificado." });
     }
 
@@ -126,9 +134,22 @@ const registerDocente = async (req, res) => {
       foto_perfil_url,
       creado_por, matricula, rfc, curp, clave_ine,
       domicilio: domicilio_completo, celular, nivel_academico, 
-      antiguedad_fecha: fecha_ingreso, documentos,
+      antiguedad_fecha: fecha_real, 
+      fecha_ingreso: fecha_real,
+      documentos,
       academia_id
     });
+
+    // ========================================================
+    // ENVÍO DE CORREO ELECTRÓNICO AL NUEVO DOCENTE (No bloqueante)
+    // ========================================================
+    enviarPasswordTemporal(personal_email, nombres, password_generada)
+      .then(enviado => {
+        if (!enviado) {
+          console.error(`[Aviso] El docente ${nombres} se creó, pero falló el envío de correo a ${personal_email}.`);
+        }
+      });
+    // ========================================================
 
     res.status(201).json({ 
       message: "Expediente de docente y credenciales de usuario creados con éxito.", 
@@ -156,7 +177,7 @@ const updateDocente = async (req, res) => {
 
     let domicilio_completo = null;
     if (calle && numero && colonia && cp) {
-      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+      domicilio_completo = `${calle} Num. ${numero}, Col. Col. ${colonia}, C.P. ${cp}`;
     }
 
     const documentosNuevos = [];
@@ -275,6 +296,6 @@ module.exports = {
   getUsuariosDisponibles, 
   updateDocente, 
   deactivateDocente,
-  getMiPerfil,      // <--- AGREGA ESTA
-  updateMiPerfil    // <--- Y ESTA
+  getMiPerfil,      
+  updateMiPerfil    
 };
