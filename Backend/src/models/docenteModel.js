@@ -79,7 +79,7 @@ const docenteModel = {
       const idUsuario = Number(userRes.insertId || userRes[0]?.insertId);
       if (!idUsuario) throw new Error("Fallo al generar el ID del usuario.");
 
-      // 2. insertar en la tabla docentes (¡AQUÍ ESTÁ LA CORRECCIÓN DE VARIABLES Y ORDEN!)
+      // 2. insertar en la tabla docentes
       const docenteQuery = `
         INSERT INTO docentes (
           usuario_id, matricula_empleado, rfc, curp, clave_ine, 
@@ -88,7 +88,9 @@ const docenteModel = {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?, NOW(), ?)
       `;
 
-      // Fíjate cómo cambié 'antiguedad_fecha' por 'fecha_ingreso' que es lo que manda tu Frontend
+      // =======================================================
+      // CORRECCIÓN: Usamos OR para atrapar la fecha de cualquier variable
+      // =======================================================
       const paramsDocente = [
         idUsuario, 
         datos.matricula, 
@@ -98,9 +100,9 @@ const docenteModel = {
         datos.domicilio, 
         datos.celular, 
         datos.nivel_academico, 
-        datos.fecha_ingreso, // <-- CORREGIDO
+        datos.antiguedad_fecha || datos.fecha_ingreso, // <-- BLINDADO
         datos.creado_por, 
-        datos.academia_id    // <-- AHORA SÍ CAERÁ EN SU LUGAR
+        datos.academia_id
       ];
 
       const docenteRes = await conn.query(docenteQuery, paramsDocente);

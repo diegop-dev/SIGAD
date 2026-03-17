@@ -3,6 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto"); // Importamos crypto para generar la contraseña
 const userModel = require("../models/userModel");
+// Importamos ambas funciones del servicio de correos
+const { enviarPasswordTemporal, enviarActualizacionCredenciales } = require("../services/emailService"); 
 
 const getUsers = async (req, res) => {
   try {
@@ -84,10 +86,21 @@ const registerUser = async (req, res) => {
       creado_por,
     });
 
+    // ========================================================
+    // ENVÍO DE CORREO ELECTRÓNICO (No bloqueante)
+    // ========================================================
+    enviarPasswordTemporal(personal_email, nombres, password_generada)
+      .then(enviado => {
+        if (!enviado) {
+          console.error(`[Aviso] El usuario ${nombres} se creó, pero falló el envío de correo a ${personal_email}.`);
+        }
+      });
+    // ========================================================
+
     res.status(201).json({
-      message: "Usuario registrado exitosamente",
+      message: "Usuario registrado exitosamente y credenciales enviadas por correo.",
       usuarioId: newUserId,
-      password_temporal: password_generada, // Devolvemos la contraseña en texto plano al admin
+      password_temporal: password_generada, 
       nota: "El usuario deberá cambiar su contraseña temporal en el primer inicio de sesión.",
     });
   } catch (error) {
@@ -172,7 +185,13 @@ const updateUser = async (req, res) => {
       updateData.estatus = estatus;
     }
 
-    if (password_raw && password_raw.trim() !== "") {
+    // ========================================================
+    // DETECTORES DE CAMBIOS PARA EL CORREO
+    // ========================================================
+    const passwordChanged = password_raw && password_raw.trim() !== "";
+    const emailChanged = updateData.personal_email && updateData.personal_email !== existingUser.personal_email;
+
+    if (passwordChanged) {
       const saltRounds = 10;
       updateData.password_hash = await bcrypt.hash(password_raw, saltRounds);
       updateData.es_password_temporal = 1; 
@@ -200,6 +219,21 @@ const updateUser = async (req, res) => {
     if (affectedRows === 0) {
       return res.status(400).json({ error: "No se enviaron datos para actualizar o el usuario es idéntico." });
     }
+
+    // ========================================================
+    // INYECCIÓN: ENVÍO DE CORREO SI CAMBIÓ CORREO O CONTRASEÑA
+    // ========================================================
+    if (emailChanged || passwordChanged) {
+      const emailAEnviar = updateData.personal_email || existingUser.personal_email;
+      const nombreUsuario = updateData.nombres || existingUser.nombres;
+      const passwordAEnviar = passwordChanged ? password_raw : null;
+
+      enviarActualizacionCredenciales(emailAEnviar, nombreUsuario, passwordAEnviar)
+        .then(enviado => {
+          if (!enviado) console.error(`[Aviso] Falló el envío de correo de actualización a ${emailAEnviar}`);
+        });
+    }
+    // ========================================================
 
     res.status(200).json({ message: "Expediente de usuario actualizado exitosamente." });
 
