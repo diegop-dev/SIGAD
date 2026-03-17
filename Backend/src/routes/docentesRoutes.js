@@ -56,4 +56,7 @@ router.put('/:id', verifyToken, requireRole([1, 2]), upload.fields([
 // 5. Ruta para dar de baja un docente (Soft delete)
 router.patch('/:id/deactivate', verifyToken, requireRole([1, 2]), docenteController.deactivateDocente);
 
+// 6. Ruta para reactivar un docente
+router.patch('/:id/reactivate', verifyToken, requireRole([1, 2]), docenteController.reactivateDocente);
+
 module.exports = router;

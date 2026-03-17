@@ -232,9 +232,19 @@ const actualizarConfirmacionDocente = async (periodo_id, materia_id, docente_id,
   return result.affectedRows;
 };
 
+// Rechazar automáticamente las asignaciones enviadas al dar de baja a un docente
+const rechazarAsignacionesPorDocente = async (docente_id, usuario_id) => {
+  const result = await pool.query(`
+    UPDATE asignaciones
+    SET estatus_confirmacion = 'RECHAZADA', modificado_por = ?, fecha_modificacion = NOW()
+    WHERE docente_id = ? AND estatus_confirmacion = 'ENVIADA' AND estatus_acta = 'ABIERTA'
+  `, [usuario_id, docente_id]);
+  return result.affectedRows;
+};
+
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
   checkReglasNegocioAsignacion, createAsignaciones, getAllAsignaciones, updateAsignacionesAgrupadas,
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada,
-  actualizarConfirmacionDocente
+  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente
 };
