@@ -28,14 +28,20 @@ const carreraModel = {
     }
   },
 
-  verificarSiglasExistentes: async (siglas) => {
+verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      const rows = await conn.query(
-        "SELECT COUNT(*) AS total FROM carreras WHERE codigo_unico = ?",
-        [siglas]
-      );
+      let query = "SELECT COUNT(*) AS total FROM carreras WHERE codigo_unico = ?";
+      let params = [siglas];
+      
+      // Si estamos editando, le decimos a la base de datos que ignore nuestra propia carrera
+      if (excluir_id) {
+        query += " AND id_carrera != ?";
+        params.push(excluir_id);
+      }
+      
+      const rows = await conn.query(query, params);
       return rows[0].total > 0;
     } finally {
       if (conn) conn.release();
@@ -130,15 +136,15 @@ const carreraModel = {
 
   // MÉTODOS PARA MODIFICAR Y ELIMINAR 
   actualizarCarrera: async (id_carrera, datosCarrera) => {
-    const { nombre_carrera, modalidad, academia_id, modificado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET nombre_carrera = ?, modalidad = ?, academia_id = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [nombre_carrera, modalidad, academia_id, modificado_por, id_carrera]
+        [codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por, id_carrera]
       );
       return result;
     } finally {

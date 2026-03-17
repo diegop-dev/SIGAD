@@ -99,6 +99,21 @@ getAllGrupos: async () => {
     }
   },
 
+  // Obtener todos los grupos asociados a una carrera específica
+  getGruposByCarrera: async (carrera_id) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(
+        "SELECT id_grupo, identificador FROM grupos WHERE carrera_id = ?",
+        [carrera_id]
+      );
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   actualizarGrupo: async (id_grupo, datosGrupo) => {
     const { identificador, carrera_id, cuatrimestre_id, modificado_por } = datosGrupo;
     let conn;
