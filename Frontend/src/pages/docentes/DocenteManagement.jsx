@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, RotateCcw } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AltaDocente } from './AltaDocente';
@@ -7,6 +7,7 @@ import { DocenteModal } from './DocenteModal';
 import { DeactivateDocenteModal } from './DeactivateDocenteModal';
 import { useAuth } from '../../hooks/useAuth';
 import { TOAST_DOCENTES } from '../../../constants/toastMessages';
+import { ReactivateDocenteModal } from './ReactivateDocenteModal';
 
 export const DocenteManagement = () => {
   const { user: currentUser } = useAuth(); 
@@ -15,7 +16,8 @@ export const DocenteManagement = () => {
   const [formMode, setFormMode] = useState('create'); // 'create', 'view' o 'edit'
   const [selectedDocente, setSelectedDocente] = useState(null);
   const [docenteToDeactivate, setDocenteToDeactivate] = useState(null);
-  
+  const [docenteToReactivate, setDocenteToReactivate] = useState(null);
+
   const [docentes, setDocentes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -68,6 +70,7 @@ export const DocenteManagement = () => {
     setShowForm(false);
     setSelectedDocente(null);
     setDocenteToDeactivate(null);
+    setDocenteToReactivate(null);
     fetchDocentes();
   };
 
@@ -242,15 +245,23 @@ export const DocenteManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        {d.estatus === 'ACTIVO' && (
-                          <button
-                            title="Dar de baja docente"
-                            onClick={() => handleDeactivateClick(d)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        )}
+                          {d.estatus === 'ACTIVO' ? (
+                            <button
+                              title="Dar de baja docente"
+                              onClick={() => setDocenteToDeactivate(d)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          ) : (
+                            <button
+                              title="Reactivar docente"
+                              onClick={() => setDocenteToReactivate(d)}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                            >
+                              <RotateCcw className="w-5 h-5" />
+                            </button>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -304,6 +315,12 @@ export const DocenteManagement = () => {
       <DeactivateDocenteModal
         docente={docenteToDeactivate}
         onClose={() => setDocenteToDeactivate(null)}
+        onSuccess={handleSuccessAction}
+      />
+
+      <ReactivateDocenteModal
+        docente={docenteToReactivate}
+        onClose={() => setDocenteToReactivate(null)}
         onSuccess={handleSuccessAction}
       />
     </div>
