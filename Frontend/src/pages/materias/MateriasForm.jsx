@@ -4,7 +4,6 @@ import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Awar
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
-// Nota: se cambió el prop "materiaToEdit" a "initialData" para mantener coherencia con GrupoForm
 export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
   const isEditing = !!initialData;
@@ -19,18 +18,20 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   });
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
+  // Determinamos si la materia es de tronco común basado en initialData
+  const esTroncoComunInicial = !initialData?.carrera_id || initialData?.tipo_asignatura === "TRONCO_COMUN";
+
   const [formData, setFormData] = useState({
     nombre: initialData?.nombre || "",
     creditos: initialData?.creditos || 1,
     cupo_maximo: initialData?.cupo_maximo || 30,
-    tipo_asignatura: initialData?.tipo_asignatura || "TRONCO_COMUN",
+    tipo_asignatura: esTroncoComunInicial ? "TRONCO_COMUN" : (initialData?.tipo_asignatura || "TRONCO_COMUN"),
     periodo_id: initialData?.periodo_id || "",
     cuatrimestre_id: initialData?.cuatrimestre_id || "",
-    carrera_id: initialData?.carrera_id || ""
+    carrera_id: initialData?.carrera_id || "" // Aquí puede venir null o undefined
   });
 
   useEffect(() => {
-    // carga paralela de catálogos para optimizar el rendimiento de la interfaz
     const fetchCatalogos = async () => {
       try {
         const [resCarreras, resPeriodos, resCuatrimestres] = await Promise.all([
@@ -58,33 +59,59 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     
-    let finalValue = value;
-    
-    // coerción y formateo de datos según reglas de negocio
-    if (name === 'codigo_unico') {
-      finalValue = value.toUpperCase().slice(0, 15);
-    } else if (type === 'number') {
-      finalValue = value !== "" ? Number(value) : "";
-    }
+    // 🔥 CORRECCIÓN: Manejo especial para tipo_asignatura
+    if (name === "tipo_asignatura") {
+      if (value === "TRONCO_COMUN") {
+        // Si es tronco común, limpiamos carrera_id (lo dejamos vacío)
+        setFormData(prev => ({
+          ...prev,
+          tipo_asignatura: value,
+          carrera_id: "" // Vacío, no "0"
+        }));
+      } else {
+        // Si cambia a obligatoria u optativa, mantenemos el valor actual de carrera_id
+        setFormData(prev => ({
+          ...prev,
+          tipo_asignatura: value
+          // No tocamos carrera_id, dejamos el que tenga
+        }));
+      }
+    } else {
+      // Para otros campos
+      let finalValue = value;
+      
+      if (name === 'codigo_unico') {
+        finalValue = value.toUpperCase().slice(0, 15);
+      } else if (type === 'number') {
+        finalValue = value !== "" ? Number(value) : "";
+      }
 
-    setFormData({ ...formData, [name]: finalValue });
+      setFormData(prev => ({ ...prev, [name]: finalValue }));
+    }
     
-    // limpieza dinámica de errores al escribir
-    if (errores[name]) setErrores({ ...errores, [name]: null });
+    // Limpieza dinámica de errores
+    if (errores[name]) setErrores(prev => ({ ...prev, [name]: null }));
   };
 
   const validate = () => {
     const newErrors = {};
-    const {  nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, carrera_id } = formData;
+    const { nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, tipo_asignatura, carrera_id } = formData;
 
-    if (!nombre.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
+    if (!nombre?.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
     
     if (!creditos || creditos < 1) newErrors.creditos = "Debe asignar al menos 1 crédito";
     if (!cupo_maximo || cupo_maximo < 1) newErrors.cupo_maximo = "El cupo debe ser mayor a 0";
     
     if (!periodo_id) newErrors.periodo_id = "Seleccione el periodo escolar";
     if (!cuatrimestre_id) newErrors.cuatrimestre_id = "Seleccione el cuatrimestre";
-    if (!carrera_id) newErrors.carrera_id = "Seleccione la carrera correspondiente";
+    
+    // 🔥 CORRECCIÓN: Validación mejorada para carrera_id
+    if (tipo_asignatura !== "TRONCO_COMUN") {
+      // Si no es tronco común, la carrera es obligatoria y debe ser un número válido
+      if (!carrera_id || carrera_id === "" || carrera_id === "0") {
+        newErrors.carrera_id = "Seleccione la carrera correspondiente";
+      }
+    }
 
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -98,14 +125,30 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     const toastId = toast.loading(isEditing ? "Actualizando materia..." : "Guardando materia...");
 
     try {
+      // 🔥 CORRECCIÓN: Preparar payload correctamente
+      const esTroncoComun = formData.tipo_asignatura === "TRONCO_COMUN";
+      
       const payload = {
-        ...formData,
+        nombre: formData.nombre,
         creditos: Number(formData.creditos),
         cupo_maximo: Number(formData.cupo_maximo),
+        tipo_asignatura: formData.tipo_asignatura,
         periodo_id: Number(formData.periodo_id),
-        cuatrimestre_id: Number(formData.cuatrimestre_id),
-        carrera_id: Number(formData.carrera_id)
+        cuatrimestre_id: Number(formData.cuatrimestre_id)
       };
+
+      // 🔥 IMPORTANTE: Solo agregar carrera_id si NO es tronco común y tenemos un valor válido
+      if (!esTroncoComun && formData.carrera_id && formData.carrera_id !== "") {
+        payload.carrera_id = Number(formData.carrera_id);
+      }
+      
+      // Si es edición y la materia se convierte a tronco común, podríamos necesitar
+      // enviar carrera_id como null explícitamente para actualizar en BD
+      if (isEditing && esTroncoComun) {
+        payload.carrera_id = null;
+      }
+
+      console.log("Payload a enviar:", payload); // Para debugging
 
       if (isEditing) {
         await api.put(`/materias/${initialData.id_materia}`, payload);
@@ -118,6 +161,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Fallo en la petición a la API REST:", error);
+      console.error("Detalles del error:", error.response?.data); // Para debugging
       
       if (error.response?.data?.errores) {
         const backendErrors = {};
@@ -127,7 +171,9 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
         setErrores(backendErrors);
         toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
       } else {
-        const msg = error.response?.data?.error || error.response?.data?.mensaje || "Ocurrió un error al procesar la solicitud";
+        const msg = error.response?.data?.error || 
+                   error.response?.data?.mensaje || 
+                   "Ocurrió un error al procesar la solicitud";
         toast.error(msg, { id: toastId });
       }
     } finally {
@@ -135,6 +181,8 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     }
   };
 
+  const esTroncoComun = formData.tipo_asignatura === "TRONCO_COMUN";
+  
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
@@ -149,16 +197,12 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
             <p className="text-sm text-slate-500 font-medium">Define las características de la asignatura para el plan de estudios.</p>
           </div>
         </div>
-        
-       
       </div>
 
       <div className="p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            
-
             {/* Nombre de la materia */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
@@ -194,27 +238,29 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
               </select>
             </div>
 
-            {/* Carrera */}
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
-              </label>
-              <select
-                name="carrera_id"
-                value={formData.carrera_id}
-                onChange={handleChange}
-                disabled={cargandoCatalogos}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              >
-                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la carrera --"}</option>
-                {catalogos.carreras.map(c => (
-                  <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
-                ))}
-              </select>
-              {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
-            </div>
+            {/* Carrera - Solo se muestra si NO es tronco común */}
+            {!esTroncoComun && (
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-bold text-slate-700">
+                  <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
+                </label>
+                <select
+                  name="carrera_id"
+                  value={formData.carrera_id}
+                  onChange={handleChange}
+                  disabled={cargandoCatalogos}
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                    errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                  }`}
+                >
+                  <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la carrera --"}</option>
+                  {catalogos.carreras.map(c => (
+                    <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                  ))}
+                </select>
+                {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
+              </div>
+            )}
 
             {/* Periodo escolar */}
             <div className="space-y-2">
