@@ -150,17 +150,35 @@ getAllGrupos: async () => {
     }
   },
 
-  cambiarEstatus: async (id_grupo, nuevoEstatus, modificado_por) => {
+// Dar de baja un grupo (Soft delete)
+  desactivarGrupo: async (id_grupo, eliminado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE grupos 
-         SET estatus = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET estatus = 'INACTIVO', modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_grupo = ?`,
-        [nuevoEstatus, modificado_por, id_grupo]
+        [eliminado_por, id_grupo]
       );
-      return result;
+      return result.affectedRows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  // Reactivar un grupo dado de baja
+  reactivarGrupo: async (id_grupo, modificado_por) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const result = await conn.query(
+        `UPDATE grupos 
+         SET estatus = 'ACTIVO', modificado_por = ?, fecha_modificacion = NOW()
+         WHERE id_grupo = ?`,
+        [modificado_por, id_grupo]
+      );
+      return result.affectedRows;
     } finally {
       if (conn) conn.release();
     }

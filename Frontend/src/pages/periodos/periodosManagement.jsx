@@ -1,53 +1,43 @@
-import { useState, useEffect, useMemo } from "react";
-import {
-  Plus,
-  Search,
-  Filter,
-  Loader2,
-  Edit,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  CalendarDays,
-  UserCheck,
-} from "lucide-react";
-import api from "../../services/api";
-import toast from "react-hot-toast";
-import { PeriodosForm } from "./periodosForm";
-import { PeriodosDelete } from "./periodosDelete";
+import { useState, useEffect, useMemo } from 'react';
+import { 
+  Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight, 
+  Filter, Loader2, UserCheck, CalendarDays, Hash, Calendar, Clock 
+} from 'lucide-react';
+import api from '../../services/api';
+import toast from 'react-hot-toast';
+import { PeriodosForm } from './periodosForm';
+import { PeriodosDelete } from './periodosDelete';
 
 export const PeriodosManagement = () => {
-
   const [showForm, setShowForm] = useState(false);
   const [periodos, setPeriodos] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [periodoToEdit, setPeriodoToEdit] = useState(null);
   const [periodoToDelete, setPeriodoToDelete] = useState(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterYear, setFilterYear] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  useEffect(() => {
-    fetchPeriodos();
-  }, []);
 
   const fetchPeriodos = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get("/periodos");
+      const response = await api.get('/periodos');
       const data = response.data.data || response.data;
       setPeriodos(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (error) {
       toast.error("Error cargando periodos");
       setPeriodos([]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchPeriodos();
+  }, []);
 
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -57,18 +47,18 @@ export const PeriodosManagement = () => {
   const filteredPeriodos = useMemo(() => {
     return periodos.filter((p) => {
       const busqueda = searchTerm.toLowerCase();
+      const coincideBusqueda = 
+        p.codigo?.toLowerCase().includes(busqueda) || 
+        p.anio?.toString().includes(busqueda);
+      
+      const coincideYear = filterYear ? p.anio.toString() === filterYear : true;
+      const coincideStatus = filterStatus ? p.estatus === filterStatus : true;
 
-      return (
-        (p.codigo?.toLowerCase().includes(busqueda) ||
-          p.anio?.toString().includes(busqueda)) &&
-        (filterYear ? p.anio.toString() === filterYear : true) &&
-        (filterStatus ? p.estatus === filterStatus : true)
-      );
+      return coincideBusqueda && coincideYear && coincideStatus;
     });
   }, [periodos, searchTerm, filterYear, filterStatus]);
 
   const totalPages = Math.ceil(filteredPeriodos.length / itemsPerPage) || 1;
-
   const paginatedPeriodos = filteredPeriodos.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -78,9 +68,10 @@ export const PeriodosManagement = () => {
     setCurrentPage(1);
   }, [searchTerm, filterYear, filterStatus]);
 
-  const handleSuccess = () => {
+  const handleSuccessAction = () => {
     setShowForm(false);
     setPeriodoToEdit(null);
+    setPeriodoToDelete(null);
     fetchPeriodos();
   };
 
@@ -90,68 +81,58 @@ export const PeriodosManagement = () => {
     return (
       <PeriodosForm
         periodoToEdit={periodoToEdit}
-        onBack={() => {
-          setShowForm(false);
-          setPeriodoToEdit(null);
-        }}
-        onSuccess={handleSuccess}
+        onBack={() => { setShowForm(false); setPeriodoToEdit(null); }}
+        onSuccess={handleSuccessAction}
       />
     );
   }
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
+      
+      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center">
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
             <CalendarDays className="w-8 h-8 mr-3 text-blue-600" />
             Gestión de periodos
           </h1>
-          <p className="text-sm text-slate-500 mt-1 font-medium">
-            Administra los periodos académicos y su disponibilidad.
-          </p>
+          <p className="mt-1 text-sm text-slate-500 font-medium">Administra los ciclos escolares, fechas de inicio, fin y límites de calificaciones.</p>
         </div>
-
-        <button
-          onClick={() => {
-            setPeriodoToEdit(null);
-            setShowForm(true);
-          }}
-          className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-sm hover:shadow-md font-bold"
+        <button 
+          onClick={() => { setPeriodoToEdit(null); setShowForm(true); }} 
+          className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
         >
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo periodo
+          <Plus className="w-5 h-5 mr-2" /> Nuevo periodo
         </button>
       </div>
 
-      {/* Filtros */}
+      {/* Barra de filtros */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
-
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-3 text-slate-400 w-5 h-5" />
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-slate-400" />
+          </div>
           <input
             type="text"
             placeholder="Buscar por código o año..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-3 transition"
+            className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
           />
         </div>
-
-        <div className="flex gap-4">
-
-          <div className="relative">
-            <Filter className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
+        
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex items-center min-w-[180px]">
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
-              className="pl-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white py-3 pr-4"
+              className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
             >
               <option value="">Todos los años</option>
-              {uniqueYears.map((y) => (
-                <option key={y}>{y}</option>
+              {uniqueYears.map(year => (
+                <option key={year} value={year}>{year}</option>
               ))}
             </select>
           </div>
@@ -159,9 +140,9 @@ export const PeriodosManagement = () => {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-xl border-slate-200 bg-slate-50 py-3 px-4"
+            className="block w-full min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
-            <option value="">Todos</option>
+            <option value="">Todos los estatus</option>
             <option value="ACTIVO">Activo</option>
             <option value="INACTIVO">Inactivo</option>
           </select>
@@ -171,134 +152,167 @@ export const PeriodosManagement = () => {
 
       {/* Tabla */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
-
-        <table className="min-w-full divide-y divide-slate-200">
-
-          <thead className="bg-slate-50/50">
-            <tr>
-              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase">Código</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase">Inicio</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase">Fin</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase">Límite</th>
-              <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase">Estatus</th>
-              <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase">Acciones</th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-slate-100">
-
-            {isLoading ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50/50">
               <tr>
-                <td colSpan="6" className="py-12 text-center">
-                  <Loader2 className="animate-spin mx-auto text-blue-500 mb-3" />
-                  <p className="text-sm text-slate-500">Cargando periodos...</p>
-                </td>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Identificador</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Vigencia (Inicio - Fin)</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Límite</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
+                <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
-            ) : paginatedPeriodos.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="py-16 text-center">
-                  <CalendarDays className="mx-auto mb-3 text-slate-400" />
-                  <p className="font-bold text-slate-700">Sin resultados</p>
-                  <p className="text-sm text-slate-500">
-                    No hay periodos que coincidan con la búsqueda.
-                  </p>
-                </td>
-              </tr>
-            ) : (
-              paginatedPeriodos.map((p) => (
-                <tr key={p.id_periodo} className="hover:bg-blue-50/50 transition">
-
-                  <td className="px-6 py-4 font-bold text-slate-900">{p.codigo}</td>
-                  <td className="px-6 py-4">{formatDate(p.fecha_inicio)}</td>
-                  <td className="px-6 py-4">{formatDate(p.fecha_fin)}</td>
-                  <td className="px-6 py-4">{formatDate(p.fecha_limite_calif)}</td>
-
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${
-                      p.estatus === "ACTIVO"
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                        : "bg-red-100 text-red-800 border-red-200"
-                    }`}>
-                      {p.estatus}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex justify-center space-x-2">
-
-                      <button
-                        onClick={() => {
-                          setPeriodoToEdit(p);
-                          setShowForm(true);
-                        }}
-                        className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-
-                      {p.estatus === "ACTIVO" ? (
-                        <button
-                          onClick={() => setPeriodoToDelete(p)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setPeriodoToDelete(p)}
-                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                        >
-                          <UserCheck className="w-5 h-5" />
-                        </button>
-                      )}
-
+            </thead>
+            
+            <tbody className="bg-white divide-y divide-slate-100">
+              {isLoading ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                      <p className="text-sm text-slate-500 font-medium">Cargando periodos...</p>
                     </div>
                   </td>
-
                 </tr>
-              ))
-            )}
+              ) : paginatedPeriodos.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="bg-slate-100 p-4 rounded-full mb-4">
+                        <CalendarDays className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 mb-1">Sin resultados</h3>
+                      <p className="text-sm text-slate-500">No se encontraron periodos que coincidan con los filtros.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedPeriodos.map((p) => (
+                  <tr key={p.id_periodo} className="hover:bg-blue-50/50 transition-colors duration-150">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center mr-3 text-slate-500 overflow-hidden shrink-0">
+                          <Hash className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900">{p.codigo}</span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center mt-0.5">
+                            Año {p.anio}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
 
-          </tbody>
-        </table>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-slate-700 flex items-center">
+                          <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                          {formatDate(p.fecha_inicio)} - {formatDate(p.fecha_fin)}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-100">
+                        <Clock className="w-3.5 h-3.5 mr-1.5" />
+                        <span className="text-xs font-bold">{formatDate(p.fecha_limite_calif)}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
+                        p.estatus === 'ACTIVO' 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                          : 'bg-red-100 text-red-800 border-red-200'
+                      }`}>
+                        {p.estatus}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <div className="flex justify-center space-x-2">
+                        <button 
+                          title="Editar periodo" 
+                          onClick={() => { setPeriodoToEdit(p); setShowForm(true); }}
+                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+
+                        {p.estatus === 'ACTIVO' ? (
+                          <button 
+                            title="Desactivar periodo" 
+                            onClick={() => setPeriodoToDelete(p)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button 
+                            title="Reactivar periodo" 
+                            onClick={async () => {
+                              const tid = toast.loading("Reactivando...");
+                              try {
+                                await api.patch(`/periodos/${p.id_periodo}/toggle`);
+                                toast.success("Periodo reactivado", { id: tid });
+                                fetchPeriodos();
+                              } catch {
+                                toast.error("Error al reactivar", { id: tid });
+                              }
+                            }}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          >
+                            <UserCheck className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Paginación */}
         {!isLoading && filteredPeriodos.length > 0 && (
-          <div className="bg-slate-50 px-6 py-4 border-t flex justify-between items-center">
-
-            <p className="text-sm text-slate-500">
-              Página <span className="font-bold">{currentPage}</span> de{" "}
-              <span className="font-bold">{totalPages}</span>
-            </p>
-
+          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">
+                Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}
+                <span className="font-bold text-slate-900">{Math.min(currentPage * itemsPerPage, filteredPeriodos.length)}</span> de{' '}
+                <span className="font-bold text-slate-900">{filteredPeriodos.length}</span> registros
+              </p>
+            </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                className="p-2 border rounded-lg hover:bg-slate-100"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
-                <ChevronLeft />
+                <ChevronLeft className="h-5 w-5" />
               </button>
-
+              <div className="flex items-center justify-center px-4 rounded-lg bg-white border border-slate-200 text-sm font-bold text-slate-700 shadow-sm">
+                {currentPage} / {totalPages}
+              </div>
               <button
-                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                className="p-2 border rounded-lg hover:bg-slate-100"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
-                <ChevronRight />
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
-
           </div>
         )}
       </div>
-
+      
+      {/* Modales */}
       {periodoToDelete && (
-        <PeriodosDelete
-          periodo={periodoToDelete}
-          onClose={() => setPeriodoToDelete(null)}
-          onSuccess={() => {
-            setPeriodoToDelete(null);
-            fetchPeriodos();
-          }}
+        <PeriodosDelete 
+          periodo={periodoToDelete} 
+          onClose={() => setPeriodoToDelete(null)} 
+          onSuccess={handleSuccessAction} 
         />
       )}
     </div>
