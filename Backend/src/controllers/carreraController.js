@@ -236,7 +236,35 @@ actualizarCarrera: async (req, res) => {
         message: "Error interno del servidor al procesar la baja de la carrera." 
       });
     }
+  },
+  activateCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { modificado_por } = req.body;
+
+      const result = await carreraModel.activateCarrera(id, modificado_por);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Carrera no encontrada. No se pudo cambiar el estatus.' 
+        });
+      }
+
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Carrera reactivada exitosamente en el sistema.' 
+      });
+
+    } catch (error) {
+      console.error("Error al reactivar la carrera:", error);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Error interno del servidor al procesar la reactivación de la carrera." 
+      });
+    }
   }
+
 };
 
 module.exports = carreraController;

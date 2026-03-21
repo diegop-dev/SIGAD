@@ -18,5 +18,6 @@ router.post('/', verifyToken, validarCreacionCarrera, carreraController.crearCar
 // RUTAS PARA MODIFICAR Y ELIMINAR 
 router.put('/:id', verifyToken, validarCreacionCarrera, carreraController.actualizarCarrera);
 router.patch('/:id/deactivate', verifyToken, carreraController.deactivateCarrera);
+router.patch('/:id/activate', verifyToken, carreraController.activateCarrera);
 
 module.exports = router;
