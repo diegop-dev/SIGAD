@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const docenteModel = require("../models/docenteModel");
 const userModel = require("../models/userModel");
+const assignmentModel = require("../models/assignmentModel");
 // Importamos el servicio de correos
 const { enviarPasswordTemporal } = require("../services/emailService"); 
 
@@ -203,16 +204,45 @@ const updateDocente = async (req, res) => {
 const deactivateDocente = async (req, res) => {
   try {
     const { id } = req.params;
-    const { eliminado_por, motivo_baja } = req.body;
+    const { eliminado_por, motivo_baja, confirmar_rechazo } = req.body;
 
     if (!eliminado_por) {
-      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
+      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja." });
     }
     
     if (!motivo_baja || motivo_baja.trim() === '') {
       return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
     }
 
+    // 1. Traemos todas las asignaciones del docente
+    const asignaciones = await assignmentModel.getAllAsignaciones({ docente_id: id });
+    
+    // Evaluamos el estatus de las que están ABIERTAS
+    const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
+    const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+    // SEMÁFORO ROJO: Bloquear si tiene clases aceptadas
+    if (tieneAceptadas) {
+      return res.status(409).json({ 
+        action: "BLOCK",
+        error: "Este docente tiene clases ACEPTADAS. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la Gestión de Asignaciones." 
+      });
+    }
+
+    // SEMÁFORO AMARILLO: Advertir si tiene clases enviadas y el usuario aún no confirma
+    if (tieneEnviadas && !confirmar_rechazo) {
+      return res.status(409).json({ 
+        action: "WARN",
+        error: "Este docente tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?" 
+      });
+    }
+
+    // Si el usuario confirmó la advertencia, usamos la nueva función de rechazo masivo
+    if (tieneEnviadas && confirmar_rechazo) {
+      await assignmentModel.rechazarAsignacionesPorDocente(id, eliminado_por);
+    }
+
+    // SEMÁFORO VERDE: Ejecutar la baja en el modelo de docentes
     const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
 
     if (affectedRows === 0) {
@@ -222,7 +252,7 @@ const deactivateDocente = async (req, res) => {
     res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
 
   } catch (error) {
-    console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
+    console.error("Error crítico al dar de baja al docente:", error);
     res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
   }
 };
@@ -289,6 +319,24 @@ const updateMiPerfil = async (req, res) => {
   }
 };
 
+const reactivateDocente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario_id = req.user?.id_usuario;
+
+    const affectedRows = await docenteModel.reactivateDocente(id, usuario_id);
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ error: "Docente no encontrado o no se pudo reactivar." });
+    }
+
+    res.status(200).json({ message: "Docente reactivado exitosamente." });
+  } catch (error) {
+    console.error("Error al reactivar docente:", error);
+    res.status(500).json({ error: "Error interno del servidor al procesar la reactivación." });
+  }
+};
+
 module.exports = { 
   getDocenteParaSincronizacion,
   registerDocente, 
@@ -297,5 +345,6 @@ module.exports = {
   updateDocente, 
   deactivateDocente,
   getMiPerfil,      
-  updateMiPerfil    
+  updateMiPerfil,
+  reactivateDocente
 };

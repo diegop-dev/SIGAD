@@ -1,9 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, Users, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, BookOpen, Calendar } from 'lucide-react';
+import { 
+  Plus, Search, Filter, Users, Loader2, Edit, 
+  Trash2, ChevronLeft, ChevronRight, Hash, 
+  BookOpen, Calendar, RotateCcw 
+} from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { GrupoForm } from './GrupoForm';
 import { useAuth } from '../../hooks/useAuth';
+
+// Importamos nuestros nuevos modales en español
+import { DesactivarGrupoModal } from './DesactivarGrupoModal';
+import { ReactivarGrupoModal } from './ReactivarGrupoModal';
 
 export const GrupoManagement = () => {
   const { user } = useAuth();
@@ -15,10 +23,17 @@ export const GrupoManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [grupoAEditar, setGrupoAEditar] = useState(null);
 
+  // Estados de los modales
+  const [grupoToDesactivar, setGrupoToDesactivar] = useState(null);
+  const [grupoToReactivar, setGrupoToReactivar] = useState(null);
+
+  // Estados de filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [carreraFilter, setCarreraFilter] = useState('');
   const [cuatrimestreFilter, setCuatrimestreFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -59,16 +74,14 @@ export const GrupoManagement = () => {
     fetchCatalogosFiltro();
   }, []);
 
-const filteredGrupos = useMemo(() => {
+  const filteredGrupos = useMemo(() => {
     return grupos.filter(grupo => {
       const busqueda = searchTerm.toLowerCase();
       const identificadorGrupo = grupo.identificador?.toLowerCase() || '';
       const nombreCarrera = grupo.nombre_carrera?.toLowerCase() || '';
 
       const coincideBusqueda = identificadorGrupo.includes(busqueda) || nombreCarrera.includes(busqueda);
-      
       const coincideCarrera = carreraFilter ? grupo.carrera_id === Number(carreraFilter) : true;
-      
       const coincideCuatrimestre = cuatrimestreFilter ? grupo.nombre_cuatrimestre === cuatrimestreFilter : true;
       const coincideEstatus = statusFilter ? grupo.estatus === statusFilter : true;
 
@@ -89,6 +102,8 @@ const filteredGrupos = useMemo(() => {
   const handleSuccessAction = () => {
     setShowForm(false);
     setGrupoAEditar(null);
+    setGrupoToDesactivar(null);
+    setGrupoToReactivar(null);
     fetchGrupos();
   };
 
@@ -100,10 +115,6 @@ const filteredGrupos = useMemo(() => {
   const handleEditarGrupo = (grupo) => {
     setGrupoAEditar(grupo);
     setShowForm(true);
-  };
-
-  const handleEliminarRapido = () => {
-    toast("Función de eliminación en desarrollo", { icon: "🚧" });
   };
 
   if (showForm) {
@@ -121,6 +132,7 @@ const filteredGrupos = useMemo(() => {
 
   return (
     <div className="space-y-6">
+      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -137,6 +149,7 @@ const filteredGrupos = useMemo(() => {
         </button>
       </div>
 
+      {/* Filtros */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -161,7 +174,6 @@ const filteredGrupos = useMemo(() => {
             >
               <option value="">Todas las carreras</option>
               {carrerasLista.map(carrera => (
-                // ⚡ Usamos el ID como valor y mostramos la modalidad en el texto
                 <option key={carrera.id_carrera} value={carrera.id_carrera}>
                   {carrera.nombre_carrera} ({carrera.modalidad})
                 </option>
@@ -197,6 +209,7 @@ const filteredGrupos = useMemo(() => {
         </div>
       </div>
 
+      {/* Tabla */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -214,7 +227,7 @@ const filteredGrupos = useMemo(() => {
             <tbody className="bg-white divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
+                  <td colSpan="6" className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
                       <p className="text-sm text-slate-500 font-medium">Cargando catálogo...</p>
@@ -223,7 +236,7 @@ const filteredGrupos = useMemo(() => {
                 </tr>
               ) : paginatedGrupos.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-16 text-center">
+                  <td colSpan="6" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center">
                       <div className="bg-slate-100 p-4 rounded-full mb-4">
                         <Users className="h-8 w-8 text-slate-400" />
@@ -279,13 +292,25 @@ const filteredGrupos = useMemo(() => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        <button 
-                          title="Cambiar estatus" 
-                          onClick={handleEliminarRapido}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        
+                        {/* Botones de Activar / Desactivar */}
+                        {grupo.estatus === 'ACTIVO' ? (
+                          <button
+                            title="Desactivar grupo"
+                            onClick={() => setGrupoToDesactivar(grupo)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            title="Reactivar grupo"
+                            onClick={() => setGrupoToReactivar(grupo)}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          >
+                            <RotateCcw className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -295,6 +320,7 @@ const filteredGrupos = useMemo(() => {
           </table>
         </div>
 
+        {/* Paginación */}
         {!isLoading && filteredGrupos.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
@@ -326,6 +352,18 @@ const filteredGrupos = useMemo(() => {
           </div>
         )}
       </div>
+
+      {/* Renderizado de Modales */}
+      <DesactivarGrupoModal 
+        grupo={grupoToDesactivar} 
+        onClose={() => setGrupoToDesactivar(null)} 
+        onSuccess={handleSuccessAction} 
+      />
+      <ReactivarGrupoModal 
+        grupo={grupoToReactivar} 
+        onClose={() => setGrupoToReactivar(null)} 
+        onSuccess={handleSuccessAction} 
+      />
     </div>
   );
 };

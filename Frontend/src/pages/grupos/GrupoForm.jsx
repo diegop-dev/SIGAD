@@ -1,15 +1,19 @@
 import { useState, useEffect, useMemo } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen } from "lucide-react";
+import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
 export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
-  const { user } = useAuth(); // Recuperamos el hook de autenticación
+  const { user } = useAuth(); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
   const [carreras, setCarreras] = useState([]); 
   const [cargandoCarreras, setCargandoCarreras] = useState(true);
+
+  // --- PASO 1: MEMORIA DEL SEMÁFORO ---
+  const [serverAction, setServerAction] = useState(null); 
+  const [serverMessage, setServerMessage] = useState('');
 
   const isEditing = !!initialData;
 
@@ -24,7 +28,6 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
         const carrerasActivas = listaCarreras.filter(c => c.estatus === 'ACTIVO');
         setCarreras(carrerasActivas || []);
 
-        // Si estamos editando, autoseleccionamos la modalidad basada en la carrera guardada
         if (initialData?.carrera_id) {
           const carreraActual = carrerasActivas.find(c => c.id_carrera === initialData.carrera_id);
           if (carreraActual) {
@@ -49,12 +52,14 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
   const handleModalidadChange = (e) => {
     setModalidadSeleccionada(e.target.value);
     setCarreraId(""); 
+    setServerAction(null); // Reseteamos la advertencia si cambia de opinión
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
     if (errores.modalidad) setErrores({ ...errores, modalidad: null });
   };
 
   const handleCarreraChange = (e) => {
     setCarreraId(e.target.value);
+    setServerAction(null); // Reseteamos la advertencia si cambia de opinión
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
   };
 
@@ -78,10 +83,11 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     const toastId = toast.loading(isEditing ? "Actualizando..." : "Generando grupo...");
 
     try {
-      // Agregamos el id_usuario al payload
+      // ---  PASO 3: ENVIAR LA BANDERA SI ACEPTÓ LA ADVERTENCIA ---
       const payload = { 
         carrera_id: Number(carreraId),
-        creado_por: user?.id_usuario 
+        creado_por: user?.id_usuario,
+        confirmar_rechazo: serverAction === 'WARN' 
       };
 
       if (isEditing) {
@@ -93,8 +99,26 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       toast.success("Operación exitosa", { id: toastId });
       if (onSuccess) onSuccess();
       if (onBack) onBack();
+
     } catch (error) {
-      toast.error("Error al procesar la solicitud", { id: toastId });
+      // --- PASO 2: ATRAPAR EL ERROR DEL SEMÁFORO ---
+      const errorData = error.response?.data || {};
+      const errorMsg = errorData.error || errorData.message || "Error en el servidor";
+      const mensajeMayusculas = errorMsg.toUpperCase();
+      let action = errorData.action;
+      
+      if (!action) {
+        if (mensajeMayusculas.includes('ACEPTADA') || mensajeMayusculas.includes('REASIGNES')) action = 'BLOCK';
+        else if (mensajeMayusculas.includes('ENVIADA') || mensajeMayusculas.includes('PENDIENTES')) action = 'WARN';
+      }
+      
+      if (action === 'BLOCK' || action === 'WARN') {
+        toast.dismiss(toastId); 
+        setServerAction(action); 
+        setServerMessage(errorMsg); 
+      } else {
+        toast.error(errorMsg, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -122,14 +146,6 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
             </p>
           </div>
         </div>
-        
-        {isEditing && (
-          <div className="flex gap-2">
-            <button type="button" className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar" onClick={() => toast("Función de eliminación en desarrollo", { icon: "🚧" })}>
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="p-6 md:p-8">
@@ -143,7 +159,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               <select
                 value={modalidadSeleccionada}
                 onChange={handleModalidadChange}
-                disabled={cargandoCarreras}
+                disabled={cargandoCarreras || serverAction === 'BLOCK'}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
                   errores.modalidad ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
@@ -163,7 +179,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               <select
                 value={carreraId}
                 onChange={handleCarreraChange}
-                disabled={!modalidadSeleccionada || cargandoCarreras}
+                disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
                   errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
                 }`}
@@ -197,13 +213,52 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               </p>
             </div>
 
+            {/* --- PASO 4: INTERFAZ VISUAL DEL SEMÁFORO --- */}
+            {serverAction === 'BLOCK' && (
+              <div className="md:col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start mt-2">
+                <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
+                  <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {serverAction === 'WARN' && (
+              <div className="md:col-span-2 bg-red-50 p-4 rounded-xl border border-red-200 flex items-start mt-2">
+                <AlertTriangle className="w-5 h-5 text-red-600 mr-3 mt-0.5 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-red-900 mb-1">Advertencia de seguridad</h4>
+                  <p className="text-sm text-red-800 font-medium leading-relaxed">{serverMessage}</p>
+                </div>
+              </div>
+            )}
+            {/* ------------------------------------------------ */}
+
           </div>
 
           <div className="flex justify-end pt-6 border-t border-slate-100">
-            <button type="submit" disabled={isSubmitting || cargandoCarreras} className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md">
-              {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-              {isEditing ? "Actualizar grupo" : "Generar grupo"}
-            </button>
+            {serverAction === 'BLOCK' ? (
+              <button type="button" onClick={onBack} className="px-8 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all">
+                Cerrar y volver
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                disabled={isSubmitting || cargandoCarreras} 
+                className={`flex items-center px-8 py-3 rounded-xl font-bold text-white transition-all shadow-md disabled:opacity-50 ${
+                  serverAction === 'WARN' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" /> 
+                ) : (
+                  serverAction === 'WARN' ? <AlertTriangle className="w-5 h-5 mr-2" /> : <Save className="w-5 h-5 mr-2" />
+                )}
+                
+                {serverAction === 'WARN' ? "Confirmar cambio y rechazar clases" : (isEditing ? "Actualizar grupo" : "Generar grupo")}
+              </button>
+            )}
           </div>
         </form>
       </div>

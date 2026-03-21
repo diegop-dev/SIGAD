@@ -223,7 +223,24 @@ const docenteModel = {
     `;
     const result = await db.query(query, [eliminado_por, motivo_baja, id_docente]);
     return result.affectedRows;
+  },
+
+  // Reactivar un docente dado de baja
+  reactivateDocente: async (id_docente, modificado_por) => {
+    const query = `
+      UPDATE docentes
+      SET estatus = 'ACTIVO', 
+          modificado_por = ?, 
+          fecha_modificacion = NOW(), 
+          eliminado_por = NULL, 
+          fecha_eliminacion = NULL, 
+          motivo_baja = NULL
+      WHERE id_docente = ?
+    `;
+    const result = await db.query(query, [modificado_por, id_docente]);
+    return result.affectedRows;
   }
+  
 };
 
 module.exports = docenteModel;
