@@ -8,7 +8,7 @@ import { DeactivateDocenteModal } from './DeactivateDocenteModal';
 import { useAuth } from '../../hooks/useAuth';
 import { TOAST_DOCENTES } from '../../../constants/toastMessages';
 import { ReactivateDocenteModal } from './ReactivateDocenteModal';
-
+import HistorialDocente from './HistorialDocente';
 export const DocenteManagement = () => {
   const { user: currentUser } = useAuth(); 
   
@@ -25,6 +25,8 @@ export const DocenteManagement = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [modalHistorial, setModalHistorial] = useState(false);
+const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   const fetchDocentes = async () => {
     setIsLoading(true);
@@ -245,6 +247,12 @@ export const DocenteManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
+                        <button 
+                            onClick={() => { setDocenteSeleccionado(d); setModalHistorial(true); }}
+                            className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-all" title="Ver Historial"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                           {d.estatus === 'ACTIVO' ? (
                             <button
                               title="Dar de baja docente"
@@ -323,6 +331,12 @@ export const DocenteManagement = () => {
         onClose={() => setDocenteToReactivate(null)}
         onSuccess={handleSuccessAction}
       />
+      {modalHistorial && (
+  <HistorialDocente 
+    docenteId={docenteSeleccionado.id_docente} 
+    alCerrar={() => setModalHistorial(false)} 
+  />
+)}
     </div>
   );
 };

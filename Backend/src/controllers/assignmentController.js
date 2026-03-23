@@ -372,5 +372,5 @@ module.exports = {
   updateAsignacion,
   cancelarAsignacion,
   reactivarAsignacion,
-  actualizarConfirmacion
+  actualizarConfirmacion,
 };

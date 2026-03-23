@@ -10,7 +10,7 @@ const { validarCreacionGrupo } = require('../middlewares/grupoValidator');
 router.get('/sincronizacion', verifyToken, grupoController.getGruposParaSincronizacion);
 
 // Rutas principales
-router.get('/', grupoController.getGrupos);
+router.get('/',verifyToken, grupoController.getGrupos);
 router.post('/', validarCreacionGrupo, grupoController.crearGrupo);
 router.put('/:id', validarCreacionGrupo, grupoController.actualizarGrupo);
 
