@@ -1,6 +1,7 @@
 const carreraModel = require('../models/carreraModel');
+const grupoModel = require('../models/grupoModel');
 
-const generarSiglas = async (nombreCarrera, modalidad) => {
+const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
   const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
   
   const nombreLimpio = nombreCarrera.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -9,6 +10,7 @@ const generarSiglas = async (nombreCarrera, modalidad) => {
   const palabrasValidas = palabras.filter(palabra => !palabrasIgnoradas.includes(palabra));
 
   let baseSiglas = "";
+  
 
   // Si la carrera es de una sola palabra (ej. "Derecho") tomamos 3 letras
   if (palabrasValidas.length === 1) {
@@ -25,7 +27,7 @@ const generarSiglas = async (nombreCarrera, modalidad) => {
 
   let siglas = baseSiglas + sufijo;
 
-  const existe = await carreraModel.verificarSiglasExistentes(siglas);
+  const existe = await carreraModel.verificarSiglasExistentes(siglas, excluir_id);
 
   if (existe) {
     // Plan B en caso de colisión
@@ -60,9 +62,16 @@ const carreraController = {
     }
   },
   
+  // ==========================================
+  // SE ACTUALIZÓ PARA RECIBIR periodo_id (HU-41)
+  // ==========================================
   getCarreras: async (req, res) => {
     try {
-      const carreras = await carreraModel.getAllCarreras();
+      const { periodo_id } = req.query; // Extraemos el parámetro de la URL si existe
+      
+      // Se lo pasamos al modelo. Si viene vacío (null), el modelo traerá todas las carreras
+      const carreras = await carreraModel.getAllCarreras(periodo_id); 
+      
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error al obtener carreras:', error);
@@ -129,6 +138,102 @@ const carreraController = {
         success: false,
         message: 'Ocurrió un error en el servidor al intentar guardar la carrera.',
         error: error.message
+      });
+    }
+  },
+
+  //  FUNCIONES PARA MODIFICAR Y ELIMINAR 
+actualizarCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nombre_carrera, modalidad, academia_id, modificado_por } = req.body;
+      const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
+
+      // 1. Evitar colisión de nombre y modalidad en la DB (Ignorando la propia carrera)
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
+      if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
+        return res.status(409).json({
+          success: false,
+          message: 'Ya existe otra carrera registrada en la misma modalidad.'
+        });
+      }
+
+      // 2. Generamos las siglas ignorando el ID actual
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, id);
+
+      const datosUpdate = {
+        codigo_unico,
+        nombre_carrera: nombre_carrera.toUpperCase().trim(),
+        modalidad,
+        academia_id,
+        modificado_por: idUsuario
+      };
+
+      await carreraModel.actualizarCarrera(id, datosUpdate);
+
+      // 3. EFECTO CASCADA: Actualizar el identificador de todos los grupos vinculados
+      const grupos = await grupoModel.getGruposByCarrera(id);
+      if (grupos && grupos.length > 0) {
+        for (const grupo of grupos) {
+          // Extraemos los 4 primeros dígitos que representan el año
+          const anio = grupo.identificador.substring(0, 4);
+          // Rellenamos el ID con ceros
+          const idFormateado = String(grupo.id_grupo).padStart(3, '0');
+          
+          // Armamos el nuevo identificador
+          const nuevoIdentificador = `${anio}${codigo_unico}${idFormateado}`;
+
+          if (grupo.identificador !== nuevoIdentificador) {
+            await grupoModel.actualizarIdentificador(grupo.id_grupo, nuevoIdentificador);
+          }
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'La carrera y sus grupos vinculados se han actualizado correctamente.'
+      });
+    } catch (error) {
+      console.error('Error al actualizar la carrera:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Ocurrió un error en el servidor al intentar actualizar la carrera.',
+        error: error.message
+      });
+    }
+  },
+
+  deactivateCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { eliminado_por, motivo_baja } = req.body;
+
+      if (!motivo_baja || motivo_baja.trim() === '') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Debe especificar un motivo para la baja.' 
+        });
+      }
+
+      const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Carrera no encontrada. No se pudo cambiar el estatus.' 
+        });
+      }
+
+      return res.status(200).json({ 
+        success: true, 
+        message: 'Carrera dada de baja exitosamente del sistema.' 
+      });
+
+    } catch (error) {
+      console.error("Error al dar de baja la carrera:", error);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Error interno del servidor al procesar la baja de la carrera." 
       });
     }
   }

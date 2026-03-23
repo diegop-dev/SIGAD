@@ -15,6 +15,12 @@ export const CarreraManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [carreraAEditar, setCarreraAEditar] = useState(null);
 
+  // ESTADOS PARA EL MODAL DE ELIMINAR
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [carreraToDelete, setCarreraToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [motivoBaja, setMotivoBaja] = useState('');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -90,8 +96,36 @@ export const CarreraManagement = () => {
     setShowForm(true);
   };
 
-  const handleEliminarRapido = () => {
-    toast(TOAST_COMMON.enDesarrollo, { icon: '🚧' });
+  // FUNCIONES PARA ELIMINAR 
+  const handleEliminarRapido = (carrera) => {
+    setCarreraToDelete(carrera);
+    setMotivoBaja(''); // Limpiar el motivo anterior
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!motivoBaja.trim()) {
+      toast.error("El motivo de la baja es obligatorio.");
+      return;
+    }
+
+    setIsDeleting(true);
+    const toastId = toast.loading("Actualizando estatus...");
+
+    try {
+      await api.patch(`/carreras/${carreraToDelete.id_carrera}/deactivate`, {
+        eliminado_por: user?.id_usuario,
+        motivo_baja: motivoBaja
+      });
+      
+      toast.success("Estatus actualizado correctamente", { id: toastId });
+      setShowDeleteModal(false);
+      fetchCarreras(); // Recargar la tabla
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Error al actualizar el estatus", { id: toastId });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (showForm) {
@@ -251,7 +285,7 @@ export const CarreraManagement = () => {
                         </button>
                         <button 
                           title="Cambiar estatus" 
-                          onClick={handleEliminarRapido}
+                          onClick={() => handleEliminarRapido(carrera)} // ✨ AQUÍ ESTÁ EL CAMBIO CLAVE ✨
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -296,6 +330,48 @@ export const CarreraManagement = () => {
           </div>
         )}
       </div>
+
+      {/* MODAL DE CONFIRMACIÓN DE BAJA */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-lg font-black text-slate-900 mb-2">Confirmar cambio de estatus</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                ¿Estás seguro que deseas dar de baja la carrera <span className="font-bold text-slate-900">{carreraToDelete?.nombre_carrera}</span>?
+              </p>
+              
+              <div className="space-y-2 mb-6">
+                <label className="text-sm font-bold text-slate-700">Motivo de la baja *</label>
+                <textarea
+                  value={motivoBaja}
+                  onChange={(e) => setMotivoBaja(e.target.value)}
+                  placeholder="Escribe el motivo..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-red-100 transition-all resize-none h-24"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all"
+                >
+                  {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                  Confirmar baja
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

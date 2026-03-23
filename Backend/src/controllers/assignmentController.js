@@ -1,26 +1,22 @@
 const assignmentModel = require('../models/assignmentModel');
+const notificationModel = require('../models/notificationModel');
+const pool = require('../config/database');
 
-// API de sincronización externa (HU-37 / API-05)
+// Api de sincronización externa (HU-37 / API-05)
 const getAsignacionesParaSincronizacion = async (req, res) => {
   try {
-    // extraemos los parámetros de consulta obligatorios según el PDF
     const { materia_id, grupo_id } = req.query;
 
-    // validación estricta: retornamos HTTP 400 si la petición está incompleta
     if (!materia_id || !grupo_id) {
       return res.status(400).json({
         message: "Parámetros incompletos. Se requiere materia_id y grupo_id."
       });
     }
 
-    // consumimos el método optimizado del modelo
     const asignaciones = await assignmentModel.getAsignacionesParaSincronizacion(materia_id, grupo_id);
-    
-    // retornamos directamente el arreglo para cumplir con el contrato JSON
     return res.status(200).json(asignaciones);
   } catch (error) {
     console.error("[Error en assignmentController - getAsignacionesParaSincronizacion]:", error);
-    // retornamos HTTP 500 ocultando la traza original por seguridad
     return res.status(500).json({ 
       message: "Error interno al procesar el catálogo de asignaciones." 
     });
@@ -28,7 +24,7 @@ const getAsignacionesParaSincronizacion = async (req, res) => {
 };
 
 // ==========================================
-// HU-33: Crear asignación docente
+// Crear asignación docente (HU-33)
 // ==========================================
 const createAsignacion = async (req, res) => {
   try {
@@ -39,11 +35,11 @@ const createAsignacion = async (req, res) => {
       return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios." });
     }
 
-    // validación de congruencia académica estricta (carrera, cuatrimestre y academia)
-    const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id);
+    // validación de congruencia académica estricta 
+    const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
     if (!cumpleReglasAcademicas) {
       return res.status(422).json({ 
-        error: "Incongruencia de datos: Verifica que la materia corresponda a la carrera y cuatrimestre del grupo, y que el docente pertenezca a la academia correcta." 
+        error: "Incongruencia de datos: Verifica que la materia corresponda a la carrera, al periodo seleccionado, al cuatrimestre del grupo, y que el docente pertenezca a la academia correcta." 
       });
     }
 
@@ -80,6 +76,23 @@ const createAsignacion = async (req, res) => {
 
     const insertedIds = await assignmentModel.createAsignaciones(asignacionesToInsert);
 
+    // ========================================================
+    // INYECCIÓN DE NOTIFICACIÓN AL DOCENTE (HU-40)
+    // ========================================================
+    try {
+      const docentesQuery = await pool.query('SELECT usuario_id FROM docentes WHERE id_docente = ?', [docente_id]);
+      if (docentesQuery && docentesQuery.length > 0 && docentesQuery[0].usuario_id) {
+        await notificationModel.createNotification(
+          docentesQuery[0].usuario_id,
+          "Tienes una nueva carga académica asignada. Por favor, ingresa a 'Mi Carga Académica' para confirmar tu disponibilidad.",
+          "ALTA"
+        );
+      }
+    } catch (notifError) {
+      console.error("[Advertencia] No se pudo enviar la notificación al docente:", notifError);
+    }
+    // ========================================================
+
     res.status(201).json({
       message: "Asignación docente creada exitosamente sin conflictos.",
       bloques_guardados: insertedIds.length
@@ -92,7 +105,7 @@ const createAsignacion = async (req, res) => {
 };
 
 // ==========================================
-// HU-34: Consultar asignaciones docente
+// Consultar asignaciones docente (HU-34)
 // ==========================================
 const getAsignaciones = async (req, res) => {
   try {
@@ -105,8 +118,259 @@ const getAsignaciones = async (req, res) => {
   }
 };
 
+// ==========================================
+// Modificar asignación docente (HU-35)
+// ==========================================
+const updateAsignacion = async (req, res) => {
+  try {
+    const { periodo_id, materia_id, docente_id, grupo_id, horarios } = req.body;
+    const usuario_id = req.user?.id_usuario;
+
+    if (!periodo_id || !materia_id || !docente_id || !grupo_id || !horarios || horarios.length === 0) {
+      return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios para la modificación." });
+    }
+
+    const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
+    if (!cumpleReglasAcademicas) {
+      return res.status(422).json({ 
+        error: "Incongruencia de datos: Las nuevas relaciones no respetan las limitantes de carrera, periodo, cuatrimestre o academia." 
+      });
+    }
+
+    // obtenemos los identificadores de la asignación actual para ignorarlos en la búsqueda de empalmes
+    const excludeIds = await assignmentModel.getIdsAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id);
+
+    for (const bloque of horarios) {
+      const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
+
+      const docenteConflict = await assignmentModel.checkDocenteConflict(docente_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
+      if (docenteConflict) return res.status(409).json({ error: `Conflicto detectado: El docente ya tiene una clase asignada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+
+      const grupoConflict = await assignmentModel.checkGrupoConflict(grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
+      if (grupoConflict) return res.status(409).json({ error: `Conflicto detectado: El grupo ya tiene clases el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+
+      const aulaConflict = await assignmentModel.checkAulaConflict(aula_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
+      if (aulaConflict) return res.status(409).json({ error: `Conflicto detectado: El aula seleccionada ya está ocupada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+    }
+
+    const asignacionesToUpdate = horarios.map(bloque => ({
+      periodo_id,
+      materia_id,
+      docente_id,
+      grupo_id,
+      aula_id: bloque.aula_id,
+      dia_semana: bloque.dia_semana,
+      hora_inicio: bloque.hora_inicio,
+      hora_fin: bloque.hora_fin,
+      modificado_por: usuario_id
+    }));
+
+    // ejecutamos la transacción de borrado lógico y creación de nuevos bloques
+    const insertedIds = await assignmentModel.updateAsignacionesAgrupadas(periodo_id, materia_id, docente_id, grupo_id, asignacionesToUpdate, usuario_id);
+
+    // ========================================================
+    // INYECCIÓN DE NOTIFICACIÓN AL DOCENTE (Edición)
+    // ========================================================
+    try {
+      const docentesQuery = await pool.query('SELECT usuario_id FROM docentes WHERE id_docente = ?', [docente_id]);
+      if (docentesQuery && docentesQuery.length > 0 && docentesQuery[0].usuario_id) {
+        await notificationModel.createNotification(
+          docentesQuery[0].usuario_id,
+          "Tu carga académica ha sido modificada. Por favor, revisa tus nuevos horarios y confirma tu disponibilidad.",
+          "ALTA"
+        );
+      }
+    } catch (notifError) {
+      console.error("[Advertencia] No se pudo enviar la notificación al docente en la edición:", notifError);
+    }
+    // ========================================================
+
+    res.status(200).json({
+      message: "Asignación docente modificada exitosamente sin empalmes.",
+      bloques_actualizados: insertedIds.length
+    });
+
+  } catch (error) {
+    console.error("[Error en assignmentController - updateAsignacion]:", error);
+    res.status(500).json({ error: "Error interno al intentar modificar la asignación docente." });
+  }
+};
+
+// ==========================================
+// Cancelar asignación docente (HU-36)
+// ==========================================
+const cancelarAsignacion = async (req, res) => {
+  try {
+    const { periodo_id, materia_id, docente_id, grupo_id } = req.body;
+    const usuario_id = req.user?.id_usuario;
+
+    if (!periodo_id || !materia_id || !docente_id || !grupo_id) {
+      return res.status(400).json({ error: "Faltan parámetros de agrupación para efectuar la cancelación." });
+    }
+
+    const affectedRows = await assignmentModel.cancelarAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id, usuario_id);
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ error: "No se encontraron bloques activos con esos parámetros para cancelar." });
+    }
+
+    res.status(200).json({ message: "Asignación cancelada correctamente del ciclo escolar." });
+  } catch (error) {
+    console.error("[Error en assignmentController - cancelarAsignacion]:", error);
+    res.status(500).json({ error: "Error interno al ejecutar el borrado lógico." });
+  }
+};
+
+// ==========================================
+// Reactivar asignación cancelada con Validación de Empalmes
+// ==========================================
+const reactivarAsignacion = async (req, res) => {
+  try {
+    const { periodo_id, materia_id, docente_id, grupo_id } = req.body;
+    const usuario_id = req.user?.id_usuario;
+
+    if (!periodo_id || !materia_id || !docente_id || !grupo_id) {
+      return res.status(400).json({ error: "Faltan parámetros de agrupación para efectuar la reactivación." });
+    }
+
+    // 1. Obtenemos los bloques de horarios que tenía esta asignación cuando se cerró
+    const horariosCerrados = await assignmentModel.getHorariosAsignacionCerrada(periodo_id, materia_id, docente_id, grupo_id);
+
+    if (horariosCerrados.length === 0) {
+      return res.status(404).json({ error: "No existen bloques cerrados con esos parámetros que puedan ser reactivados." });
+    }
+
+    // 2. Validamos que los espacios sigan libres simulando que los vamos a crear de nuevo
+    for (const bloque of horariosCerrados) {
+      const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
+
+      // El formato de hora puede venir con milisegundos de la DB (ej. 08:00:00), lo normalizamos para los mensajes
+      const inicioFmt = hora_inicio.substring(0, 5);
+      const finFmt = hora_fin.substring(0, 5);
+
+      const docenteConflict = await assignmentModel.checkDocenteConflict(docente_id, periodo_id, dia_semana, hora_inicio, hora_fin);
+      if (docenteConflict) {
+        return res.status(409).json({ error: `Reactivación bloqueada: El docente ya fue asignado a otra clase el día ${dia_semana} de ${inicioFmt} a ${finFmt}.` });
+      }
+
+      const grupoConflict = await assignmentModel.checkGrupoConflict(grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin);
+      if (grupoConflict) {
+        return res.status(409).json({ error: `Reactivación bloqueada: El grupo ya tiene otra clase el día ${dia_semana} de ${inicioFmt} a ${finFmt}.` });
+      }
+
+      const aulaConflict = await assignmentModel.checkAulaConflict(aula_id, periodo_id, dia_semana, hora_inicio, hora_fin);
+      if (aulaConflict) {
+        return res.status(409).json({ error: `Reactivación bloqueada: El aula ya está ocupada por otra clase el día ${dia_semana} de ${inicioFmt} a ${finFmt}.` });
+      }
+    }
+
+    // 3. Si sobrevivió al ciclo, los espacios siguen libres. Ejecutamos la reactivación en la BD.
+    await assignmentModel.reactivarAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id, usuario_id);
+
+    // ========================================================
+    // INYECCIÓN DE NOTIFICACIÓN AL DOCENTE (Reactivación)
+    // ========================================================
+    try {
+      const docentesQuery = await pool.query('SELECT usuario_id FROM docentes WHERE id_docente = ?', [docente_id]);
+      if (docentesQuery && docentesQuery.length > 0 && docentesQuery[0].usuario_id) {
+        await notificationModel.createNotification(
+          docentesQuery[0].usuario_id,
+          "Una de tus clases que había sido cancelada ha sido reactivada. Por favor, revisa tu carga académica para confirmar tu disponibilidad.",
+          "ALTA"
+        );
+      }
+    } catch (notifError) {
+      console.error("[Advertencia] No se pudo enviar la notificación al docente en la reactivación:", notifError);
+    }
+    // ========================================================
+
+    res.status(200).json({ message: "Asignación reactivada exitosamente. Los horarios siguen disponibles." });
+  } catch (error) {
+    console.error("[Error en assignmentController - reactivarAsignacion]:", error);
+    res.status(500).json({ error: "Error interno al ejecutar la reactivación de la asignación." });
+  }
+};
+
+// ==========================================
+// HU-46: Confirmar o Rechazar asignación (Docente)
+// ==========================================
+const actualizarConfirmacion = async (req, res) => {
+  try {
+    const { periodo_id, materia_id, docente_id, grupo_id, estatus_confirmacion } = req.body;
+    const usuario_id = req.user?.id_usuario;
+
+    if (!periodo_id || !materia_id || !docente_id || !grupo_id || !estatus_confirmacion) {
+      return res.status(400).json({ error: "Faltan parámetros para procesar la confirmación." });
+    }
+
+    // Validación estricta del CHECK constraint de la base de datos
+    if (!['ACEPTADA', 'RECHAZADA'].includes(estatus_confirmacion)) {
+      return res.status(400).json({ error: "El estatus de confirmación enviado no es válido." });
+    }
+
+    const affectedRows = await assignmentModel.actualizarConfirmacionDocente(
+      periodo_id, materia_id, docente_id, grupo_id, estatus_confirmacion, usuario_id
+    );
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ error: "No se encontró una asignación activa con esos datos para modificar." });
+    }
+
+    // ========================================================
+    // INYECCIÓN DE NOTIFICACIÓN DE RESPUESTA AL CREADOR (HU-40)
+    // ========================================================
+    try {
+      // 1. Buscamos quién creó la asignación y el nombre de la materia
+      const asignacionInfo = await pool.query(
+        `SELECT a.creado_por, m.nombre as materia_nombre 
+         FROM asignaciones a 
+         JOIN materias m ON a.materia_id = m.id_materia 
+         WHERE a.periodo_id = ? AND a.materia_id = ? AND a.docente_id = ? AND a.grupo_id = ? 
+         LIMIT 1`,
+        [periodo_id, materia_id, docente_id, grupo_id]
+      );
+
+      if (asignacionInfo && asignacionInfo.length > 0 && asignacionInfo[0].creado_por) {
+        const creadorId = asignacionInfo[0].creado_por;
+        const materiaNombre = asignacionInfo[0].materia_nombre;
+        const accion = estatus_confirmacion === 'ACEPTADA' ? 'aceptado' : 'rechazado';
+        
+        // Si rechaza, es urgente (ALTA), si acepta, es solo informativo (BAJA)
+        const severidad = estatus_confirmacion === 'ACEPTADA' ? 'BAJA' : 'ALTA'; 
+
+        // 2. Obtenemos el nombre del docente que está respondiendo
+        const docenteInfo = await pool.query('SELECT nombres, apellido_paterno FROM usuarios WHERE id_usuario = ?', [usuario_id]);
+        const nombreDocente = docenteInfo && docenteInfo.length > 0 ? `${docenteInfo[0].nombres} ${docenteInfo[0].apellido_paterno}` : 'Un docente';
+
+        // 3. Enviamos la notificación al coordinador
+        await notificationModel.createNotification(
+          creadorId,
+          `El docente ${nombreDocente} ha ${accion} la asignación para la materia: ${materiaNombre}.`,
+          severidad
+        );
+      }
+    } catch (notifError) {
+      console.error("[Advertencia] No se pudo notificar al creador de la asignación:", notifError);
+    }
+    // ========================================================
+
+    const mensaje = estatus_confirmacion === 'ACEPTADA' 
+      ? "Has aceptado la asignación de esta clase exitosamente." 
+      : "Has rechazado la asignación de esta clase. La coordinación será notificada.";
+
+    res.status(200).json({ message: mensaje });
+  } catch (error) {
+    console.error("[Error en assignmentController - actualizarConfirmacion]:", error);
+    res.status(500).json({ error: "Error interno al procesar la decisión sobre la asignación." });
+  }
+};
+
 module.exports = {
   getAsignacionesParaSincronizacion,
   createAsignacion,
-  getAsignaciones
+  getAsignaciones,
+  updateAsignacion,
+  cancelarAsignacion,
+  reactivarAsignacion,
+  actualizarConfirmacion
 };

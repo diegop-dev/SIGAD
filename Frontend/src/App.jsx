@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Toaster } from "react-hot-toast";
 import { MainLayout } from "./components/MainLayout";
-
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import { UserManagement } from "./pages/users/UserManagement";
@@ -14,6 +13,9 @@ import AulaManagement from "./pages/aulas/AulaManagement";
 import { CarreraManagement } from "./pages/carreras/CarreraManagement";
 import { GrupoManagement } from "./pages/grupos/GrupoManagement";
 import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
+import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
+import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
+import { MiPerfil } from "./pages/docentes/MiPerfil"; 
 
 function App() {
   return (
@@ -22,12 +24,17 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        {/* 1. Capa de seguridad global: Protege todo el layout para evitar el parpadeo */}
+        {/* 1. Capa de seguridad global */}
         <Route element={<ProtectedRoute />}>
           
           <Route element={<MainLayout />}>
             {/* Rutas accesibles para cualquier usuario autenticado */}
             <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Rutas exclusivas para superadministradores (rol_id = 1) */}
+            <Route element={<ProtectedRoute allowedRoles={[1]} />}>
+              <Route path="/metricas" element={<DashboardMetricas />} />
+            </Route>
 
             {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
             <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
@@ -40,17 +47,16 @@ function App() {
               <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/grupos" element={<GrupoManagement />} />
               <Route path="/asignaciones" element={<AssignmentManagement />} />
-              {/* Aquí irán /carreras, /materias, etc. */}
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
-              {/* <Route path="/mi-horario" element={<TeacherSchedule />} /> */}
-            </Route>
-          </Route>
-          
-        </Route>
+              <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
+              <Route path="/mi-perfil" element={<MiPerfil />} />
 
+            </Route>
+          </Route> 
+        </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </>

@@ -1,9 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Plus, Trash2, Clock, CalendarDays, MapPin, User, BookOpen, Users, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, Clock, CalendarDays, MapPin, User, BookOpen, Users, Loader2, AlertTriangle } from "lucide-react";
 import api from "../../services/api";
 
-export const AssignmentForm = ({ onBack, onSuccess }) => {
+// Formateador externo para no saturar la memoria del componente
+const formatTimeForInput = (timeString) => {
+  if (!timeString) return "00:00";
+  return timeString.substring(0, 5); 
+};
+
+export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
+  const isEditing = Boolean(initialData);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
@@ -13,22 +21,77 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   const [materias, setMaterias] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [aulas, setAulas] = useState([]);
-  const [carreras, setCarreras] = useState([]); // nuevo estado para resolver la academia
+  const [carreras, setCarreras] = useState([]);
 
-  const [formData, setFormData] = useState({
-    periodo_id: "",
-    grupo_id: "",
-    docente_id: "",
-    materia_id: "",
-    horarios: [
-      { dia_semana: 1, hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }
-    ]
+  // 1. Inicializamos el estado del formulario
+  const [formData, setFormData] = useState(() => {
+    if (isEditing) {
+      return {
+        periodo_id: initialData.periodo_id,
+        grupo_id: initialData.grupo_id,
+        docente_id: initialData.docente_id,
+        materia_id: initialData.materia_id,
+        horarios: initialData.horarios.map(h => ({
+          dia_semana: Number(h.dia_semana),
+          hora_inicio: formatTimeForInput(h.hora_inicio),
+          hora_fin: formatTimeForInput(h.hora_fin),
+          aula_id: h.aula_id ? Number(h.aula_id) : ""
+        }))
+      };
+    }
+    return {
+      periodo_id: "",
+      grupo_id: "",
+      docente_id: "",
+      materia_id: "",
+      horarios: [
+        { dia_semana: 1, hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }
+      ]
+    };
   });
+
+  // 2. Tomamos una "fotografía" estricta de cómo venían los datos originalmente
+  const originalHorarios = useMemo(() => {
+    if (!isEditing || !initialData) return [];
+    return initialData.horarios.map(h => ({
+      dia_semana: Number(h.dia_semana),
+      hora_inicio: formatTimeForInput(h.hora_inicio),
+      hora_fin: formatTimeForInput(h.hora_fin),
+      aula_id: h.aula_id ? Number(h.aula_id) : ""
+    }));
+  }, [initialData, isEditing]);
+
+  // 3. Motor que evalúa si hubo cambios reales bloque por bloque
+  const hasChanges = useMemo(() => {
+    if (!isEditing) return true; // Si estamos creando, siempre se asume que hay "cambios"
+    
+    // Si agregaron o quitaron bloques, definitivamente hay cambios
+    if (formData.horarios.length !== originalHorarios.length) return true;
+
+    // Evaluamos bloque por bloque para detectar modificaciones mínimas en horas, días o aulas
+    for (let i = 0; i < formData.horarios.length; i++) {
+      const current = formData.horarios[i];
+      const original = originalHorarios[i];
+
+      const currentAula = current.aula_id === "" ? "" : Number(current.aula_id);
+
+      if (
+        Number(current.dia_semana) !== original.dia_semana ||
+        current.hora_inicio !== original.hora_inicio ||
+        current.hora_fin !== original.hora_fin ||
+        currentAula !== original.aula_id
+      ) {
+        return true;
+      }
+    }
+    
+    return false; // Si sobrevive al ciclo, los datos son exactamente iguales
+  }, [formData.horarios, originalHorarios, isEditing]);
+
 
   useEffect(() => {
     const fetchCatalogs = async () => {
       try {
-        // agregamos la carga concurrente del catálogo de carreras
         const [resPeriodos, resDocentes, resMaterias, resGrupos, resAulas, resCarreras] = await Promise.all([
           api.get('/periodos').catch(() => ({ data: [] })),
           api.get('/docentes').catch(() => ({ data: [] })),
@@ -53,48 +116,19 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
     fetchCatalogs();
   }, []);
 
-  // motor de filtrado reactivo para docentes con logs de diagnóstico
   const docentesFiltrados = useMemo(() => {
     if (!formData.grupo_id) return [];
-
-    // validamos forzando el tipo numérico para evitar errores de string vs int
-    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
-    if (!grupoSeleccionado) {
-      console.warn("Diagnóstico: No se encontró el grupo seleccionado en el arreglo de grupos.");
-      return [];
-    }
-
-    const carreraDelGrupo = carreras.find(c => Number(c.id_carrera) === Number(grupoSeleccionado.carrera_id));
-    if (!carreraDelGrupo) {
-      console.warn("Diagnóstico: No se encontró la carrera. ¿Está el arreglo 'carreras' vacío o le falta el carrera_id al grupo?", { 
-        totalCarrerasCargadas: carreras.length, 
-        carreraIdBuscado: grupoSeleccionado.carrera_id 
-      });
-      return [];
-    }
-
-    if (!carreraDelGrupo.academia_id) {
-      console.warn("Diagnóstico: La carrera se encontró, pero no incluye el campo 'academia_id'. Revisa la consulta SQL en tu backend para GET /carreras.");
-    }
-
-    const docentesResultantes = docentes.filter(d => Number(d.academia_id) === Number(carreraDelGrupo.academia_id));
-    
-    if (docentesResultantes.length === 0) {
-      console.warn("Diagnóstico: Filtro vacío. Revisa si los docentes incluyen el campo 'academia_id' en el JSON de GET /docentes.", { 
-        academiaRequerida: carreraDelGrupo.academia_id 
-      });
-    }
-
-    return docentesResultantes;
-  }, [docentes, grupos, carreras, formData.grupo_id]);
-
-  // motor de filtrado reactivo para materias (validación de carrera y cuatrimestre)
-  const materiasFiltradas = useMemo(() => {
-    if (!formData.grupo_id) return [];
-
     const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
     if (!grupoSeleccionado) return [];
+    const carreraDelGrupo = carreras.find(c => Number(c.id_carrera) === Number(grupoSeleccionado.carrera_id));
+    if (!carreraDelGrupo) return [];
+    return docentes.filter(d => Number(d.academia_id) === Number(carreraDelGrupo.academia_id));
+  }, [docentes, grupos, carreras, formData.grupo_id]);
 
+  const materiasFiltradas = useMemo(() => {
+    if (!formData.grupo_id) return [];
+    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
+    if (!grupoSeleccionado) return [];
     return materias.filter(m => 
       (Number(m.carrera_id) === Number(grupoSeleccionado.carrera_id) && Number(m.cuatrimestre_id) === Number(grupoSeleccionado.cuatrimestre_id)) || 
       m.tipo_asignatura === 'TRONCO_COMUN'
@@ -102,18 +136,18 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
   }, [materias, grupos, formData.grupo_id]);
 
   const handleChange = (e) => {
+    // Si estamos editando, bloqueamos la modificación de la agrupación principal
+    if (isEditing) return;
+
     const { name, value } = e.target;
     const finalValue = value !== "" ? Number(value) : "";
     
     setFormData(prev => {
       const newData = { ...prev, [name]: finalValue };
-      
-      // lógica de seguridad estricta: resetear materia y docente si el grupo cambia
       if (name === 'grupo_id') {
         newData.materia_id = "";
         newData.docente_id = "";
       }
-      
       return newData;
     });
 
@@ -166,6 +200,13 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Doble candado de seguridad: evitamos someter el form si no hay cambios
+    if (isEditing && !hasChanges) {
+      toast.error("No has realizado ninguna modificación en los horarios.", { icon: 'ℹ️' });
+      return;
+    }
+
     if (!validate()) {
       toast.error("Por favor completa todos los campos obligatorios.");
       return;
@@ -175,8 +216,14 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
     const toastId = toast.loading("Validando empalmes y guardando asignación...");
 
     try {
-      await api.post("/asignaciones", formData);
-      toast.success("Asignación creada exitosamente sin conflictos.", { id: toastId });
+      if (isEditing) {
+        await api.put("/asignaciones", formData);
+        toast.success("Asignación modificada exitosamente sin conflictos.", { id: toastId });
+      } else {
+        await api.post("/asignaciones", formData);
+        toast.success("Asignación creada exitosamente sin conflictos.", { id: toastId });
+      }
+      
       if (onSuccess) onSuccess();
     } catch (error) {
       if (error.response?.data?.errores) {
@@ -187,7 +234,7 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
         setErrores(backendErrors);
         toast.error("Corrige los errores señalados en el formulario", { id: toastId });
       } else {
-        const errorMsg = error.response?.data?.error || "Error al procesar la asignación.";
+        const errorMsg = error.response?.data?.error || `Error al procesar la asignación.`;
         toast.error(errorMsg, { id: toastId, duration: 5000 });
       }
     } finally {
@@ -203,8 +250,12 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-slate-800">Nueva asignación docente</h2>
-            <p className="text-sm text-slate-500 font-medium">Vincula a un docente con una materia, grupo y define sus espacios físicos.</p>
+            <h2 className="text-xl font-black text-slate-800">
+              {isEditing ? "Modificar asignación docente" : "Nueva asignación docente"}
+            </h2>
+            <p className="text-sm text-slate-500 font-medium">
+              {isEditing ? "Actualiza los espacios y horarios de esta clase." : "Vincula a un docente con una materia, grupo y define sus espacios físicos."}
+            </p>
           </div>
         </div>
       </div>
@@ -213,7 +264,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* periodo escolar */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <CalendarDays className="w-4 h-4 mr-2 text-blue-500" /> Periodo escolar
@@ -222,10 +272,10 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                 name="periodo_id" 
                 value={formData.periodo_id} 
                 onChange={handleChange} 
-                disabled={cargandoCatalogos}
+                disabled={cargandoCatalogos || isEditing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.periodo_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
+                } disabled:bg-slate-100 disabled:text-slate-500`}
               >
                 <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el periodo --"}</option>
                 {periodos.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>)}
@@ -233,7 +283,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               {errores.periodo_id && <p className="text-xs font-bold text-red-500">{errores.periodo_id}</p>}
             </div>
 
-            {/* grupo - reordenado como primer paso lógico */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado
@@ -242,10 +291,10 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                 name="grupo_id" 
                 value={formData.grupo_id} 
                 onChange={handleChange} 
-                disabled={cargandoCatalogos}
+                disabled={cargandoCatalogos || isEditing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.grupo_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
+                } disabled:bg-slate-100 disabled:text-slate-500`}
               >
                 <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el grupo --"}</option>
                 {grupos.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
@@ -253,7 +302,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               {errores.grupo_id && <p className="text-xs font-bold text-red-500">{errores.grupo_id}</p>}
             </div>
 
-            {/* docente - depende del grupo para validar academia */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <User className="w-4 h-4 mr-2 text-blue-500" /> Docente titular
@@ -262,10 +310,10 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                 name="docente_id" 
                 value={formData.docente_id} 
                 onChange={handleChange} 
-                disabled={cargandoCatalogos || !formData.grupo_id}
+                disabled={cargandoCatalogos || !formData.grupo_id || isEditing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.docente_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                } disabled:bg-slate-50 disabled:text-slate-400`}
+                } disabled:bg-slate-100 disabled:text-slate-500`}
               >
                 <option value="">
                   {cargandoCatalogos 
@@ -279,7 +327,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               {errores.docente_id && <p className="text-xs font-bold text-red-500">{errores.docente_id}</p>}
             </div>
 
-            {/* materia - depende del grupo para validar carrera y cuatrimestre */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Asignatura
@@ -288,10 +335,10 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                 name="materia_id" 
                 value={formData.materia_id} 
                 onChange={handleChange} 
-                disabled={cargandoCatalogos || !formData.grupo_id}
+                disabled={cargandoCatalogos || !formData.grupo_id || isEditing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.materia_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                } disabled:bg-slate-50 disabled:text-slate-400`}
+                } disabled:bg-slate-100 disabled:text-slate-500`}
               >
                 <option value="">
                   {cargandoCatalogos 
@@ -304,17 +351,22 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               </select>
               {errores.materia_id && <p className="text-xs font-bold text-red-500">{errores.materia_id}</p>}
             </div>
-
           </div>
 
-          {/* bloque de horarios */}
+          {isEditing && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-medium flex items-start">
+              <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-600 mt-0.5" />
+              <p>Estás en modo de edición. Para mantener la integridad de la base de datos, no puedes alterar la agrupación principal. Únicamente puedes agregar, modificar o eliminar los bloques de horarios.</p>
+            </div>
+          )}
+
           <div className="border-t border-slate-100 pt-8">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-black text-slate-800 flex items-center">
                   <Clock className="w-5 h-5 mr-2 text-blue-600" /> Configuración de horarios
                 </h3>
-                <p className="text-sm text-slate-500 mt-1">Agrega los días y horas exactas para esta clase.</p>
+                <p className="text-sm text-slate-500 mt-1">Agrega o modifica los días y horas exactas para esta clase.</p>
               </div>
               <button 
                 type="button" 
@@ -329,7 +381,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
               {formData.horarios.map((horario, index) => (
                 <div key={index} className="flex items-start md:items-end gap-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl relative group flex-col md:flex-row shadow-sm">
                   <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-4 gap-4">
-                    
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Día</label>
                       <select 
@@ -383,7 +434,6 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
                         {aulas.map(a => <option key={a.id_aula} value={a.id_aula}>{a.nombre_codigo}</option>)}
                       </select>
                     </div>
-
                   </div>
                   
                   <button 
@@ -399,15 +449,23 @@ export const AssignmentForm = ({ onBack, onSuccess }) => {
             </div>
           </div>
 
-          {/* footer */}
           <div className="flex justify-end pt-6 border-t border-slate-100">
             <button 
               type="submit" 
-              disabled={isSubmitting || cargandoCatalogos} 
-              className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all disabled:opacity-50"
+              // Bloqueamos el botón si no hay modificaciones reales en los datos
+              disabled={isSubmitting || cargandoCatalogos || (isEditing && !hasChanges)} 
+              className={`flex items-center px-8 py-3 rounded-xl font-bold shadow-md transition-all ${
+                isEditing && !hasChanges 
+                  ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none" 
+                  : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              }`}
             >
               {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-              {isSubmitting ? "Validando empalmes..." : "Guardar asignación"}
+              {isSubmitting 
+                ? "Validando empalmes..." 
+                : isEditing 
+                  ? (!hasChanges ? "Sin cambios para guardar" : "Actualizar cambios") 
+                  : "Guardar asignación"}
             </button>
           </div>
 

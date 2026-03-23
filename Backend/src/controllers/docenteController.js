@@ -2,6 +2,9 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const docenteModel = require("../models/docenteModel");
 const userModel = require("../models/userModel");
+const assignmentModel = require("../models/assignmentModel");
+// Importamos el servicio de correos
+const { enviarPasswordTemporal } = require("../services/emailService"); 
 
 // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
 const getDocenteParaSincronizacion = async (req, res) => {
@@ -43,7 +46,7 @@ const getDocentes = async (req, res) => {
   }
 };
 
-// ✨ NUEVA FUNCIÓN REFACTORIZADA PARA ALTA UNIFICADA ✨
+// ✨ NUEVA FUNCIÓN REFACTORIZADA PARA ALTA UNIFICADA BLINDADA ✨
 const registerDocente = async (req, res) => {
   try {
     let {
@@ -52,7 +55,7 @@ const registerDocente = async (req, res) => {
       personal_email, institutional_email,
       // datos del expediente docente
       rfc, curp, celular, calle, numero, colonia, cp,
-      clave_ine, fecha_ingreso, nivel_academico, creado_por, academia_id 
+      clave_ine, fecha_ingreso, antiguedad_fecha, nivel_academico, creado_por, academia_id 
     } = req.body;
 
     // normalización de datos para evitar espacios en blanco e inconsistencias
@@ -62,11 +65,17 @@ const registerDocente = async (req, res) => {
     personal_email = personal_email?.trim().toLowerCase();
     institutional_email = institutional_email?.trim().toLowerCase();
 
+    // =======================================================
+    // BLINDAJE CONTRA ERRORES DE FECHA NULA
+    // =======================================================
+    let fecha_real = fecha_ingreso || antiguedad_fecha;
+    if (fecha_real === "null" || fecha_real === "undefined") fecha_real = null;
+
     // validación estricta de campos obligatorios unificados
     if (!nombres || !apellido_paterno || !apellido_materno ||
         !personal_email || !institutional_email ||
         !rfc || !curp || !celular || !calle || !numero || !colonia || !cp ||
-        !clave_ine || !fecha_ingreso || !nivel_academico || !creado_por || !academia_id) {
+        !clave_ine || !fecha_real || !nivel_academico || !creado_por || !academia_id) {
       return res.status(400).json({ error: "Faltan datos obligatorios para el registro unificado." });
     }
 
@@ -126,9 +135,22 @@ const registerDocente = async (req, res) => {
       foto_perfil_url,
       creado_por, matricula, rfc, curp, clave_ine,
       domicilio: domicilio_completo, celular, nivel_academico, 
-      antiguedad_fecha: fecha_ingreso, documentos,
+      antiguedad_fecha: fecha_real, 
+      fecha_ingreso: fecha_real,
+      documentos,
       academia_id
     });
+
+    // ========================================================
+    // ENVÍO DE CORREO ELECTRÓNICO AL NUEVO DOCENTE (No bloqueante)
+    // ========================================================
+    enviarPasswordTemporal(personal_email, nombres, password_generada)
+      .then(enviado => {
+        if (!enviado) {
+          console.error(`[Aviso] El docente ${nombres} se creó, pero falló el envío de correo a ${personal_email}.`);
+        }
+      });
+    // ========================================================
 
     res.status(201).json({ 
       message: "Expediente de docente y credenciales de usuario creados con éxito.", 
@@ -156,7 +178,7 @@ const updateDocente = async (req, res) => {
 
     let domicilio_completo = null;
     if (calle && numero && colonia && cp) {
-      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+      domicilio_completo = `${calle} Num. ${numero}, Col. Col. ${colonia}, C.P. ${cp}`;
     }
 
     const documentosNuevos = [];
@@ -182,16 +204,45 @@ const updateDocente = async (req, res) => {
 const deactivateDocente = async (req, res) => {
   try {
     const { id } = req.params;
-    const { eliminado_por, motivo_baja } = req.body;
+    const { eliminado_por, motivo_baja, confirmar_rechazo } = req.body;
 
     if (!eliminado_por) {
-      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja (eliminado_por)." });
+      return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja." });
     }
     
     if (!motivo_baja || motivo_baja.trim() === '') {
       return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
     }
 
+    // 1. Traemos todas las asignaciones del docente
+    const asignaciones = await assignmentModel.getAllAsignaciones({ docente_id: id });
+    
+    // Evaluamos el estatus de las que están ABIERTAS
+    const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
+    const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+    // SEMÁFORO ROJO: Bloquear si tiene clases aceptadas
+    if (tieneAceptadas) {
+      return res.status(409).json({ 
+        action: "BLOCK",
+        error: "Este docente tiene clases ACEPTADAS. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la Gestión de Asignaciones." 
+      });
+    }
+
+    // SEMÁFORO AMARILLO: Advertir si tiene clases enviadas y el usuario aún no confirma
+    if (tieneEnviadas && !confirmar_rechazo) {
+      return res.status(409).json({ 
+        action: "WARN",
+        error: "Este docente tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?" 
+      });
+    }
+
+    // Si el usuario confirmó la advertencia, usamos la nueva función de rechazo masivo
+    if (tieneEnviadas && confirmar_rechazo) {
+      await assignmentModel.rechazarAsignacionesPorDocente(id, eliminado_por);
+    }
+
+    // SEMÁFORO VERDE: Ejecutar la baja en el modelo de docentes
     const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
 
     if (affectedRows === 0) {
@@ -201,8 +252,88 @@ const deactivateDocente = async (req, res) => {
     res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
 
   } catch (error) {
-    console.error("Error crítico al dar de baja al docente (ID:", req.params.id, "):", error);
+    console.error("Error crítico al dar de baja al docente:", error);
     res.status(500).json({ error: "Error interno del servidor al procesar la baja del docente." });
+  }
+};
+
+// ✨ FUNCIONES EXCLUSIVAS PARA "MI PERFIL" DOCENTE ✨
+const getMiPerfil = async (req, res) => {
+  try {
+    const id_usuario = req.user.id_usuario; // Esto viene de tu token de login
+    
+    // Buscamos a todos y filtramos (funciona perfecto para el tamaño del sistema sin alterar el modelo)
+    const docentes = await docenteModel.getAllDocentes();
+    const miPerfil = docentes.find(d => d.usuario_id === id_usuario);
+
+    if (!miPerfil) return res.status(404).json({ error: "No se encontró tu expediente." });
+
+    res.status(200).json(miPerfil);
+  } catch (error) {
+    console.error("Error en getMiPerfil:", error);
+    res.status(500).json({ error: "Error al cargar tu perfil." });
+  }
+};
+
+const updateMiPerfil = async (req, res) => {
+  try {
+    const id_usuario = req.user.id_usuario;
+    const docentes = await docenteModel.getAllDocentes();
+    const miPerfil = docentes.find(d => d.usuario_id === id_usuario);
+
+    if (!miPerfil) return res.status(404).json({ error: "No se encontró tu expediente." });
+
+    // Extraemos SOLO lo que el docente SÍ tiene permiso de cambiar
+    const { celular, calle, numero, colonia, cp, nivel_academico } = req.body;
+
+    let domicilio_completo = miPerfil.domicilio;
+    if (calle && numero && colonia && cp) {
+      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+    }
+
+    const documentosNuevos = [];
+    if (req.files?.titulo) documentosNuevos.push({ tipo: 'TITULO', url: `/uploads/docentes/${req.files.titulo[0].filename}` });
+    if (req.files?.cedula) documentosNuevos.push({ tipo: 'CEDULA', url: `/uploads/docentes/${req.files.cedula[0].filename}` });
+    if (req.files?.sat) documentosNuevos.push({ tipo: 'CONSTANCIA_FISCAL', url: `/uploads/docentes/${req.files.sat[0].filename}` });
+    if (req.files?.ine) documentosNuevos.push({ tipo: 'INE', url: `/uploads/docentes/${req.files.ine[0].filename}` });
+    if (req.files?.domicilio) documentosNuevos.push({ tipo: 'COMPROBANTE_DOMICILIO', url: `/uploads/docentes/${req.files.domicilio[0].filename}` });
+    if (req.files?.cv) documentosNuevos.push({ tipo: 'CV', url: `/uploads/docentes/${req.files.cv[0].filename}` });
+
+    // 🛡️ REGLA DE SEGURIDAD (RBAC): Inyectamos los datos legales originales para que no se modifiquen
+    await docenteModel.updateDocente(miPerfil.id_docente, {
+      rfc: miPerfil.rfc,             
+      curp: miPerfil.curp,           
+      clave_ine: miPerfil.clave_ine, 
+      academia_id: miPerfil.academia_id, 
+      celular: celular || miPerfil.celular,
+      nivel_academico: nivel_academico || miPerfil.nivel_academico,
+      modificado_por: id_usuario,
+      domicilio: domicilio_completo,
+      documentos: documentosNuevos
+    });
+
+    res.status(200).json({ message: "Tu perfil se actualizó correctamente." });
+  } catch (error) {
+    console.error("Error al actualizar mi perfil:", error);
+    res.status(500).json({ error: "Error interno al actualizar tu perfil." });
+  }
+};
+
+const reactivateDocente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario_id = req.user?.id_usuario;
+
+    const affectedRows = await docenteModel.reactivateDocente(id, usuario_id);
+
+    if (affectedRows === 0) {
+      return res.status(404).json({ error: "Docente no encontrado o no se pudo reactivar." });
+    }
+
+    res.status(200).json({ message: "Docente reactivado exitosamente." });
+  } catch (error) {
+    console.error("Error al reactivar docente:", error);
+    res.status(500).json({ error: "Error interno del servidor al procesar la reactivación." });
   }
 };
 
@@ -212,5 +343,8 @@ module.exports = {
   getDocentes, 
   getUsuariosDisponibles, 
   updateDocente, 
-  deactivateDocente 
+  deactivateDocente,
+  getMiPerfil,      
+  updateMiPerfil,
+  reactivateDocente
 };
