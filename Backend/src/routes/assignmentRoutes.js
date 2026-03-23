@@ -3,6 +3,7 @@ const router = express.Router();
 const assignmentController = require('../controllers/assignmentController');
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 
+
 // ruta exclusiva para la API de sincronización externa (HU-37 / API-05)
 // el sistema externo consumirá: GET /api/asignaciones/sincronizacion?materia_id=X&grupo_id=Y
 router.get(
