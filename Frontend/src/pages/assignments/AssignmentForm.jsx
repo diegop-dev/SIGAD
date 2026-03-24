@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Plus, Trash2, Clock, CalendarDays, MapPin, User, BookOpen, Users, Loader2, AlertTriangle } from "lucide-react";
+import { Save, ArrowLeft, Plus, Trash2, Clock, CalendarDays, MapPin, User, BookOpen, Users, Loader2, AlertTriangle, Hash } from "lucide-react";
 import api from "../../services/api";
 
-// Formateador externo para no saturar la memoria del componente
 const formatTimeForInput = (timeString) => {
   if (!timeString) return "00:00";
   return timeString.substring(0, 5); 
@@ -23,14 +22,14 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   const [aulas, setAulas] = useState([]);
   const [carreras, setCarreras] = useState([]);
 
-  // 1. Inicializamos el estado del formulario
+  // 1. Estado del formulario
   const [formData, setFormData] = useState(() => {
     if (isEditing) {
       return {
         periodo_id: initialData.periodo_id,
-        grupo_id: initialData.grupo_id,
-        docente_id: initialData.docente_id,
         materia_id: initialData.materia_id,
+        grupo_id: initialData.grupo_id || "", // Permite null/vacío
+        docente_id: initialData.docente_id,
         horarios: initialData.horarios.map(h => ({
           dia_semana: Number(h.dia_semana),
           hora_inicio: formatTimeForInput(h.hora_inicio),
@@ -41,16 +40,16 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     }
     return {
       periodo_id: "",
+      materia_id: "",
       grupo_id: "",
       docente_id: "",
-      materia_id: "",
       horarios: [
         { dia_semana: 1, hora_inicio: "08:00", hora_fin: "10:00", aula_id: "" }
       ]
     };
   });
 
-  // 2. Tomamos una "fotografía" estricta de cómo venían los datos originalmente
+  // 2. Fotografía estricta de cambios
   const originalHorarios = useMemo(() => {
     if (!isEditing || !initialData) return [];
     return initialData.horarios.map(h => ({
@@ -61,18 +60,13 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     }));
   }, [initialData, isEditing]);
 
-  // 3. Motor que evalúa si hubo cambios reales bloque por bloque
   const hasChanges = useMemo(() => {
-    if (!isEditing) return true; // Si estamos creando, siempre se asume que hay "cambios"
-    
-    // Si agregaron o quitaron bloques, definitivamente hay cambios
+    if (!isEditing) return true;
     if (formData.horarios.length !== originalHorarios.length) return true;
 
-    // Evaluamos bloque por bloque para detectar modificaciones mínimas en horas, días o aulas
     for (let i = 0; i < formData.horarios.length; i++) {
       const current = formData.horarios[i];
       const original = originalHorarios[i];
-
       const currentAula = current.aula_id === "" ? "" : Number(current.aula_id);
 
       if (
@@ -84,8 +78,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         return true;
       }
     }
-    
-    return false; // Si sobrevive al ciclo, los datos son exactamente iguales
+    return false; 
   }, [formData.horarios, originalHorarios, isEditing]);
 
 
@@ -116,27 +109,43 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     fetchCatalogs();
   }, []);
 
-  const docentesFiltrados = useMemo(() => {
-    if (!formData.grupo_id) return [];
-    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
-    if (!grupoSeleccionado) return [];
-    const carreraDelGrupo = carreras.find(c => Number(c.id_carrera) === Number(grupoSeleccionado.carrera_id));
-    if (!carreraDelGrupo) return [];
-    return docentes.filter(d => Number(d.academia_id) === Number(carreraDelGrupo.academia_id));
-  }, [docentes, grupos, carreras, formData.grupo_id]);
+  // ✨ IDENTIFICAMOS SI LA MATERIA SELECCIONADA ES TRONCO COMÚN
+  const materiaSeleccionada = useMemo(() => {
+    if (!formData.materia_id) return null;
+    return materias.find(m => Number(m.id_materia) === Number(formData.materia_id));
+  }, [formData.materia_id, materias]);
 
-  const materiasFiltradas = useMemo(() => {
-    if (!formData.grupo_id) return [];
-    const grupoSeleccionado = grupos.find(g => Number(g.id_grupo) === Number(formData.grupo_id));
-    if (!grupoSeleccionado) return [];
-    return materias.filter(m => 
-      (Number(m.carrera_id) === Number(grupoSeleccionado.carrera_id) && Number(m.cuatrimestre_id) === Number(grupoSeleccionado.cuatrimestre_id)) || 
-      m.tipo_asignatura === 'TRONCO_COMUN'
+  const isTroncoComun = materiaSeleccionada?.tipo_asignatura === 'TRONCO_COMUN';
+
+  // ✨ FILTRO DE GRUPOS: Si es tronco común, no aplica grupo. Si es carrera, mostramos los grupos de esa carrera y cuatrimestre
+  const gruposFiltrados = useMemo(() => {
+    if (!materiaSeleccionada || isTroncoComun) return [];
+    return grupos.filter(g => 
+      Number(g.carrera_id) === Number(materiaSeleccionada.carrera_id) && 
+      Number(g.cuatrimestre_id) === Number(materiaSeleccionada.cuatrimestre_id)
     );
-  }, [materias, grupos, formData.grupo_id]);
+  }, [grupos, materiaSeleccionada, isTroncoComun]);
+
+  // ✨ FILTRO DE DOCENTES
+  const docentesFiltrados = useMemo(() => {
+    if (!materiaSeleccionada) return [];
+
+    let academiaAFiltrar = null;
+
+    if (isTroncoComun) {
+      // Si es tronco común, permitimos cualquier docente o podrías filtrarlo por alguna academia general si existiera
+      return docentes; 
+    } else {
+      // Si es materia normal, el docente debe ser de la misma academia que la carrera
+      const carreraDeLaMateria = carreras.find(c => Number(c.id_carrera) === Number(materiaSeleccionada.carrera_id));
+      if (!carreraDeLaMateria) return [];
+      academiaAFiltrar = carreraDeLaMateria.academia_id;
+      return docentes.filter(d => Number(d.academia_id) === Number(academiaAFiltrar));
+    }
+  }, [docentes, materiaSeleccionada, carreras, isTroncoComun]);
+
 
   const handleChange = (e) => {
-    // Si estamos editando, bloqueamos la modificación de la agrupación principal
     if (isEditing) return;
 
     const { name, value } = e.target;
@@ -144,10 +153,13 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     
     setFormData(prev => {
       const newData = { ...prev, [name]: finalValue };
-      if (name === 'grupo_id') {
-        newData.materia_id = "";
+      
+      // Si cambiamos la materia, reseteamos el grupo y el docente porque el contexto cambia
+      if (name === 'materia_id') {
+        newData.grupo_id = "";
         newData.docente_id = "";
       }
+
       return newData;
     });
 
@@ -184,9 +196,13 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     const { periodo_id, docente_id, materia_id, grupo_id, horarios } = formData;
 
     if (!periodo_id) newErrors.periodo_id = "Seleccione un periodo";
-    if (!grupo_id) newErrors.grupo_id = "Seleccione un grupo";
-    if (!docente_id) newErrors.docente_id = "Seleccione un docente";
     if (!materia_id) newErrors.materia_id = "Seleccione una materia";
+    if (!docente_id) newErrors.docente_id = "Seleccione un docente";
+    
+    // ✨ VALIDACIÓN CONDICIONAL: El grupo solo es obligatorio si NO es Tronco Común
+    if (!isTroncoComun && !grupo_id) {
+      newErrors.grupo_id = "Seleccione un grupo";
+    }
 
     horarios.forEach((h, index) => {
       if (!h.hora_inicio) newErrors[`horario_${index}_hora_inicio`] = "Requerido";
@@ -201,7 +217,6 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Doble candado de seguridad: evitamos someter el form si no hay cambios
     if (isEditing && !hasChanges) {
       toast.error("No has realizado ninguna modificación en los horarios.", { icon: 'ℹ️' });
       return;
@@ -264,6 +279,8 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* 1. PERIODO */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <CalendarDays className="w-4 h-4 mr-2 text-blue-500" /> Periodo escolar
@@ -283,50 +300,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.periodo_id && <p className="text-xs font-bold text-red-500">{errores.periodo_id}</p>}
             </div>
 
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado
-              </label>
-              <select 
-                name="grupo_id" 
-                value={formData.grupo_id} 
-                onChange={handleChange} 
-                disabled={cargandoCatalogos || isEditing}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.grupo_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                } disabled:bg-slate-100 disabled:text-slate-500`}
-              >
-                <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione el grupo --"}</option>
-                {grupos.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
-              </select>
-              {errores.grupo_id && <p className="text-xs font-bold text-red-500">{errores.grupo_id}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <User className="w-4 h-4 mr-2 text-blue-500" /> Docente titular
-              </label>
-              <select 
-                name="docente_id" 
-                value={formData.docente_id} 
-                onChange={handleChange} 
-                disabled={cargandoCatalogos || !formData.grupo_id || isEditing}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.docente_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                } disabled:bg-slate-100 disabled:text-slate-500`}
-              >
-                <option value="">
-                  {cargandoCatalogos 
-                    ? "Cargando..." 
-                    : !formData.grupo_id 
-                      ? "Seleccione un grupo primero" 
-                      : "-- Seleccione el docente --"}
-                </option>
-                {docentesFiltrados.map(d => <option key={d.id_docente} value={d.id_docente}>{d.nombres} {d.apellido_paterno}</option>)}
-              </select>
-              {errores.docente_id && <p className="text-xs font-bold text-red-500">{errores.docente_id}</p>}
-            </div>
-
+            {/* 2. ASIGNATURA (Primero la materia para definir el rumbo del form) */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Asignatura
@@ -335,7 +309,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                 name="materia_id" 
                 value={formData.materia_id} 
                 onChange={handleChange} 
-                disabled={cargandoCatalogos || !formData.grupo_id || isEditing}
+                disabled={cargandoCatalogos || !formData.periodo_id || isEditing}
                 className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.materia_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 } disabled:bg-slate-100 disabled:text-slate-500`}
@@ -343,14 +317,83 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                 <option value="">
                   {cargandoCatalogos 
                     ? "Cargando..." 
-                    : !formData.grupo_id 
-                      ? "Seleccione un grupo primero" 
+                    : !formData.periodo_id 
+                      ? "Seleccione un periodo primero" 
                       : "-- Seleccione la materia --"}
                 </option>
-                {materiasFiltradas.map(m => <option key={m.id_materia} value={m.id_materia}>{m.nombre}</option>)}
+                {/* ✨ REEMPLAZO DEL NOMBRE POR EL TIPO_ASIGNATURA ✨ */}
+                {materias.map(m => {
+                  // Reemplazamos los guiones bajos por espacios y ponemos tipo título
+                  const tipoFormateado = (m.tipo_asignatura || '').replace(/_/g, ' ');
+                  return (
+                    <option key={m.id_materia} value={m.id_materia}>
+                      {m.codigo_unico ? `${m.codigo_unico} ` : ''}({tipoFormateado})
+                    </option>
+                  );
+                })}
               </select>
               {errores.materia_id && <p className="text-xs font-bold text-red-500">{errores.materia_id}</p>}
             </div>
+
+            {/* 3. GRUPO (Dinámico) */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado
+              </label>
+              <select 
+                name="grupo_id" 
+                value={formData.grupo_id} 
+                onChange={handleChange} 
+                disabled={cargandoCatalogos || !formData.materia_id || isTroncoComun || isEditing}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.grupo_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                } disabled:bg-slate-100 disabled:text-slate-400`}
+              >
+                <option value="">
+                  {!formData.materia_id 
+                    ? "Seleccione una materia primero" 
+                    : isTroncoComun 
+                      ? "No aplica (Tronco Común)" 
+                      : "-- Seleccione el grupo --"}
+                </option>
+                {!isTroncoComun && gruposFiltrados.map(g => (
+                  <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>
+                ))}
+              </select>
+              {errores.grupo_id && <p className="text-xs font-bold text-red-500">{errores.grupo_id}</p>}
+            </div>
+
+            {/* 4. DOCENTE */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <User className="w-4 h-4 mr-2 text-blue-500" /> Docente titular
+              </label>
+              <select 
+                name="docente_id" 
+                value={formData.docente_id} 
+                onChange={handleChange} 
+                // Se habilita si seleccionó materia, y si no es tronco común, exige tener un grupo
+                disabled={cargandoCatalogos || !formData.materia_id || (!isTroncoComun && !formData.grupo_id) || isEditing}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.docente_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                } disabled:bg-slate-100 disabled:text-slate-500`}
+              >
+                <option value="">
+                  {cargandoCatalogos 
+                    ? "Cargando..." 
+                    : !formData.materia_id 
+                      ? "Seleccione materia y/o grupo primero" 
+                      : "-- Seleccione el docente --"}
+                </option>
+                {docentesFiltrados.map(d => (
+                  <option key={d.id_docente} value={d.id_docente}>
+                    {`${d.nombres} ${d.apellido_paterno} ${d.apellido_materno || ''}`.trim()} ({d.nivel_academico || 'LICENCIATURA'})
+                  </option>
+                ))}
+              </select>
+              {errores.docente_id && <p className="text-xs font-bold text-red-500">{errores.docente_id}</p>}
+            </div>
+
           </div>
 
           {isEditing && (
@@ -452,7 +495,6 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
           <div className="flex justify-end pt-6 border-t border-slate-100">
             <button 
               type="submit" 
-              // Bloqueamos el botón si no hay modificaciones reales en los datos
               disabled={isSubmitting || cargandoCatalogos || (isEditing && !hasChanges)} 
               className={`flex items-center px-8 py-3 rounded-xl font-bold shadow-md transition-all ${
                 isEditing && !hasChanges 

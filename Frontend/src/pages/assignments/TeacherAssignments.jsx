@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BookOpen, CalendarDays, MapPin, Clock, Loader2, CheckCircle2, XCircle, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { BookOpen, CalendarDays, MapPin, Clock, Loader2, CheckCircle2, XCircle, AlertCircle, Info, AlertTriangle, X, Hash } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -33,9 +33,24 @@ export const TeacherAssignments = () => {
         return;
       }
 
+      // Nos traemos las asignaciones de este docente
       const response = await api.get(`/asignaciones?docente_id=${miPerfilDocente.id_docente}`);
       const data = response.data.data || response.data;
-      setAsignacionesRaw(Array.isArray(data) ? data : []);
+      
+      // Hacemos una llamada extra al catálogo de materias para tener el "tipo_asignatura" exacto
+      const resMaterias = await api.get('/materias').catch(() => ({ data: [] }));
+      const materiasCatalogo = resMaterias.data?.data || resMaterias.data || [];
+
+      // Cruzamos los datos para inyectar el tipo de asignatura
+      const dataConTipo = (Array.isArray(data) ? data : []).map(asig => {
+        const materiaInfo = materiasCatalogo.find(m => m.id_materia === asig.materia_id);
+        return {
+          ...asig,
+          tipo_asignatura: materiaInfo ? materiaInfo.tipo_asignatura : 'DESCONOCIDO'
+        };
+      });
+
+      setAsignacionesRaw(dataConTipo);
     } catch (error) {
       console.error("Error al cargar mis asignaciones:", error);
       toast.error('Error al cargar tu carga académica.');
@@ -56,7 +71,7 @@ export const TeacherAssignments = () => {
     asignacionesRaw.forEach(item => {
       if (item.estatus_acta !== 'ABIERTA') return;
 
-      const compositeKey = `${item.periodo_id}_${item.materia_id}_${item.grupo_id}`;
+      const compositeKey = `${item.periodo_id}_${item.materia_id}_${item.grupo_id || 'NULL'}`;
 
       if (!agrupadas[compositeKey]) {
         agrupadas[compositeKey] = {
@@ -84,7 +99,7 @@ export const TeacherAssignments = () => {
         periodo_id: asignacion.periodo_id,
         materia_id: asignacion.materia_id,
         docente_id: asignacion.docente_id,
-        grupo_id: asignacion.grupo_id,
+        grupo_id: asignacion.grupo_id, // Puede ser null si es tronco común, el backend ya lo soporta
         estatus_confirmacion: nuevoEstatus
       });
 
@@ -106,6 +121,14 @@ export const TeacherAssignments = () => {
 
   const handleRechazarIntento = (asignacion) => {
     setRechazoModal({ isOpen: true, asignacion });
+  };
+
+  // ✨ COLORES DE LA INSIGNIA DEL TIPO DE ASIGNATURA ✨
+  const getTipoAsignaturaStyles = (tipo) => {
+    if (tipo === 'TRONCO_COMUN') return 'bg-white text-slate-700 border-slate-300';
+    if (tipo === 'OBLIGATORIA') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (tipo === 'OPTATIVA') return 'bg-purple-100 text-purple-700 border-purple-200';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
   return (
@@ -141,6 +164,10 @@ export const TeacherAssignments = () => {
             const isEnviada = asignacion.estatus_confirmacion === 'ENVIADA';
             const isAceptada = asignacion.estatus_confirmacion === 'ACEPTADA';
             const isRechazada = asignacion.estatus_confirmacion === 'RECHAZADA';
+            const nivelStr = (asignacion.nivel_academico || 'LICENCIATURA').toUpperCase();
+
+            // ✨ REGLA DE VISUALIZACIÓN: ¿Es tronco común global?
+            const esGrupoGlobal = !asignacion.grupo_id || asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL';
 
             return (
               <div key={index} className={`flex flex-col bg-white rounded-2xl shadow-sm border transition-all duration-200 ${
@@ -172,8 +199,34 @@ export const TeacherAssignments = () => {
                   <h3 className="text-lg font-black text-slate-800 leading-tight mt-1">
                     {asignacion.nombre_materia}
                   </h3>
-                  <p className="text-sm font-medium text-slate-500 mt-1">
-                    Grupo: <span className="text-slate-700 font-bold">{asignacion.nombre_grupo}</span>
+
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="flex items-center text-xs font-bold text-slate-500">
+                      {asignacion.codigo_unico || 'SIN CÓDIGO'}
+                    </span>
+                    
+                    {/* Insignia Nivel Académico */}
+                    <span className={`px-2 py-0.5 rounded-md border font-bold text-[10px] uppercase tracking-wider ${
+                      nivelStr === 'DOCTORADO' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                      nivelStr === 'MAESTRIA' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
+                      'bg-blue-100 text-blue-700 border-blue-200'
+                    }`}>
+                      {nivelStr}
+                    </span>
+
+                    {/* ✨ NUEVO: Insignia Tipo de Asignatura */}
+                    <span className={`px-2 py-0.5 rounded-md border font-bold text-[10px] uppercase tracking-wider ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
+                      {(asignacion.tipo_asignatura || 'DESCONOCIDO').replace(/_/g, ' ')}
+                    </span>
+                  </div>
+
+                  <p className="text-sm font-medium text-slate-500 mt-2.5">
+                    {/* ✨ Condicional para ocultar el grupo si es TRONCO COMÚN GLOBAL */}
+                    {esGrupoGlobal ? (
+                      <span className="text-slate-700 font-bold">Tronco Común (Multidisciplinar)</span>
+                    ) : (
+                      <>Grupo: <span className="text-slate-700 font-bold">{asignacion.nombre_grupo}</span></>
+                    )}
                   </p>
                 </div>
 
@@ -243,7 +296,8 @@ export const TeacherAssignments = () => {
             
             <div className="p-6">
               <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                Estás a punto de declinar impartir la materia <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_materia}</span> para el grupo <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_grupo}</span>.
+                Estás a punto de declinar impartir la materia <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_materia}</span>
+                {(!rechazoModal.asignacion.grupo_id || rechazoModal.asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL') ? '' : <span> para el grupo <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_grupo}</span></span>}.
               </p>
               <p className="text-xs text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100">
                 La coordinación será notificada inmediatamente y esta carga académica será reasignada. Esta acción no se puede deshacer.
