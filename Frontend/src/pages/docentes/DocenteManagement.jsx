@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, RotateCcw } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, RotateCcw, GraduationCap } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AltaDocente } from './AltaDocente';
@@ -23,6 +23,7 @@ export const DocenteManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [nivelFilter, setNivelFilter] = useState(''); // <-- NUEVO FILTRO DE NIVEL ACADÉMICO
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [modalHistorial, setModalHistorial] = useState(false);
@@ -53,10 +54,13 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
       const matchesSearch = fullName.includes(searchLower) || email.includes(searchLower) || matricula.includes(searchLower);
       const matchesStatus = statusFilter ? docente.estatus === statusFilter : true;
+      
+      // Ajustamos para que coincida con el nivel del docente (o asuma licenciatura por defecto si estuviera vacío)
+      const matchesNivel = nivelFilter ? (docente.nivel_academico || 'LICENCIATURA').toUpperCase() === nivelFilter : true;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && matchesNivel;
     });
-  }, [docentes, searchTerm, statusFilter]);
+  }, [docentes, searchTerm, statusFilter, nivelFilter]);
 
   const totalPages = Math.ceil(filteredDocentes.length / itemsPerPage) || 1;
   const paginatedDocentes = filteredDocentes.slice(
@@ -66,7 +70,7 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, nivelFilter]);
 
   const handleSuccessAction = () => {
     setShowForm(false);
@@ -153,8 +157,23 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
           />
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex items-center min-w-[200px]">
+        <div className="flex flex-wrap sm:flex-nowrap gap-4">
+          {/* NUEVO FILTRO: NIVEL ACADÉMICO DEL DOCENTE */}
+          <div className="relative flex items-center min-w-[180px]">
+            <GraduationCap className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+            <select
+              value={nivelFilter}
+              onChange={(e) => setNivelFilter(e.target.value)}
+              className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
+            >
+              <option value="">Niveles: Todos</option>
+              <option value="LICENCIATURA">Licenciatura</option>
+              <option value="MAESTRIA">Maestría</option>
+              <option value="DOCTORADO">Doctorado</option>
+            </select>
+          </div>
+
+          <div className="relative flex items-center min-w-[180px]">
             <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
               value={statusFilter}
@@ -206,74 +225,85 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
                   </td>
                 </tr>
               ) : (
-                paginatedDocentes.map((d) => (
-                  <tr key={d.id_docente} className="hover:bg-blue-50/50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-900">
-                        {d.nombres} {d.apellido_paterno} {d.apellido_materno}
-                      </div>
-                      <div className="text-xs text-slate-500">{d.institutional_email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-600">
-                      {d.matricula_empleado}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
-                        {d.nombre_academia || 'Sin asignar'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
-                        d.estatus === 'ACTIVO' 
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-                          : 'bg-red-100 text-red-800 border-red-200'
-                      }`}>
-                        {d.estatus}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex justify-center space-x-2">
-                        <button 
-                          title="Consultar expediente" 
-                          onClick={() => handleViewClick(d)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button 
-                          title="Actualizar expediente" 
-                          onClick={() => handleEditClick(d)}
-                          className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button 
+                paginatedDocentes.map((d) => {
+                  const nivelStr = (d.nivel_academico || 'LICENCIATURA').toUpperCase();
+                  return (
+                    <tr key={d.id_docente} className="hover:bg-blue-50/50 transition-colors duration-150">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-bold text-slate-900">
+                          {d.nombres} {d.apellido_paterno} {d.apellido_materno}
+                        </div>
+                        <div className="text-xs text-slate-500 mb-1">{d.institutional_email}</div>
+                        {/* INSIGNIA DE NIVEL ACADÉMICO */}
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                          nivelStr === 'DOCTORADO' ? 'bg-purple-100 text-purple-700' :
+                          nivelStr === 'MAESTRIA' ? 'bg-amber-100 text-amber-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {nivelStr}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-600">
+                        {d.matricula_empleado}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+                          {d.nombre_academia || 'Sin asignar'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
+                          d.estatus === 'ACTIVO' 
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                            : 'bg-red-100 text-red-800 border-red-200'
+                        }`}>
+                          {d.estatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex justify-center space-x-2">
+                          <button 
+                            title="Consultar expediente" 
+                            onClick={() => handleViewClick(d)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button 
+                            title="Actualizar expediente" 
+                            onClick={() => handleEditClick(d)}
+                            className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button 
                             onClick={() => { setDocenteSeleccionado(d); setModalHistorial(true); }}
                             className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-all" title="Ver Historial"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {d.estatus === 'ACTIVO' ? (
-                            <button
-                              title="Dar de baja docente"
-                              onClick={() => setDocenteToDeactivate(d)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          ) : (
-                            <button
-                              title="Reactivar docente"
-                              onClick={() => setDocenteToReactivate(d)}
-                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                            >
-                              <RotateCcw className="w-5 h-5" />
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                            {d.estatus === 'ACTIVO' ? (
+                              <button
+                                title="Dar de baja docente"
+                                onClick={() => setDocenteToDeactivate(d)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            ) : (
+                              <button
+                                title="Reactivar docente"
+                                onClick={() => setDocenteToReactivate(d)}
+                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                              >
+                                <RotateCcw className="w-5 h-5" />
+                              </button>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

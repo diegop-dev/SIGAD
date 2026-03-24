@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, CalendarDays, Loader2, Calendar, MapPin, User, BookOpen, ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle, X, FileText } from 'lucide-react';
+import { Plus, Search, Filter, CalendarDays, Loader2, Calendar, MapPin, User, BookOpen, ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle, X, Hash, RefreshCcw, Users, FileText } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AssignmentForm } from './AssignmentForm';
@@ -12,15 +12,19 @@ export const AssignmentManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [asignacionToEdit, setAsignacionToEdit] = useState(null); 
   const [asignacionesRaw, setAsignacionesRaw] = useState([]); 
+  const [materiasLista, setMateriasLista] = useState([]); // ✨ NUEVO: Guardamos las materias para extraer su tipo
   const [periodosLista, setPeriodosLista] = useState([]);
+  const [gruposLista, setGruposLista] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [periodoFilter, setPeriodoFilter] = useState('');
   
-  // NUEVOS ESTADOS: Filtros separados
+  // Filtros separados
   const [operativoFilter, setOperativoFilter] = useState('');
   const [confirmacionFilter, setConfirmacionFilter] = useState('');
+  const [nivelFilter, setNivelFilter] = useState(''); 
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -29,6 +33,12 @@ export const AssignmentManagement = () => {
     isOpen: false,
     isCanceling: false,
     asignacion: null
+  });
+
+  const [syncModal, setSyncModal] = useState({
+    isOpen: false,
+    periodo_id: '',
+    grupo_id: ''
   });
 
   const fetchAsignaciones = async () => {
@@ -46,29 +56,65 @@ export const AssignmentManagement = () => {
     }
   };
 
-  const fetchPeriodosFiltro = async () => {
+  const fetchCatalogosFiltrosYSync = async () => {
     try {
-      const response = await api.get('/periodos');
-      const data = response.data.data || response.data;
-      setPeriodosLista(Array.isArray(data) ? data : []);
+      const [resPeriodos, resGrupos, resMaterias] = await Promise.all([
+        api.get('/periodos'),
+        api.get('/grupos'),
+        api.get('/materias')
+      ]);
+      const dataPeriodos = resPeriodos.data.data || resPeriodos.data;
+      const dataGrupos = resGrupos.data.data || resGrupos.data;
+      const dataMaterias = resMaterias.data.data || resMaterias.data;
+      
+      setPeriodosLista(Array.isArray(dataPeriodos) ? dataPeriodos : []);
+      setGruposLista(Array.isArray(dataGrupos) ? dataGrupos : []);
+      setMateriasLista(Array.isArray(dataMaterias) ? dataMaterias : []);
     } catch (error) {
-      console.error("Error al cargar periodos para el filtro:", error);
+      console.error("Error al cargar catálogos:", error);
     }
   };
 
   useEffect(() => {
     fetchAsignaciones();
-    fetchPeriodosFiltro();
+    fetchCatalogosFiltrosYSync();
   }, []);
 
-  // MOTOR DE AGRUPACIÓN CORREGIDO
+  const handleSincronizarReportes = async () => {
+    if (!syncModal.periodo_id || !syncModal.grupo_id) {
+      toast.error("Por favor, selecciona un Periodo y un Grupo.");
+      return;
+    }
+
+    setIsSyncing(true);
+    const toastId = toast.loading('Conectando vía VPN con el sistema externo...');
+    
+    try {
+      const endpoint = `/asignaciones/recepcion?grupo_id=${syncModal.grupo_id}&periodo_id=${syncModal.periodo_id}`;
+      const response = await api.get(endpoint);
+      
+      toast.success(response.data.message || 'Sincronización exitosa', { id: toastId, duration: 4000 });
+      
+      setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' });
+      fetchAsignaciones();
+    } catch (error) {
+      console.error("Error al sincronizar reportes:", error);
+      toast.error(error.response?.data?.error || 'Error al sincronizar reportes', { id: toastId });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const asignacionesAgrupadas = useMemo(() => {
     const agrupadasActivas = {};
     const agrupadasCerradas = {};
 
-    // 1. Separar filas activas de las cerradas (historial)
     asignacionesRaw.forEach(item => {
-      const compositeKey = `${item.periodo_id}_${item.docente_id}_${item.materia_id}_${item.grupo_id}`;
+      // Cruzamos con materiasLista para obtener el tipo de asignatura
+      const materiaEncontrada = materiasLista.find(m => m.id_materia === item.materia_id);
+      const tipoAsignatura = materiaEncontrada ? materiaEncontrada.tipo_asignatura : 'DESCONOCIDO';
+
+      const compositeKey = `${item.periodo_id}_${item.docente_id}_${item.materia_id}_${item.grupo_id || 'NULL'}`;
       const horarioData = {
         id_asignacion: item.id_asignacion,
         dia_semana: item.dia_semana,
@@ -78,23 +124,23 @@ export const AssignmentManagement = () => {
         nombre_aula: item.nombre_aula
       };
 
+      const baseItem = { ...item, tipo_asignatura: tipoAsignatura };
+
       if (item.estatus_acta !== 'CERRADA') {
         if (!agrupadasActivas[compositeKey]) {
-          agrupadasActivas[compositeKey] = { ...item, horarios: [] };
+          agrupadasActivas[compositeKey] = { ...baseItem, horarios: [] };
         }
         agrupadasActivas[compositeKey].horarios.push(horarioData);
       } else {
         if (!agrupadasCerradas[compositeKey]) {
-          agrupadasCerradas[compositeKey] = { ...item, horarios: [] };
+          agrupadasCerradas[compositeKey] = { ...baseItem, horarios: [] };
         }
         agrupadasCerradas[compositeKey].horarios.push(horarioData);
       }
     });
 
-    // 2. Consolidar: Mostramos todas las activas
     const result = Object.values(agrupadasActivas);
 
-    // 3. Solo agregamos al listado las CERRADAS si NO existe una versión ACTIVA para esa materia/grupo.
     Object.keys(agrupadasCerradas).forEach(key => {
       if (!agrupadasActivas[key]) {
         result.push(agrupadasCerradas[key]);
@@ -102,25 +148,25 @@ export const AssignmentManagement = () => {
     });
 
     return result;
-  }, [asignacionesRaw]);
+  }, [asignacionesRaw, materiasLista]);
 
-  // MOTOR DE BÚSQUEDA Y FILTRADO (Actualizado para filtros independientes)
   const filteredAsignaciones = useMemo(() => {
     return asignacionesAgrupadas.filter(asignacion => {
       const busqueda = searchTerm.toLowerCase();
-      const nombreDocente = `${asignacion.docente_nombres || ''} ${asignacion.docente_apellido_paterno || ''}`.toLowerCase();
+      const nombreDocente = `${asignacion.docente_nombres || ''} ${asignacion.docente_apellido_paterno || ''} ${asignacion.docente_apellido_materno || ''}`.toLowerCase();
       const nombreMateria = asignacion.nombre_materia?.toLowerCase() || '';
+      const codigoMateria = asignacion.codigo_unico?.toLowerCase() || '';
       const nombreGrupo = asignacion.nombre_grupo?.toLowerCase() || '';
 
-      const coincideBusqueda = nombreDocente.includes(busqueda) || nombreMateria.includes(busqueda) || nombreGrupo.includes(busqueda);
+      const coincideBusqueda = nombreDocente.includes(busqueda) || nombreMateria.includes(busqueda) || codigoMateria.includes(busqueda) || nombreGrupo.includes(busqueda);
       const coincidePeriodo = periodoFilter ? asignacion.nombre_periodo === periodoFilter : true;
-      
       const coincideOperativo = operativoFilter ? asignacion.estatus_acta === operativoFilter : true;
       const coincideConfirmacion = confirmacionFilter ? asignacion.estatus_confirmacion === confirmacionFilter : true;
+      const coincideNivel = nivelFilter ? (asignacion.nivel_academico || 'LICENCIATURA') === nivelFilter : true;
 
-      return coincideBusqueda && coincidePeriodo && coincideOperativo && coincideConfirmacion;
+      return coincideBusqueda && coincidePeriodo && coincideOperativo && coincideConfirmacion && coincideNivel;
     });
-  }, [asignacionesAgrupadas, searchTerm, periodoFilter, operativoFilter, confirmacionFilter]);
+  }, [asignacionesAgrupadas, searchTerm, periodoFilter, operativoFilter, confirmacionFilter, nivelFilter]);
 
   const totalPages = Math.ceil(filteredAsignaciones.length / itemsPerPage) || 1;
   const paginatedAsignaciones = filteredAsignaciones.slice(
@@ -128,10 +174,9 @@ export const AssignmentManagement = () => {
     currentPage * itemsPerPage
   );
 
-  // Reiniciar a la primera página si cambia cualquier filtro
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, periodoFilter, operativoFilter, confirmacionFilter]);
+  }, [searchTerm, periodoFilter, operativoFilter, confirmacionFilter, nivelFilter]);
 
   const handleSuccessAction = () => {
     setShowForm(false);
@@ -207,6 +252,14 @@ export const AssignmentManagement = () => {
     );
   };
 
+  // ✨ COLORES ACTUALIZADOS DE LA INSIGNIA DEL TIPO DE ASIGNATURA ✨
+  const getTipoAsignaturaStyles = (tipo) => {
+    if (tipo === 'TRONCO_COMUN') return 'bg-white text-slate-700 border-slate-300';
+    if (tipo === 'OBLIGATORIA') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (tipo === 'OPTATIVA') return 'bg-purple-100 text-purple-700 border-purple-200';
+    return 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
   const diasSemanaMapa = {
     1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado"
   };
@@ -232,23 +285,31 @@ export const AssignmentManagement = () => {
           <p className="mt-1 text-sm text-slate-500 font-medium">Administra la distribución de horarios, docentes y aulas.</p>
         </div>
         {(user?.rol_id === 1 || user?.rol_id === 2) && (
-          <button 
-            onClick={() => { setAsignacionToEdit(null); setShowForm(true); }} 
-            className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
-          >
-            <Plus className="w-5 h-5 mr-2" /> Nueva asignación
-          </button>
-          
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setSyncModal({ ...syncModal, isOpen: true })}
+              className="flex items-center px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all duration-200 shadow-sm font-bold"
+            >
+              <RefreshCcw className="w-4 h-4 mr-2 text-slate-500" /> 
+              Sincronizar Incumplimientos
+            </button>
+
+            <button 
+              onClick={() => { setAsignacionToEdit(null); setShowForm(true); }} 
+              className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
+            >
+              <Plus className="w-5 h-5 mr-2" /> Nueva asignación
+            </button>
+          </div>
         )}
       </div>
           <button 
             onClick={() => setModalReporte(true)}
             className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-all shadow-md active:scale-95"
           >
-            <FileText className="w-5 h-5" />
-            Generar Reporte
+            <FileText className="w-5 h-5" /> Generar Reporte
           </button>
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:flex-row gap-4">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
         {/* Barra de Búsqueda */}
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -263,10 +324,18 @@ export const AssignmentManagement = () => {
           />
         </div>
         
-        {/* Controles de Filtros */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex items-center min-w-[180px]">
-            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+        <div className="flex flex-wrap sm:flex-nowrap gap-4">
+          <select
+            value={nivelFilter}
+            onChange={(e) => setNivelFilter(e.target.value)}
+            className="block w-full sm:w-auto min-w-[140px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+          >
+            <option value="">Nivel: Todos</option>
+            <option value="LICENCIATURA">Licenciatura</option>
+            <option value="MAESTRIA">Maestría</option>
+          </select>
+
+          <div className="relative flex items-center w-full sm:w-auto min-w-[160px]">
             <select
               value={periodoFilter}
               onChange={(e) => setPeriodoFilter(e.target.value)}
@@ -284,7 +353,7 @@ export const AssignmentManagement = () => {
           <select
             value={operativoFilter}
             onChange={(e) => setOperativoFilter(e.target.value)}
-            className="block w-full min-w-[160px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+            className="block w-full sm:w-auto min-w-[160px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
             <option value="">Acta: Todos</option>
             <option value="ABIERTA">Abierta</option>
@@ -294,7 +363,7 @@ export const AssignmentManagement = () => {
           <select
             value={confirmacionFilter}
             onChange={(e) => setConfirmacionFilter(e.target.value)}
-            className="block w-full min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+            className="block w-full sm:w-auto min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
             <option value="">Confirmación: Todos</option>
             <option value="ENVIADA">Enviada</option>
@@ -343,30 +412,40 @@ export const AssignmentManagement = () => {
                 </tr>
               ) : (
                 paginatedAsignaciones.map((asignacion) => {
-                  const compositeKey = `${asignacion.periodo_id}_${asignacion.docente_id}_${asignacion.materia_id}_${asignacion.grupo_id}`;
+                  const compositeKey = `${asignacion.periodo_id}_${asignacion.docente_id}_${asignacion.materia_id}_${asignacion.grupo_id || 'NULL'}`;
                   const isCancelada = asignacion.estatus_acta === 'CERRADA';
+                  const tieneReporteExterno = asignacion.tiene_reporte_externo === 1;
+
+                  const esGrupoGlobal = !asignacion.grupo_id || asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL';
 
                   return (
                     <tr key={compositeKey} className={`transition-colors duration-150 group ${isCancelada ? 'bg-slate-50 opacity-75' : 'hover:bg-blue-50/50'}`}>
                       
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center mr-3 ${isCancelada ? 'bg-slate-200 text-slate-400' : 'bg-slate-200 text-slate-500'}`}>
-                            <User className="h-4 w-4" />
-                          </div>
-                          <span className={`font-bold ${isCancelada ? 'text-slate-500' : 'text-slate-900'}`}>
-                            {asignacion.docente_nombres} {asignacion.docente_apellido_paterno}
-                          </span>
-                        </div>
+                        <span className={`text-sm font-bold ${isCancelada ? 'text-slate-500' : 'text-slate-900'}`}>
+                          {`${asignacion.docente_nombres} ${asignacion.docente_apellido_paterno} ${asignacion.docente_apellido_materno || ''}`.trim()}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4">
-                        <div className={`text-sm font-bold flex items-center break-words max-w-[250px] ${isCancelada ? 'text-slate-500' : 'text-slate-800'}`}>
-                          <BookOpen className={`w-4 h-4 mr-1.5 shrink-0 ${isCancelada ? 'text-slate-400' : 'text-blue-500'}`}/> 
-                          <span className="truncate" title={asignacion.nombre_materia}>{asignacion.nombre_materia}</span>
+                        <div className={`text-sm font-bold flex items-start break-words max-w-[250px] ${isCancelada ? 'text-slate-500' : 'text-slate-800'}`}>
+                          <div>
+                            {asignacion.nombre_materia}
+                            <div className={`flex items-center text-xs font-medium mt-1 ${isCancelada ? 'text-slate-400' : 'text-slate-500'}`}>
+                              {asignacion.codigo_unico || 'SIN CÓDIGO'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-xs text-slate-500 font-medium mt-1">
-                          Grupo: {asignacion.nombre_grupo} <span className="mx-1">•</span> {asignacion.nombre_periodo}
+                        <div className="text-xs text-slate-500 font-medium mt-2 flex flex-wrap items-center gap-2">
+                          <span>{esGrupoGlobal ? asignacion.nombre_periodo : `Grupo: ${asignacion.nombre_grupo} • ${asignacion.nombre_periodo}`}</span>
+                          
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${asignacion.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                            {asignacion.nivel_academico || 'LICENCIATURA'}
+                          </span>
+
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
+                            {(asignacion.tipo_asignatura || 'DESCONOCIDO').replace(/_/g, ' ')}
+                          </span>
                         </div>
                       </td>
 
@@ -384,13 +463,21 @@ export const AssignmentManagement = () => {
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {isCancelada ? (
-                          <span className="px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border bg-slate-100 text-slate-600 border-slate-300">
-                            CERRADA
-                          </span>
-                        ) : (
-                          getStatusBadge(asignacion.estatus_confirmacion)
-                        )}
+                        <div className="flex flex-col items-start gap-2">
+                          {isCancelada ? (
+                            <span className="px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border bg-slate-100 text-slate-600 border-slate-300">
+                              CERRADA
+                            </span>
+                          ) : (
+                            getStatusBadge(asignacion.estatus_confirmacion)
+                          )}
+
+                          {tieneReporteExterno && (
+                            <span className="px-2 py-0.5 inline-flex items-center text-[10px] font-bold uppercase tracking-wider rounded border bg-red-50 text-red-700 border-red-200 shadow-sm animate-pulse">
+                              <AlertTriangle className="w-3 h-3 mr-1" /> Reporte Externo
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {(user?.rol_id === 1 || user?.rol_id === 2) && (
@@ -466,6 +553,76 @@ export const AssignmentManagement = () => {
         )}
       </div>
 
+      {syncModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-800 flex items-center">
+                <RefreshCcw className="w-5 h-5 mr-2 text-blue-600" /> Sincronización externa
+              </h3>
+              <button 
+                onClick={() => setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' })} 
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-slate-600 text-sm mb-2 leading-relaxed">
+                Selecciona el grupo y el periodo para consultar los estatus de incumplimiento en el sistema externo.
+              </p>
+              
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-bold text-slate-700">
+                  <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Periodo académico
+                </label>
+                <select 
+                  value={syncModal.periodo_id} 
+                  onChange={(e) => setSyncModal({ ...syncModal, periodo_id: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 bg-white"
+                >
+                  <option value="">-- Seleccione un periodo --</option>
+                  {periodosLista.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-bold text-slate-700">
+                  <Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado
+                </label>
+                <select 
+                  value={syncModal.grupo_id} 
+                  onChange={(e) => setSyncModal({ ...syncModal, grupo_id: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 bg-white"
+                >
+                  <option value="">-- Seleccione un grupo --</option>
+                  {gruposLista.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' })}
+                className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSincronizarReportes}
+                disabled={isSyncing || !syncModal.periodo_id || !syncModal.grupo_id}
+                className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shadow-sm flex items-center"
+              >
+                {isSyncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {isSyncing ? 'Conectando...' : 'Iniciar sincronización'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación de cancelacion/reactivacion */}
       {confirmModal.isOpen && confirmModal.asignacion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -484,7 +641,7 @@ export const AssignmentManagement = () => {
             
             <div className="p-6">
               <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                Estás a punto de {confirmModal.isCanceling ? <strong className="text-red-600">cancelar (borrado lógico)</strong> : <strong className="text-emerald-600">reactivar</strong>} la asignación de la materia <span className="font-bold text-slate-900">{confirmModal.asignacion.nombre_materia}</span> impartida por el docente <span className="font-bold text-slate-900">{confirmModal.asignacion.docente_nombres} {confirmModal.asignacion.docente_apellido_paterno}</span> para el grupo <span className="font-bold text-slate-900">{confirmModal.asignacion.nombre_grupo}</span>.
+                Estás a punto de {confirmModal.isCanceling ? <strong className="text-red-600">cancelar (borrado lógico)</strong> : <strong className="text-emerald-600">reactivar</strong>} la asignación de la materia <span className="font-bold text-slate-900">{confirmModal.asignacion.nombre_materia}</span> impartida por el docente <span className="font-bold text-slate-900">{confirmModal.asignacion.docente_nombres} {confirmModal.asignacion.docente_apellido_paterno}</span> {confirmModal.asignacion.grupo_id ? <span>para el grupo <span className="font-bold text-slate-900">{confirmModal.asignacion.nombre_grupo}</span></span> : <span>(Tronco Común)</span>}.
               </p>
               {confirmModal.isCanceling ? (
                 <p className="text-xs text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100">

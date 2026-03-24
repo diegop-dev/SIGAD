@@ -12,6 +12,16 @@ router.get(
   assignmentController.getAsignacionesParaSincronizacion
 );
 
+// ==========================================
+// ✨ NUEVO: API de recepción de estatus de incumplimiento (HU-39 / API-01)
+// ==========================================
+router.get(
+  '/recepcion',
+  verifyToken,
+  requireRole([1, 2]), // Solo administradores pueden detonar/recibir esta sincronización
+  assignmentController.sincronizarReportesExternos
+);
+
 // HU-33: Crear asignación docente (solo SuperAdmin y Admin)
 router.post(
   '/', 
