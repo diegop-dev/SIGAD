@@ -17,6 +17,7 @@ import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
 import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
 import { MiPerfil } from "./pages/docentes/MiPerfil"; 
 
+
 function App() {
   return (
     <>
@@ -47,6 +48,7 @@ function App() {
               <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/grupos" element={<GrupoManagement />} />
               <Route path="/asignaciones" element={<AssignmentManagement />} />
+              
             </Route>
 
             {/* 3. Rutas específicas para docentes (rol_id = 3) */}

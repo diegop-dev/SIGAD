@@ -12,15 +12,16 @@ const carreraModel = {
     }
   },
 
-  findExistingCarrera: async (nombre_carrera, modalidad) => {
+  // MODIFICADO: Agregamos nivel_academico para evitar colisiones entre Licenciaturas y Maestrías con el mismo nombre
+  findExistingCarrera: async (nombre_carrera, modalidad, nivel_academico) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(
         `SELECT id_carrera, nombre_carrera 
          FROM carreras 
-         WHERE nombre_carrera = ? AND modalidad = ? LIMIT 1`,
-        [nombre_carrera, modalidad],
+         WHERE nombre_carrera = ? AND modalidad = ? AND nivel_academico = ? LIMIT 1`,
+        [nombre_carrera, modalidad, nivel_academico],
       );
       return rows[0];
     } finally {
@@ -28,7 +29,7 @@ const carreraModel = {
     }
   },
 
-verificarSiglasExistentes: async (siglas, excluir_id = null) => {
+  verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -61,15 +62,16 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     }
   },
 
+  // MODIFICADO: Incluye nivel_academico en la inserción
   crearCarrera: async (datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, creado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
-        `INSERT INTO carreras (codigo_unico, nombre_carrera, modalidad, academia_id, estatus, creado_por, fecha_creacion)
-         VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, creado_por],
+        `INSERT INTO carreras (codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, estatus, creado_por, fecha_creacion)
+         VALUES (?, ?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
+        [codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, creado_por],
       );
       return result;
     } finally {
@@ -77,9 +79,7 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     }
   },
 
-  // ==========================================
-  // SE ACTUALIZÓ PARA ACEPTAR periodo_id (HU-41)
-  // ==========================================
+  // MODIFICADO: Incluye c.nivel_academico en las extracciones
   getAllCarreras: async (periodo_id = null) => {
     let conn;
     try {
@@ -93,6 +93,7 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
             c.codigo_unico,
             c.nombre_carrera, 
             c.modalidad,
+            c.nivel_academico,
             c.estatus,
             c.academia_id
           FROM carreras c
@@ -109,6 +110,7 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
             c.codigo_unico,
             c.nombre_carrera, 
             c.modalidad,
+            c.nivel_academico,
             c.estatus,
             c.academia_id, 
             a.nombre AS nombre_academia
@@ -134,17 +136,17 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     }
   },
 
-  // MÉTODOS PARA MODIFICAR Y ELIMINAR 
+  // MODIFICADO: Incluye nivel_academico en la actualización
   actualizarCarrera: async (id_carrera, datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, nivel_academico = ?, modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por, id_carrera]
+        [codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por, id_carrera]
       );
       return result;
     } finally {

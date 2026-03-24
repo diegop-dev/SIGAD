@@ -336,6 +336,64 @@ const reactivateDocente = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor al procesar la reactivación." });
   }
 };
+const pool = require('../config/database');
+
+const obtenerHistorialDocente = async (req, res) => {
+  const { id_docente } = req.params;
+
+  try {
+    // 1. Obtener el perfil del docente y calcular su antigüedad
+    const queryPerfil = `
+      SELECT 
+        d.id_docente, 
+        d.matricula_empleado, 
+        d.nivel_academico, 
+        d.antiguedad_fecha,
+        u.nombres, 
+        u.apellido_paterno, 
+        u.apellido_materno,
+        TIMESTAMPDIFF(YEAR, d.antiguedad_fecha, CURDATE()) AS anos_antiguedad
+      FROM Docentes d
+      JOIN Usuarios u ON d.usuario_id = u.id_usuario
+      WHERE d.id_docente = ?
+    `;
+    const perfil = await pool.query(queryPerfil, [id_docente]);
+
+    if (perfil.length === 0) {
+      return res.status(404).json({ message: "Docente no encontrado." });
+    }
+
+    // 2. Obtener el historial de materias impartidas y promedios
+    const queryHistorial = `
+      SELECT 
+        p.codigo AS periodo,
+        p.anio,
+        m.nombre AS materia,
+        g.identificador AS grupo,
+        a.promedio_consolidado,
+        a.estatus_acta
+      FROM Asignaciones a
+      JOIN Materias m ON a.materia_id = m.id_materia
+      JOIN Grupos g ON a.grupo_id = g.id_grupo
+      JOIN Periodos p ON a.periodo_id = p.id_periodo
+      WHERE a.docente_id = ? AND a.estatus_acta IN ('CERRADA', 'HISTORIAL')
+      ORDER BY p.fecha_inicio DESC
+    `;
+    const historial = await pool.query(queryHistorial, [id_docente]);
+if (perfil[0].anos_antiguedad !== undefined) {
+      perfil[0].anos_antiguedad = Number(perfil[0].anos_antiguedad);
+    }
+    // 3. Empaquetar y enviar al frontend
+    res.status(200).json({
+      perfil: perfil[0], // Enviamos el objeto del perfil
+      historial: historial // Enviamos el arreglo de sus clases pasadas
+    });
+
+  } catch (error) {
+    console.error("Error al obtener historial docente:", error);
+    res.status(500).json({ message: "Error interno del servidor al consultar el historial." });
+  }
+};
 
 module.exports = { 
   getDocenteParaSincronizacion,
@@ -346,5 +404,6 @@ module.exports = {
   deactivateDocente,
   getMiPerfil,      
   updateMiPerfil,
-  reactivateDocente
+  reactivateDocente,
+  obtenerHistorialDocente
 };

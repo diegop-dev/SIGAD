@@ -19,7 +19,7 @@ const grupoRoutes = require('./routes/grupoRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const metricasRoutes = require('./routes/metricasRoutes');
-
+const reporteRoutes = require('./routes/reporteRoutes');
 // --- NUEVA RUTA PARA HU-37 ---
 const externalRoutes = require('./routes/externalRoutes'); 
 
@@ -53,7 +53,7 @@ app.use('/api/asignaciones', assignmentRoutes);
 app.use('/api/external', externalRoutes);
 app.use('/api/notificaciones', notificationRoutes);
 app.use('/api/metricas', metricasRoutes);
-
+app.use('/api/reportes', reporteRoutes);
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

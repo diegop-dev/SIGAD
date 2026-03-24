@@ -549,9 +549,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
                 >
                   <option value="">-- Seleccione --</option>
-                  <option value="Licenciatura">Licenciatura</option>
-                  <option value="Maestria">Maestría</option>
-                  <option value="Doctorado">Doctorado</option>
+                  <option value="LICENCIATURA">Licenciatura</option>
+                  <option value="MAESTRIA">Maestría</option>
+                  <option value="DOCTORADO">Doctorado</option>
                 </select>
               </div>
               <div className="space-y-2">

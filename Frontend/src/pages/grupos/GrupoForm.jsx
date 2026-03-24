@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban } from "lucide-react";
+import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban, GraduationCap } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -17,6 +17,8 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const isEditing = !!initialData;
 
+  // NUEVO ESTADO: Nivel académico como filtro primario
+  const [nivelSeleccionado, setNivelSeleccionado] = useState(initialData?.nivel_academico || "LICENCIATURA");
   const [modalidadSeleccionada, setModalidadSeleccionada] = useState("");
   const [carreraId, setCarreraId] = useState(initialData?.carrera_id || "");
 
@@ -32,6 +34,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
           const carreraActual = carrerasActivas.find(c => c.id_carrera === initialData.carrera_id);
           if (carreraActual) {
             setModalidadSeleccionada(carreraActual.modalidad);
+            setNivelSeleccionado(carreraActual.nivel_academico || "LICENCIATURA");
           }
         }
       } catch (error) {
@@ -44,29 +47,47 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     fetchCarreras();
   }, [initialData]);
 
+  // Doble filtro: Nivel Académico + Modalidad
   const carrerasFiltradas = useMemo(() => {
-    if (!modalidadSeleccionada) return [];
-    return carreras.filter(c => c.modalidad === modalidadSeleccionada);
-  }, [carreras, modalidadSeleccionada]);
+    if (!modalidadSeleccionada || !nivelSeleccionado) return [];
+    return carreras.filter(c => 
+      c.modalidad === modalidadSeleccionada && 
+      (c.nivel_academico || "LICENCIATURA") === nivelSeleccionado
+    );
+  }, [carreras, modalidadSeleccionada, nivelSeleccionado]);
+
+  // Manejador del Nuevo Nivel Académico (Filtro Padre)
+  const handleNivelChange = (e) => {
+    setNivelSeleccionado(e.target.value);
+    setModalidadSeleccionada(""); // Limpiar cascada
+    setCarreraId(""); // Limpiar cascada
+    setServerAction(null); 
+    if (errores.nivel_academico) setErrores({ ...errores, nivel_academico: null });
+    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
+    if (errores.modalidad) setErrores({ ...errores, modalidad: null });
+  };
 
   const handleModalidadChange = (e) => {
     setModalidadSeleccionada(e.target.value);
     setCarreraId(""); 
-    setServerAction(null); // Reseteamos la advertencia si cambia de opinión
+    setServerAction(null); 
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
     if (errores.modalidad) setErrores({ ...errores, modalidad: null });
   };
 
   const handleCarreraChange = (e) => {
     setCarreraId(e.target.value);
-    setServerAction(null); // Reseteamos la advertencia si cambia de opinión
+    setServerAction(null); 
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
   };
 
   const validate = () => {
     const newErrors = {};
+    if (!nivelSeleccionado) {
+      newErrors.nivel_academico = "Selecciona el nivel académico";
+    }
     if (!modalidadSeleccionada) {
-      newErrors.modalidad = "Selecciona una modalidad primero";
+      newErrors.modalidad = "Selecciona una modalidad";
     }
     if (!carreraId) {
       newErrors.carrera_id = "Selecciona una carrera";
@@ -83,9 +104,9 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     const toastId = toast.loading(isEditing ? "Actualizando..." : "Generando grupo...");
 
     try {
-      // ---  PASO 3: ENVIAR LA BANDERA SI ACEPTÓ LA ADVERTENCIA ---
       const payload = { 
         carrera_id: Number(carreraId),
+        nivel_academico: nivelSeleccionado, // <-- ENVIAMOS EL NIVEL
         creado_por: user?.id_usuario,
         confirmar_rechazo: serverAction === 'WARN' 
       };
@@ -101,7 +122,6 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onBack) onBack();
 
     } catch (error) {
-      // --- PASO 2: ATRAPAR EL ERROR DEL SEMÁFORO ---
       const errorData = error.response?.data || {};
       const errorMsg = errorData.error || errorData.message || "Error en el servidor";
       const mensajeMayusculas = errorMsg.toUpperCase();
@@ -142,7 +162,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
           <div>
             <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar grupo" : "Nuevo grupo"}</h2>
             <p className="text-sm text-slate-500 font-medium">
-              {isEditing ? "Modifica la asignación de carrera." : "Filtra por modalidad y elige la carrera."}
+              {isEditing ? "Modifica la asignación de carrera." : "Filtra por nivel, modalidad y elige la carrera."}
             </p>
           </div>
         </div>
@@ -152,6 +172,25 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
+            {/* NUEVO CAMPO: Nivel Académico */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
+              </label>
+              <select
+                value={nivelSeleccionado}
+                onChange={handleNivelChange}
+                disabled={cargandoCarreras || serverAction === 'BLOCK'}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.nivel_academico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="LICENCIATURA">Licenciatura</option>
+                <option value="MAESTRIA">Maestría</option>
+              </select>
+              {errores.nivel_academico && <p className="text-xs font-bold text-red-500">{errores.nivel_academico}</p>}
+            </div>
+
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
@@ -159,12 +198,12 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               <select
                 value={modalidadSeleccionada}
                 onChange={handleModalidadChange}
-                disabled={cargandoCarreras || serverAction === 'BLOCK'}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                disabled={!nivelSeleccionado || cargandoCarreras || serverAction === 'BLOCK'}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.modalidad ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
               >
-                <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione una modalidad --"}</option>
+                <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione modalidad --"}</option>
                 <option value="ESCOLARIZADA">ESCOLARIZADA</option>
                 <option value="EJECUTIVA">EJECUTIVA</option>
                 <option value="HÍBRIDA">HÍBRIDA</option>
@@ -172,21 +211,22 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.modalidad && <p className="text-xs font-bold text-red-500">{errores.modalidad}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
-                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Programa académico asignado
               </label>
               <select
                 value={carreraId}
                 onChange={handleCarreraChange}
                 disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
                 }`}
               >
-                <option value="">-- Seleccione una carrera --</option>
+                <option value="">-- Seleccione una carrera/maestría --</option>
+                {/* ✨ AQUÍ MOSTRAMOS EL CÓDIGO ÚNICO DE LA CARRERA ✨ */}
                 {carrerasFiltradas.map(c => (
-                  <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                  <option key={c.id_carrera} value={c.id_carrera}>{c.codigo_unico}</option>
                 ))}
               </select>
               {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
@@ -198,7 +238,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
               </label>
               <div className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm flex items-center justify-between">
                 <span className="font-bold">
-                  {carreraId || isEditing ? previewIdentificador : "Esperando selección de carrera..."}
+                  {carreraId || isEditing ? previewIdentificador : "Esperando selección de programa..."}
                 </span>
                 {!isEditing && carreraId && (
                   <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-bold uppercase tracking-wider">

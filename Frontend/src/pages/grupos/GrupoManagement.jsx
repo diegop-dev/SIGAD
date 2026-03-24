@@ -32,6 +32,7 @@ export const GrupoManagement = () => {
   const [carreraFilter, setCarreraFilter] = useState('');
   const [cuatrimestreFilter, setCuatrimestreFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [nivelFilter, setNivelFilter] = useState(''); // <-- ESTADO PARA NIVEL ACADÉMICO
   
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -84,10 +85,11 @@ export const GrupoManagement = () => {
       const coincideCarrera = carreraFilter ? grupo.carrera_id === Number(carreraFilter) : true;
       const coincideCuatrimestre = cuatrimestreFilter ? grupo.nombre_cuatrimestre === cuatrimestreFilter : true;
       const coincideEstatus = statusFilter ? grupo.estatus === statusFilter : true;
+      const coincideNivel = nivelFilter ? (grupo.nivel_academico || 'LICENCIATURA') === nivelFilter : true;
 
-      return coincideBusqueda && coincideCarrera && coincideCuatrimestre && coincideEstatus;
+      return coincideBusqueda && coincideCarrera && coincideCuatrimestre && coincideEstatus && coincideNivel;
     });
-  }, [grupos, searchTerm, carreraFilter, cuatrimestreFilter, statusFilter]);
+  }, [grupos, searchTerm, carreraFilter, cuatrimestreFilter, statusFilter, nivelFilter]);
 
   const totalPages = Math.ceil(filteredGrupos.length / itemsPerPage) || 1;
   const paginatedGrupos = filteredGrupos.slice(
@@ -97,7 +99,7 @@ export const GrupoManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, carreraFilter, cuatrimestreFilter, statusFilter]);
+  }, [searchTerm, carreraFilter, cuatrimestreFilter, statusFilter, nivelFilter]);
 
   const handleSuccessAction = () => {
     setShowForm(false);
@@ -139,7 +141,7 @@ export const GrupoManagement = () => {
             <Users className="w-8 h-8 mr-3 text-blue-600" />
             Gestión de grupos
           </h1>
-          <p className="mt-1 text-sm text-slate-500 font-medium">Administra los grupos asignados a las diferentes carreras.</p>
+          <p className="mt-1 text-sm text-slate-500 font-medium">Administra los grupos asignados a las diferentes carreras y maestrías.</p>
         </div>
         <button 
           onClick={handleNuevoGrupo} 
@@ -150,39 +152,51 @@ export const GrupoManagement = () => {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4">
-        <div className="relative">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
+        <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            placeholder="Buscar por identificador del grupo o carrera..."
+            placeholder="Buscar por identificador del grupo o programa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
           />
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="relative flex items-center">
-            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+        {/* CONTENEDOR DE SELECTORES CON FLEX-WRAP */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-4">
+          
+          {/* FILTRO: NIVEL ACADÉMICO */}
+          <select
+            value={nivelFilter}
+            onChange={(e) => setNivelFilter(e.target.value)}
+            className="block w-full sm:w-auto min-w-[140px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+          >
+            <option value="">Nivel: Todos</option>
+            <option value="LICENCIATURA">Licenciatura</option>
+            <option value="MAESTRIA">Maestría</option>
+          </select>
+
+          <div className="relative flex items-center w-full sm:w-auto min-w-[180px]">
             <select
               value={carreraFilter}
               onChange={(e) => setCarreraFilter(e.target.value)}
               className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
             >
               <option value="">Todas las carreras</option>
+              {/* ✨ AHORA MOSTRAMOS EL CÓDIGO DE LA CARRERA EN VEZ DEL NOMBRE ✨ */}
               {carrerasLista.map(carrera => (
                 <option key={carrera.id_carrera} value={carrera.id_carrera}>
-                  {carrera.nombre_carrera} ({carrera.modalidad})
+                  {carrera.codigo_unico || `ID: ${carrera.id_carrera}`}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="relative flex items-center">
-            <Calendar className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+          <div className="relative flex items-center w-full sm:w-auto min-w-[180px]">
             <select
               value={cuatrimestreFilter}
               onChange={(e) => setCuatrimestreFilter(e.target.value)}
@@ -200,7 +214,7 @@ export const GrupoManagement = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+            className="block w-full sm:w-auto min-w-[150px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
             <option value="">Todos los estatus</option>
             <option value="ACTIVO">Activo</option>
@@ -216,7 +230,7 @@ export const GrupoManagement = () => {
             <thead className="bg-slate-50/50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Identificador</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Programa / Carrera</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Modalidad</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cuatrimestre</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
@@ -250,14 +264,21 @@ export const GrupoManagement = () => {
                 paginatedGrupos.map((grupo) => (
                   <tr key={grupo.id_grupo} className="hover:bg-blue-50/50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm font-bold text-slate-900">
-                        <Hash className="w-4 h-4 mr-1 text-slate-400" />
-                        {grupo.identificador}
+                      <div className="flex flex-col">
+                        <div className="flex items-center text-sm font-bold text-slate-900">
+                          <Hash className="w-4 h-4 mr-1 text-slate-400" />
+                          {grupo.identificador}
+                        </div>
+                        {/* INSIGNIA DE NIVEL ACADÉMICO */}
+                        <div className="mt-1">
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${grupo.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {grupo.nivel_academico || 'LICENCIATURA'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
-                      <div className="text-sm font-medium text-slate-700 leading-relaxed break-words">
-                        <BookOpen className="w-4 h-4 inline mr-1 text-slate-400" />
+                      <div className="text-sm font-medium text-slate-700 flex items-start leading-snug break-words">
                         {grupo.nombre_carrera || 'Sin asignar'}
                       </div>
                     </td>
@@ -322,7 +343,7 @@ export const GrupoManagement = () => {
 
         {/* Paginación */}
         {!isLoading && filteredGrupos.length > 0 && (
-          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-slate-500">
                 Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}

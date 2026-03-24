@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, CalendarDays, Loader2, Calendar, MapPin, User, BookOpen, ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle, X, Hash, RefreshCcw, Users } from 'lucide-react';
+import { Plus, Search, Filter, CalendarDays, Loader2, Calendar, MapPin, User, BookOpen, ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle, X, Hash, RefreshCcw, Users, FileText } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AssignmentForm } from './AssignmentForm';
 import { useAuth } from '../../hooks/useAuth';
+import ReporteAsignaciones from './ReporteAsignaciones';
 
 export const AssignmentManagement = () => {
   const { user } = useAuth();
-  
+  const [modalReporte, setModalReporte] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [asignacionToEdit, setAsignacionToEdit] = useState(null); 
   const [asignacionesRaw, setAsignacionesRaw] = useState([]); 
@@ -302,8 +303,14 @@ export const AssignmentManagement = () => {
           </div>
         )}
       </div>
-
+          <button 
+            onClick={() => setModalReporte(true)}
+            className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-all shadow-md active:scale-95"
+          >
+            <FileText className="w-5 h-5" /> Generar Reporte
+          </button>
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
+        {/* Barra de Búsqueda */}
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
@@ -666,6 +673,9 @@ export const AssignmentManagement = () => {
           </div>
         </div>
       )}
+      {modalReporte && (
+  <ReporteAsignaciones alCerrar={() => setModalReporte(false)} />
+)}
     </div>
   );
 };
