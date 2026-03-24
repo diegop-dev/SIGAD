@@ -9,7 +9,7 @@ require('./config/database'); // Inicializa el pool de MariaDB
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const docentesRoutes = require('./routes/docentesRoutes');
-const academiaRoutes = require('./routes/academiaRoutes'); 
+const academiaRoutes = require('./routes/academiaRoutes');
 const materiaRoutes = require('./routes/materiaRoutes');
 const carreraRoutes = require("./routes/carreraRoutes");
 const cuatrimestresRoutes = require("./routes/cuatrimestresRoutes");
@@ -19,9 +19,18 @@ const grupoRoutes = require('./routes/grupoRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const metricasRoutes = require('./routes/metricasRoutes');
+const horarioRoutes  = require('./routes/horarioRoutes');
+const auditRoutes = require('./routes/auditRoutes');
+const configuracionRoutes = require('./routes/configuracionRoutes');
 
 // --- NUEVA RUTA PARA HU-37 ---
-const externalRoutes = require('./routes/externalRoutes'); 
+const externalRoutes = require('./routes/externalRoutes');
+
+// Inicialización de tablas auto-gestionadas
+const { initAuditTable } = require('./models/auditModel');
+const { initConfigTable } = require('./models/configuracionModel');
+initAuditTable();
+initConfigTable();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +62,9 @@ app.use('/api/asignaciones', assignmentRoutes);
 app.use('/api/external', externalRoutes);
 app.use('/api/notificaciones', notificationRoutes);
 app.use('/api/metricas', metricasRoutes);
+app.use('/api/horarios', horarioRoutes);
+app.use('/api/audit-logs', auditRoutes);
+app.use('/api/configuracion', configuracionRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

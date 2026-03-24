@@ -1,6 +1,14 @@
 const assignmentModel = require('../models/assignmentModel');
 const notificationModel = require('../models/notificationModel');
 const pool = require('../config/database');
+const configuracionModel = require('../models/configuracionModel');
+const { logAudit, getClientIp } = require('../services/auditService');
+
+// Helper: convierte "HH:MM:SS" o "HH:MM" a minutos
+const timeToMinutes = (t) => {
+  const parts = String(t).split(':');
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+};
 
 // Api de sincronización externa (HU-37 / API-05)
 const getAsignacionesParaSincronizacion = async (req, res) => {
@@ -35,12 +43,46 @@ const createAsignacion = async (req, res) => {
       return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios." });
     }
 
-    // validación de congruencia académica estricta 
+    // validación de congruencia académica estricta
     const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
     if (!cumpleReglasAcademicas) {
-      return res.status(422).json({ 
-        error: "Incongruencia de datos: Verifica que la materia corresponda a la carrera, al periodo seleccionado, al cuatrimestre del grupo, y que el docente pertenezca a la academia correcta." 
+      return res.status(422).json({
+        error: "Incongruencia de datos: Verifica que la materia corresponda a la carrera, al periodo seleccionado, al cuatrimestre del grupo, y que el docente pertenezca a la academia correcta."
       });
+    }
+
+    // ==========================================
+    // Validaciones de límites configurables
+    // ==========================================
+    const [maxContStr, maxSemStr, maxAsigStr] = await Promise.all([
+      configuracionModel.getValor('max_horas_continuas'),
+      configuracionModel.getValor('max_horas_semana'),
+      configuracionModel.getValor('max_asignaciones_docente')
+    ]);
+    const maxHorasContinuas = parseFloat(maxContStr) || 3;
+    const maxHorasSemanales = parseFloat(maxSemStr) || 18;
+    const maxAsignaciones   = parseInt(maxAsigStr, 10) || 6;
+
+    let totalHorasNuevas = 0;
+    for (const bloque of horarios) {
+      const durHoras = (timeToMinutes(bloque.hora_fin) - timeToMinutes(bloque.hora_inicio)) / 60;
+      if (durHoras <= 0) {
+        return res.status(400).json({ error: `El bloque del ${bloque.dia_semana} tiene una duración inválida (hora fin debe ser posterior a hora inicio).` });
+      }
+      if (durHoras > maxHorasContinuas) {
+        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${maxHorasContinuas}h continuas (duración: ${durHoras.toFixed(1)}h).` });
+      }
+      totalHorasNuevas += durHoras;
+    }
+
+    const horasActuales = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id);
+    if (horasActuales + totalHorasNuevas > maxHorasSemanales) {
+      return res.status(422).json({ error: `Esta asignación supera el límite semanal del docente (${maxHorasSemanales}h). Horas actuales: ${horasActuales.toFixed(1)}h, nuevas: ${totalHorasNuevas.toFixed(1)}h.` });
+    }
+
+    const asigActuales = await assignmentModel.countAsignacionesDocente(docente_id, periodo_id, materia_id);
+    if (asigActuales >= maxAsignaciones) {
+      return res.status(422).json({ error: `El docente ya alcanzó el límite de ${maxAsignaciones} materias asignadas por periodo.` });
     }
 
     for (const bloque of horarios) {
@@ -75,6 +117,13 @@ const createAsignacion = async (req, res) => {
     }));
 
     const insertedIds = await assignmentModel.createAsignaciones(asignacionesToInsert);
+
+    logAudit({
+      modulo: 'ASIGNACIONES', accion: 'CREACION',
+      registro_afectado: `Docente #${docente_id} - Materia #${materia_id} - Grupo #${grupo_id} - Periodo #${periodo_id}`,
+      detalle: `${insertedIds.length} bloques creados`,
+      usuario_id: creado_por, ip_address: getClientIp(req)
+    });
 
     // ========================================================
     // INYECCIÓN DE NOTIFICACIÓN AL DOCENTE (HU-40)
@@ -140,6 +189,33 @@ const updateAsignacion = async (req, res) => {
     // obtenemos los identificadores de la asignación actual para ignorarlos en la búsqueda de empalmes
     const excludeIds = await assignmentModel.getIdsAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id);
 
+    // ==========================================
+    // Validaciones de límites configurables (modificación)
+    // ==========================================
+    const [maxContStrU, maxSemStrU] = await Promise.all([
+      configuracionModel.getValor('max_horas_continuas'),
+      configuracionModel.getValor('max_horas_semana')
+    ]);
+    const maxHorasContinuasU = parseFloat(maxContStrU) || 3;
+    const maxHorasSemanalesU = parseFloat(maxSemStrU) || 18;
+
+    let totalHorasNuevasU = 0;
+    for (const bloque of horarios) {
+      const durHoras = (timeToMinutes(bloque.hora_fin) - timeToMinutes(bloque.hora_inicio)) / 60;
+      if (durHoras <= 0) {
+        return res.status(400).json({ error: `El bloque del ${bloque.dia_semana} tiene una duración inválida.` });
+      }
+      if (durHoras > maxHorasContinuasU) {
+        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${maxHorasContinuasU}h continuas (duración: ${durHoras.toFixed(1)}h).` });
+      }
+      totalHorasNuevasU += durHoras;
+    }
+
+    const horasRestantes = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id, excludeIds);
+    if (horasRestantes + totalHorasNuevasU > maxHorasSemanalesU) {
+      return res.status(422).json({ error: `La modificación supera el límite semanal del docente (${maxHorasSemanalesU}h). Horas restantes: ${horasRestantes.toFixed(1)}h, nuevas: ${totalHorasNuevasU.toFixed(1)}h.` });
+    }
+
     for (const bloque of horarios) {
       const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
 
@@ -167,6 +243,13 @@ const updateAsignacion = async (req, res) => {
 
     // ejecutamos la transacción de borrado lógico y creación de nuevos bloques
     const insertedIds = await assignmentModel.updateAsignacionesAgrupadas(periodo_id, materia_id, docente_id, grupo_id, asignacionesToUpdate, usuario_id);
+
+    logAudit({
+      modulo: 'ASIGNACIONES', accion: 'MODIFICACION',
+      registro_afectado: `Docente #${docente_id} - Materia #${materia_id} - Grupo #${grupo_id} - Periodo #${periodo_id}`,
+      detalle: `${insertedIds.length} bloques actualizados`,
+      usuario_id, ip_address: getClientIp(req)
+    });
 
     // ========================================================
     // INYECCIÓN DE NOTIFICACIÓN AL DOCENTE (Edición)
@@ -213,6 +296,13 @@ const cancelarAsignacion = async (req, res) => {
     if (affectedRows === 0) {
       return res.status(404).json({ error: "No se encontraron bloques activos con esos parámetros para cancelar." });
     }
+
+    logAudit({
+      modulo: 'ASIGNACIONES', accion: 'BAJA',
+      registro_afectado: `Docente #${docente_id} - Materia #${materia_id} - Grupo #${grupo_id} - Periodo #${periodo_id}`,
+      detalle: `${affectedRows} bloques cancelados`,
+      usuario_id, ip_address: getClientIp(req)
+    });
 
     res.status(200).json({ message: "Asignación cancelada correctamente del ciclo escolar." });
   } catch (error) {

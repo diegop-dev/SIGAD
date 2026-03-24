@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../context/NotificationContext';
-import { Menu, X, Home, Users, Calendar, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, CalendarDays, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon, ShieldCheck } from 'lucide-react';
 import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal';
 import { NotificationDropdown } from './NotificationDropdown';
 
@@ -44,7 +44,9 @@ export const MainLayout = () => {
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
     { name: 'Gestión de asignaciones', path: '/asignaciones', icon: Calendar, roles: [1, 2]},
     { name: 'Métricas institucionales', path: '/metricas', icon: GraduationCap, roles: [1]},
+    { name: 'Registro de auditoría', path: '/audit-logs', icon: ShieldCheck, roles: [1]},
     { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]},
+    { name: 'Mi horario', path: '/horarios', icon: CalendarDays, roles: [3]},
     { name: 'Mi perfil', path: '/mi-perfil', icon: User, roles: [3] }
   ];
 

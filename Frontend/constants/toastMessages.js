@@ -70,6 +70,19 @@ export const TOAST_USUARIOS = {
   yaActivo:   'Este usuario ya se encuentra activo.',
 };
 
+// ─── Módulo: Horarios ───────────────────────────────────────────────────────
+export const TOAST_HORARIOS = {
+  // Carga
+  errorCarga: 'Error al cargar el horario. Intenta de nuevo.',
+
+  // PDF — estados transitorios (sin punto final)
+  loadingPDF: 'Generando tu horario oficial en PDF',
+
+  // PDF — resultado
+  pdfDescargadoOk: 'Horario descargado exitosamente.',
+  errorPDF:        'No se pudo generar el PDF. Intenta de nuevo.',
+};
+
 // ─── Módulo: Docentes ───────────────────────────────────────────────────────
 export const TOAST_DOCENTES = {
   // Carga
