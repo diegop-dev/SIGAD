@@ -42,20 +42,26 @@ const grupoController = {
 
   crearGrupo: async (req, res) => {
     try {
-      const { carrera_id } = req.body;
+      const { carrera_id, nivel_academico } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : null;
+
+      // Obtenemos la info de la carrera para extraer su código y garantizar su nivel académico
+      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      
+      // BLINDAJE: Obligamos al grupo a heredar el nivel académico de la carrera padre
+      const nivelSeguro = carreraInfo ? carreraInfo.nivel_academico : (nivel_academico || 'LICENCIATURA');
 
       const datosNuevoGrupo = {
         identificador: 'TEMP',
         carrera_id,
         cuatrimestre_id: 1, 
+        nivel_academico: nivelSeguro, // <-- NUEVO CAMPO
         creado_por
       };
 
       const resultado = await grupoModel.crearGrupo(datosNuevoGrupo);
       const nuevoId = resultado.insertId;
 
-      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
       const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
       const anio = new Date().getFullYear();
 
@@ -67,7 +73,7 @@ const grupoController = {
       return res.status(201).json({
         success: true,
         message: 'Grupo registrado y autogenerado correctamente.',
-        data: { id_grupo: nuevoId, identificador: identificadorFinal, carrera_id, cuatrimestre_id: 1 }
+        data: { id_grupo: nuevoId, identificador: identificadorFinal, carrera_id, nivel_academico: nivelSeguro, cuatrimestre_id: 1 }
       });
 
     } catch (error) {
@@ -79,8 +85,7 @@ const grupoController = {
 actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
-      // Agregamos confirmar_rechazo al destructuring
-      const { carrera_id, confirmar_rechazo } = req.body; 
+      const { carrera_id, confirmar_rechazo, nivel_academico } = req.body; 
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
 
       const grupoExistente = await grupoModel.getGrupoById(id);
@@ -88,11 +93,14 @@ actualizarGrupo: async (req, res) => {
 
       let identificadorFinal = grupoExistente.identificador;
 
+      // Extraemos la información de la nueva carrera seleccionada
+      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const nivelSeguro = carreraInfo ? carreraInfo.nivel_academico : (nivel_academico || 'LICENCIATURA');
+
       // Detectamos si el usuario cambió la carrera asignada al grupo
       if (Number(grupoExistente.carrera_id) !== Number(carrera_id)) {
         
-        // --- INICIO DE VALIDACIÓN ASIGNACIUONES ---
-        const assignmentModel = require('../models/assignmentModel');
+        // --- INICIO DE VALIDACIÓN ASIGNACIONES ---
         const asignaciones = await assignmentModel.getAllAsignaciones({ grupo_id: id });
         
         const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
@@ -117,8 +125,6 @@ actualizarGrupo: async (req, res) => {
         }
         // --- FIN DE VALIDACIÓN ASIGNACIONES ---
 
-        const carreraModel = require('../models/carreraModel');
-        const carreraInfo = await carreraModel.getCarreraById(carrera_id);
         const codigo_unico = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
         
         const anio = grupoExistente.identificador.substring(0, 4);
@@ -130,6 +136,7 @@ actualizarGrupo: async (req, res) => {
         identificador: identificadorFinal,
         carrera_id,
         cuatrimestre_id: grupoExistente.cuatrimestre_id,
+        nivel_academico: nivelSeguro, // <-- NUEVO CAMPO
         modificado_por
       };
 

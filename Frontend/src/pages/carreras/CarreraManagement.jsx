@@ -24,6 +24,7 @@ export const CarreraManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [nivelFilter, setNivelFilter] = useState(''); // <-- NUEVO ESTADO PARA NIVEL ACADÉMICO
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -34,7 +35,7 @@ export const CarreraManagement = () => {
       const data = response.data.data || response.data;
       setCarreras(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error al cargar carreras:", error);
+      console.error("Error al cargar programas:", error);
       toast.error(TOAST_CARRERAS.errorCarga);
       setCarreras([]);
     } finally {
@@ -65,10 +66,11 @@ export const CarreraManagement = () => {
       const coincideBusqueda = nombreCarrera.includes(busqueda) || codigoCarrera.includes(busqueda);
       const coincideAcademia = academiaFilter ? carrera.nombre_academia === academiaFilter : true;
       const coincideEstatus = statusFilter ? carrera.estatus === statusFilter : true;
+      const coincideNivel = nivelFilter ? carrera.nivel_academico === nivelFilter : true; // <-- NUEVO FILTRO
 
-      return coincideBusqueda && coincideAcademia && coincideEstatus;
+      return coincideBusqueda && coincideAcademia && coincideEstatus && coincideNivel;
     });
-  }, [carreras, searchTerm, academiaFilter, statusFilter]);
+  }, [carreras, searchTerm, academiaFilter, statusFilter, nivelFilter]);
 
   const totalPages = Math.ceil(filteredCarreras.length / itemsPerPage) || 1;
   const paginatedCarreras = filteredCarreras.slice(
@@ -78,7 +80,7 @@ export const CarreraManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, academiaFilter, statusFilter]);
+  }, [searchTerm, academiaFilter, statusFilter, nivelFilter]);
 
   const handleSuccessAction = () => {
     setShowForm(false);
@@ -147,34 +149,47 @@ export const CarreraManagement = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
             <BookOpen className="w-8 h-8 mr-3 text-blue-600" />
-            Gestión de carreras
+            Gestión de programas académicos
           </h1>
-          <p className="mt-1 text-sm text-slate-500 font-medium">Administra el catálogo de carreras de la institución.</p>
+          <p className="mt-1 text-sm text-slate-500 font-medium">Administra el catálogo de carreras y maestrías de la institución.</p>
         </div>
         <button 
           onClick={handleNuevaCarrera} 
           className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
         >
-          <Plus className="w-5 h-5 mr-2" /> Nueva carrera
+          <Plus className="w-5 h-5 mr-2" /> Nuevo programa
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            placeholder="Buscar por nombre o código de carrera..."
+            placeholder="Buscar por nombre o código del programa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
           />
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex items-center min-w-[220px]">
+        {/* CONTENEDOR DE SELECTORES CON FLEX-WRAP */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-4">
+          
+          {/* NUEVO FILTRO: NIVEL ACADÉMICO */}
+          <select
+            value={nivelFilter}
+            onChange={(e) => setNivelFilter(e.target.value)}
+            className="block w-full sm:w-auto min-w-[140px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+          >
+            <option value="">Nivel: Todos</option>
+            <option value="LICENCIATURA">Licenciatura</option>
+            <option value="MAESTRIA">Maestría</option>
+          </select>
+
+          <div className="relative flex items-center w-full sm:w-auto min-w-[200px]">
             <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
               value={academiaFilter}
@@ -193,7 +208,7 @@ export const CarreraManagement = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="block w-full min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
+            className="block w-full sm:w-auto min-w-[160px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer"
           >
             <option value="">Todos los estatus</option>
             <option value="ACTIVO">Activo</option>
@@ -208,7 +223,7 @@ export const CarreraManagement = () => {
             <thead className="bg-slate-50/50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Código</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Carrera</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Programa</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Modalidad</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Academia</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
@@ -234,7 +249,7 @@ export const CarreraManagement = () => {
                         <BookOpen className="h-8 w-8 text-slate-400" />
                       </div>
                       <h3 className="text-lg font-bold text-slate-900 mb-1">Sin resultados</h3>
-                      <p className="text-sm text-slate-500">No se encontraron carreras con los filtros actuales.</p>
+                      <p className="text-sm text-slate-500">No se encontraron programas con los filtros actuales.</p>
                     </div>
                   </td>
                 </tr>
@@ -242,9 +257,17 @@ export const CarreraManagement = () => {
                 paginatedCarreras.map((carrera) => (
                   <tr key={carrera.id_carrera} className="hover:bg-blue-50/50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm font-bold text-slate-700">
-                        <Hash className="w-4 h-4 mr-1 text-slate-400" />
-                        {carrera.codigo_unico || 'N/A'}
+                      <div className="flex flex-col">
+                        <div className="flex items-center text-sm font-bold text-slate-700">
+                          <Hash className="w-4 h-4 mr-1 text-slate-400" />
+                          {carrera.codigo_unico || 'N/A'}
+                        </div>
+                        {/* INSIGNIA DE NIVEL ACADÉMICO */}
+                        <div className="mt-1">
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${carrera.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {carrera.nivel_academico || 'LICENCIATURA'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
@@ -277,7 +300,7 @@ export const CarreraManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
                         <button 
-                          title="Editar carrera" 
+                          title="Editar programa" 
                           onClick={() => handleEditarCarrera(carrera)}
                           className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                         >
@@ -285,7 +308,7 @@ export const CarreraManagement = () => {
                         </button>
                         <button 
                           title="Cambiar estatus" 
-                          onClick={() => handleEliminarRapido(carrera)} // ✨ AQUÍ ESTÁ EL CAMBIO CLAVE ✨
+                          onClick={() => handleEliminarRapido(carrera)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 className="w-5 h-5" />
@@ -338,7 +361,7 @@ export const CarreraManagement = () => {
             <div className="p-6">
               <h3 className="text-lg font-black text-slate-900 mb-2">Confirmar cambio de estatus</h3>
               <p className="text-sm text-slate-600 mb-4">
-                ¿Estás seguro que deseas dar de baja la carrera <span className="font-bold text-slate-900">{carreraToDelete?.nombre_carrera}</span>?
+                ¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-slate-900">{carreraToDelete?.nombre_carrera}</span>?
               </p>
               
               <div className="space-y-2 mb-6">

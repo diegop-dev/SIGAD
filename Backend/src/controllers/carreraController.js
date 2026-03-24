@@ -1,7 +1,8 @@
 const carreraModel = require('../models/carreraModel');
 const grupoModel = require('../models/grupoModel');
 
-const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
+// MODIFICADO: Ahora recibe nivel_academico para inyectar la 'L' o 'M'
+const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENCIATURA', excluir_id = null) => {
   const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
   
   const nombreLimpio = nombreCarrera.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -10,7 +11,6 @@ const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
   const palabrasValidas = palabras.filter(palabra => !palabrasIgnoradas.includes(palabra));
 
   let baseSiglas = "";
-  
 
   // Si la carrera es de una sola palabra (ej. "Derecho") tomamos 3 letras
   if (palabrasValidas.length === 1) {
@@ -20,12 +20,16 @@ const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
     baseSiglas = palabrasValidas.map(p => p[0]).join('').substring(0, 4);
   }
 
-  // Determinar sufijo por modalidad
-  let sufijo = '';
-  if (modalidad === 'EJECUTIVA') sufijo = 'E';
-  if (modalidad === 'HÍBRIDA') sufijo = 'H';
+  // Determinar sufijo por nivel académico (L = Licenciatura, M = Maestría)
+  const sufijoNivel = nivel_academico.toUpperCase() === 'MAESTRIA' ? 'M' : 'L';
 
-  let siglas = baseSiglas + sufijo;
+  // Determinar sufijo por modalidad
+  let sufijoModalidad = '';
+  if (modalidad === 'EJECUTIVA') sufijoModalidad = 'E';
+  if (modalidad === 'HÍBRIDA') sufijoModalidad = 'H';
+
+  // Unimos todo: Ej. DER (Derecho) + L (Licenciatura) + E (Ejecutiva) = DERLE
+  let siglas = baseSiglas + sufijoNivel + sufijoModalidad;
 
   const existe = await carreraModel.verificarSiglasExistentes(siglas, excluir_id);
 
@@ -38,7 +42,7 @@ const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
       // Si era de varias, tomamos las 2 primeras letras de cada una
       baseSiglas = palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
     }
-    siglas = baseSiglas + sufijo;
+    siglas = baseSiglas + sufijoNivel + sufijoModalidad;
   }
 
   return siglas;
@@ -96,25 +100,31 @@ const carreraController = {
 
   crearCarrera: async (req, res) => {
     try {
-      const { nombre_carrera, modalidad, academia_id } = req.body;
+      const { nombre_carrera, modalidad, academia_id, nivel_academico } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : req.body.creado_por;
 
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
+      // Aseguramos un valor por defecto si no lo envían
+      const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
+
+      // 1. Verificamos duplicidad tomando en cuenta el nivel académico
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
       
       if (carreraExistente) {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe esta carrera registrada en la misma modalidad.'
+          message: `Ya existe esta ${nivelSeguro.toLowerCase()} registrada en la misma modalidad.`
         });
       }
 
-      const codigo_unico = await generarSiglas(nombre_carrera, modalidad);
+      // 2. Generamos el código único incluyendo el nivel
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, nivelSeguro);
 
       const datosNuevaCarrera = {
         codigo_unico, 
         nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
         academia_id,
+        nivel_academico: nivelSeguro, // <-- Nuevo campo
         creado_por
       };
 
@@ -128,6 +138,7 @@ const carreraController = {
           codigo_unico: datosNuevaCarrera.codigo_unico,
           nombre_carrera: datosNuevaCarrera.nombre_carrera,
           modalidad,
+          nivel_academico: nivelSeguro,
           academia_id
         }
       });
@@ -142,30 +153,33 @@ const carreraController = {
     }
   },
 
-  //  FUNCIONES PARA MODIFICAR Y ELIMINAR 
-actualizarCarrera: async (req, res) => {
+  // FUNCIONES PARA MODIFICAR Y ELIMINAR 
+  actualizarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre_carrera, modalidad, academia_id, modificado_por } = req.body;
+      const { nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = req.body;
       const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
 
-      // 1. Evitar colisión de nombre y modalidad en la DB (Ignorando la propia carrera)
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
+      const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
+
+      // 1. Evitar colisión de nombre, modalidad y nivel en la DB (Ignorando la propia carrera)
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe otra carrera registrada en la misma modalidad.'
+          message: `Ya existe otra ${nivelSeguro.toLowerCase()} registrada en la misma modalidad con ese nombre.`
         });
       }
 
-      // 2. Generamos las siglas ignorando el ID actual
-      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, id);
+      // 2. Generamos las siglas ignorando el ID actual e incluyendo el nivel académico
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, nivelSeguro, id);
 
       const datosUpdate = {
         codigo_unico,
         nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
         academia_id,
+        nivel_academico: nivelSeguro, // <-- Nuevo campo
         modificado_por: idUsuario
       };
 
