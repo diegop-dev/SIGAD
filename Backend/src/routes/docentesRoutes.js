@@ -2,62 +2,39 @@ const express = require('express');
 const router = express.Router();
 const docenteController = require('../controllers/docenteController');
 const upload = require('../middlewares/multerConfig');
-// Importación del middleware de seguridad y control de acceso basado en roles
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
-const { obtenerHistorialDocente } = require('../controllers/docenteController');
-// API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
+
+// Configuración de campos de archivos reutilizable para evitar repetición
+const expedienteUpload = upload.fields([
+  { name: 'foto_perfil_url', maxCount: 1 },
+  { name: 'titulo', maxCount: 1 },
+  { name: 'cedula', maxCount: 1 },
+  { name: 'sat', maxCount: 1 },
+  { name: 'ine', maxCount: 1 },
+  { name: 'domicilio', maxCount: 1 },
+  { name: 'cv', maxCount: 1 }
+]);
+
+// --- RUTAS PÚBLICAS / SINCRONIZACIÓN ---
 router.get('/sincronizacion', verifyToken, docenteController.getDocenteParaSincronizacion);
 
-// MÉTODOS INTERNOS DE SIGAD
-// 1. Ruta para obtener usuarios que pueden ser docentes
-// (Nota técnica: Esta ruta podría quedar obsoleta en futuros sprints si el alta siempre es unificada, pero se mantiene por retrocompatibilidad)
-router.get('/disponibles', verifyToken, requireRole([1, 2]), docenteController.getUsuariosDisponibles);
-
-// 2. Ruta para obtener el listado de docentes ya registrados
-router.get('/', verifyToken, docenteController.getDocentes);
-
-// 3. Ruta para registrar un nuevo docente unificado (Credenciales + Expediente)
-// Se protege con requireRole para que solo Superadmin (1) y Admin (2) tengan acceso
-router.post('/registrar', verifyToken, requireRole([1, 2]), upload.fields([
-  { name: 'foto_perfil_url', maxCount: 1 }, // Agregado para soportar la imagen del usuario
-  { name: 'titulo', maxCount: 1 },
-  { name: 'cedula', maxCount: 1 },
-  { name: 'sat', maxCount: 1 },
-  { name: 'ine', maxCount: 1 },
-  { name: 'domicilio', maxCount: 1 },
-  { name: 'cv', maxCount: 1 }
-]), docenteController.registerDocente);
-
-// ✨ RUTAS EXCLUSIVAS PARA "MI PERFIL" (Solo Rol 3: Docentes) ✨
+// --- RUTAS DE "MI PERFIL" (Exclusivas para el Docente - Rol 3) ---
 router.get('/mi-perfil', verifyToken, requireRole([3]), docenteController.getMiPerfil);
+router.put('/mi-perfil', verifyToken, requireRole([3]), expedienteUpload, docenteController.updateMiPerfil);
 
-router.put('/mi-perfil', verifyToken, requireRole([3]), upload.fields([
-  { name: 'foto_perfil_url', maxCount: 1 },
-  { name: 'titulo', maxCount: 1 },
-  { name: 'cedula', maxCount: 1 },
-  { name: 'sat', maxCount: 1 },
-  { name: 'ine', maxCount: 1 },
-  { name: 'domicilio', maxCount: 1 },
-  { name: 'cv', maxCount: 1 }
-]), docenteController.updateMiPerfil);
+// --- RUTAS ADMINISTRATIVAS (Roles 1 y 2) ---
 
+// Lectura y Disponibilidad
+router.get('/', verifyToken, requireRole([1, 2]), docenteController.getDocentes);
+router.get('/disponibles', verifyToken, requireRole([1, 2]), docenteController.getUsuariosDisponibles);
+router.get('/historial/:id_docente', verifyToken, requireRole([1, 2]), docenteController.obtenerHistorialDocente);
 
-// 4. Ruta para actualizar un docente existente
-router.put('/:id', verifyToken, requireRole([1, 2]), upload.fields([
-  { name: 'foto_perfil_url', maxCount: 1 },
-  { name: 'titulo', maxCount: 1 },
-  { name: 'cedula', maxCount: 1 },
-  { name: 'sat', maxCount: 1 },
-  { name: 'ine', maxCount: 1 },
-  { name: 'domicilio', maxCount: 1 },
-  { name: 'cv', maxCount: 1 }
-]), docenteController.updateDocente);
+// Escritura y Gestión de Expediente
+router.post('/registrar', verifyToken, requireRole([1, 2]), expedienteUpload, docenteController.registerDocente);
+router.put('/:id', verifyToken, requireRole([1, 2]), expedienteUpload, docenteController.updateDocente);
 
-// 5. Ruta para dar de baja un docente (Soft delete)
+// Estados (Activación / Desactivación)
 router.patch('/:id/deactivate', verifyToken, requireRole([1, 2]), docenteController.deactivateDocente);
-
-// 6. Ruta para reactivar un docente
 router.patch('/:id/reactivate', verifyToken, requireRole([1, 2]), docenteController.reactivateDocente);
 
-router.get('/historial/:id_docente', verifyToken, obtenerHistorialDocente);
 module.exports = router;
