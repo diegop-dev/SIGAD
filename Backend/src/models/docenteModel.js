@@ -1,35 +1,42 @@
 const db = require('../config/database');
-const getInsertId = (res) => Number(res.insertId || (Array.isArray(res) && res[0]?.insertId));
 
 const docenteModel = {
+  // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
   getDocenteParaSincronizacion: async (id_docente) => {
-    if (!id_docente) return [];
-
     try {
-      const query = `
-        SELECT matricula_empleado 
-        FROM docentes 
-        WHERE id_docente = ? AND estatus = 'ACTIVO'
-      `;
-      return await db.query(query, [id_docente]);
+      // validación estricta para evitar consultas nulas
+      if (!id_docente) {
+        return [];
+      }
+
+      // consulta directa y optimizada proyectando solo lo requerido en el PDF
+      const query = ` SELECT matricula_empleado FROM docentes WHERE id_docente = ? AND estatus = 'ACTIVO' `; 
+      const rows = await db.query(query, [id_docente]);
+      return rows;
     } catch (error) {
       console.error("[Error getDocenteParaSincronizacion]:", error.message);
       throw error;
     }
   },
 
-  // --- CONSULTAS DE LECTURA ---
+  // MÉTODOS INTERNOS DE SIGAD
   getUsuariosDisponibles: async () => {
     try {
       const query = `
-        SELECT id_usuario, nombres, apellido_paterno, apellido_materno, personal_email 
+        SELECT 
+          id_usuario, 
+          nombres, 
+          apellido_paterno, 
+          apellido_materno, 
+          personal_email 
         FROM usuarios 
         WHERE id_usuario NOT IN (SELECT usuario_id FROM docentes)
-          AND rol_id = 3
+        AND rol_id = 3
       `;
-      return await db.query(query);
+      const rows = await db.query(query);
+      return rows;
     } catch (error) {
-      console.error("[Error getUsuariosDisponibles]:", error.message);
+      console.error("Error al filtrar por rol:", error.message);
       throw error;
     }
   },
@@ -46,71 +53,67 @@ const docenteModel = {
     return rows.length > 0 ? rows[0] : null;
   },
 
-  getAllDocentes: async () => {
-    // 1. Traemos a todos los docentes con un solo JOIN
-    const queryDocentes = `
-      SELECT d.*, u.nombres, u.apellido_paterno, u.apellido_materno, 
-             u.institutional_email, u.foto_perfil_url, a.nombre as nombre_academia
-      FROM docentes d
-      JOIN usuarios u ON d.usuario_id = u.id_usuario
-      LEFT JOIN academias a ON d.academia_id = a.id_academia
-    `;
-    const docentes = await db.query(queryDocentes);
-    if (docentes.length === 0) return [];
-
-    // 2. Traemos TODOS los documentos de una sola vez para optimizar rendimiento
-    const queryDocs = 'SELECT docente_id, tipo_documento, url_archivo FROM documentos_docentes';
-    const todosLosDocs = await db.query(queryDocs);
-
-    // 3. Mapeamos los documentos a su respectivo docente en memoria
-    return docentes.map(docente => ({
-      ...docente,
-      documentos: todosLosDocs.filter(d => d.docente_id === docente.id_docente)
-    }));
-  },
-
-  // --- OPERACIONES DE ESCRITURA (CON TRANSACCIONES) ---
+// ✨ NUEVO MÉTODO PARA TRANSACCIÓN UNIFICADA (Usuario + Docente) ✨
   createUsuarioYDocente: async (datos) => {
     let conn;
     try {
       conn = await db.getConnection();
       await conn.beginTransaction();
 
-      // 1. Insertar Usuario
-      const userRes = await conn.query(`
+      // 1. insertar en la tabla usuarios
+      const userQuery = `
         INSERT INTO usuarios (
-          nombres, apellido_paterno, apellido_materno, personal_email, 
-          institutional_email, password_hash, foto_perfil_url, rol_id, 
-          creado_por, fecha_creacion
+          nombres, apellido_paterno, apellido_materno, 
+          personal_email, institutional_email, password_hash, 
+          foto_perfil_url, rol_id, creado_por, fecha_creacion
         ) VALUES (?, ?, ?, ?, ?, ?, ?, 3, ?, NOW())
-      `, [
+      `;
+      
+      const userRes = await conn.query(userQuery, [
         datos.nombres, datos.apellido_paterno, datos.apellido_materno,
         datos.personal_email, datos.institutional_email, datos.password_hash,
-        datos.foto_perfil_url || null, datos.creado_por
+        datos.foto_perfil_url || null, 
+        datos.creado_por
       ]);
 
-      const idUsuario = getInsertId(userRes);
+      const idUsuario = Number(userRes.insertId || userRes[0]?.insertId);
       if (!idUsuario) throw new Error("Fallo al generar el ID del usuario.");
 
-      // 2. Insertar Docente
-      const docenteRes = await conn.query(`
+      // 2. insertar en la tabla docentes
+      const docenteQuery = `
         INSERT INTO docentes (
-          usuario_id, matricula_empleado, rfc, curp, clave_ine, domicilio, 
-          celular, nivel_academico, antiguedad_fecha, estatus, 
-          creado_por, fecha_creacion, academia_id
+          usuario_id, matricula_empleado, rfc, curp, clave_ine, 
+          domicilio, celular, nivel_academico, antiguedad_fecha, 
+          estatus, creado_por, fecha_creacion, academia_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?, NOW(), ?)
-      `, [
-        idUsuario, datos.matricula, datos.rfc, datos.curp, datos.clave_ine,
-        datos.domicilio, datos.celular, datos.nivel_academico,
-        datos.antiguedad_fecha || datos.fecha_ingreso,
-        datos.creado_por, datos.academia_id
-      ]);
+      `;
 
-      const idDocente = getInsertId(docenteRes);
+      // =======================================================
+      // CORRECCIÓN: Usamos OR para atrapar la fecha de cualquier variable
+      // =======================================================
+      const paramsDocente = [
+        idUsuario, 
+        datos.matricula, 
+        datos.rfc, 
+        datos.curp, 
+        datos.clave_ine,
+        datos.domicilio, 
+        datos.celular, 
+        datos.nivel_academico, 
+        datos.antiguedad_fecha || datos.fecha_ingreso, // <-- BLINDADO
+        datos.creado_por, 
+        datos.academia_id
+      ];
 
-      // 3. Insertar Documentos (si existen)
-      if (datos.documentos?.length > 0) {
-        const docQuery = `INSERT INTO documentos_docentes (docente_id, tipo_documento, url_archivo, fecha_subida) VALUES (?, ?, ?, NOW())`;
+      const docenteRes = await conn.query(docenteQuery, paramsDocente);
+      const idDocente = Number(docenteRes.insertId || docenteRes[0]?.insertId);
+
+      // 3. insertar documentos asociados al expediente
+      if (datos.documentos && datos.documentos.length > 0) {
+        const docQuery = `
+          INSERT INTO documentos_docentes (docente_id, tipo_documento, url_archivo, fecha_subida)
+          VALUES (?, ?, ?, NOW())
+        `;
         for (const doc of datos.documentos) {
           await conn.query(docQuery, [idDocente, doc.tipo, doc.url]);
         }
@@ -120,26 +123,49 @@ const docenteModel = {
       return { idUsuario, idDocente };
     } catch (error) {
       if (conn) await conn.rollback();
-      console.error("[Error createUsuarioYDocente]:", error.message);
+      console.error("[Transacción unificada fallida]:", error.message);
       throw error;
     } finally {
       if (conn) conn.release();
     }
   },
 
+  getAllDocentes: async () => {
+    const query = `
+      SELECT 
+        d.*, 
+        u.nombres, u.apellido_paterno, u.apellido_materno, u.institutional_email, u.foto_perfil_url,
+        a.nombre as nombre_academia
+      FROM docentes d
+      JOIN usuarios u ON d.usuario_id = u.id_usuario
+      LEFT JOIN academias a ON d.academia_id = a.id_academia
+    `;
+    const docentes = await db.query(query);
+
+    // por cada docente, buscamos sus documentos y se los pegamos
+    for (let i = 0; i < docentes.length; i++) {
+      const docsQuery = 'SELECT tipo_documento, url_archivo FROM documentos_docentes WHERE docente_id = ?';
+      const docs = await db.query(docsQuery, [docentes[i].id_docente]);
+      docentes[i].documentos = docs; 
+    }
+
+    return docentes;
+  },
+
   updateDocente: async (id, datos) => {
     let conn;
     try {
+      // usamos una transacción igual que en crear, por seguridad
       conn = await db.getConnection();
       await conn.beginTransaction();
 
-      // 1. Actualización de datos básicos
       let updateQuery = `
         UPDATE docentes 
         SET rfc = ?, curp = ?, clave_ine = ?, celular = ?, 
             nivel_academico = ?, academia_id = ?, modificado_por = ?, 
             fecha_modificacion = NOW()
       `;
+      
       let queryParams = [
         datos.rfc, datos.curp, datos.clave_ine, datos.celular,
         datos.nivel_academico, datos.academia_id, datos.modificado_por || null
@@ -152,17 +178,19 @@ const docenteModel = {
 
       updateQuery += ` WHERE id_docente = ?`;
       queryParams.push(id);
+
       await conn.query(updateQuery, queryParams);
 
-      // 2. Gestión de documentos (Upsert lógico)
-      if (datos.documentos?.length > 0) {
+      // actualizar documentos si enviaron nuevos
+      if (datos.documentos && datos.documentos.length > 0) {
         for (const doc of datos.documentos) {
-          const [existing] = await conn.query(
-            'SELECT id_documento FROM documentos_docentes WHERE docente_id = ? AND tipo_documento = ? LIMIT 1',
-            [id, doc.tipo]
-          );
+          const existingQuery = 'SELECT id_documento FROM documentos_docentes WHERE docente_id = ? AND tipo_documento = ? LIMIT 1';
+          const existing = await conn.query(existingQuery, [id, doc.tipo]);
 
-          if (existing) {
+          // comprobación segura según cómo devuelva los datos tu db.query
+          const hasExisting = Array.isArray(existing) && existing.length > 0 && !Array.isArray(existing[0]);
+
+          if (hasExisting || existing.length > 0) {
             await conn.query(
               'UPDATE documentos_docentes SET url_archivo = ?, fecha_subida = NOW() WHERE docente_id = ? AND tipo_documento = ?',
               [doc.url, id, doc.tipo]
@@ -180,14 +208,13 @@ const docenteModel = {
       return true;
     } catch (error) {
       if (conn) await conn.rollback();
-      console.error("[Error updateDocente]:", error.message);
       throw error;
     } finally {
       if (conn) conn.release();
     }
   },
 
-  // --- ESTADOS (SOFT DELETE) ---
+  // soft delete a docente
   deactivateDocente: async (id_docente, eliminado_por, motivo_baja) => {
     const query = `
       UPDATE docentes
@@ -198,16 +225,22 @@ const docenteModel = {
     return result.affectedRows;
   },
 
+  // Reactivar un docente dado de baja
   reactivateDocente: async (id_docente, modificado_por) => {
     const query = `
       UPDATE docentes
-      SET estatus = 'ACTIVO', modificado_por = ?, fecha_modificacion = NOW(), 
-          eliminado_por = NULL, fecha_eliminacion = NULL, motivo_baja = NULL
+      SET estatus = 'ACTIVO', 
+          modificado_por = ?, 
+          fecha_modificacion = NOW(), 
+          eliminado_por = NULL, 
+          fecha_eliminacion = NULL, 
+          motivo_baja = NULL
       WHERE id_docente = ?
     `;
     const result = await db.query(query, [modificado_por, id_docente]);
     return result.affectedRows;
   }
+  
 };
 
 module.exports = docenteModel;
