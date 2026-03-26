@@ -10,6 +10,7 @@ const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const docentesRoutes = require('./routes/docentesRoutes');
 const academiaRoutes = require('./routes/academiaRoutes');
+const academiaRoutes = require('./routes/academiaRoutes');
 const materiaRoutes = require('./routes/materiaRoutes');
 const carreraRoutes = require("./routes/carreraRoutes");
 const cuatrimestresRoutes = require("./routes/cuatrimestresRoutes");
@@ -24,6 +25,13 @@ const auditRoutes = require('./routes/auditRoutes');
 const configuracionRoutes = require('./routes/configuracionRoutes');
 const reporteRoutes = require('./routes/reporteRoutes');
 // --- NUEVA RUTA PARA HU-37 ---
+const externalRoutes = require('./routes/externalRoutes');
+
+// Inicialización de tablas auto-gestionadas
+const { initAuditTable } = require('./models/auditModel');
+const { initConfigTable } = require('./models/configuracionModel');
+initAuditTable();
+initConfigTable();
 const externalRoutes = require('./routes/externalRoutes');
 
 // Inicialización de tablas auto-gestionadas
