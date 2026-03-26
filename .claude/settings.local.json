@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/luisf/OneDrive/Documentos/SIGAD/SIGAD -name *.sql -type f)"
+    ]
+  }
+}

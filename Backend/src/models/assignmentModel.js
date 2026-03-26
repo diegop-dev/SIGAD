@@ -252,9 +252,49 @@ const rechazarAsignacionesPorGrupo = async (grupo_id, usuario_id) => {
   return result.affectedRows;
 };
 
+// ==========================================
+// Suma de horas semanales del docente en el periodo (solo ABIERTA)
+// Excluye los IDs pasados (para la validación de modificación)
+// ==========================================
+const getTotalHorasDocente = async (docente_id, periodo_id, excludeIds = []) => {
+  let query = `
+    SELECT COALESCE(
+      SUM(TIME_TO_SEC(TIMEDIFF(hora_fin, hora_inicio)) / 3600), 0
+    ) AS total_horas
+    FROM asignaciones
+    WHERE docente_id = ? AND periodo_id = ? AND estatus_acta = 'ABIERTA'
+  `;
+  const params = [docente_id, periodo_id];
+  if (excludeIds.length > 0) {
+    query += ' AND id_asignacion NOT IN (?)';
+    params.push(excludeIds);
+  }
+  const rows = await pool.query(query, params);
+  return parseFloat(rows[0].total_horas) || 0;
+};
+
+// ==========================================
+// Cuenta asignaciones (materias únicas) del docente en el periodo
+// ==========================================
+const countAsignacionesDocente = async (docente_id, periodo_id, excludeMateria = null) => {
+  let query = `
+    SELECT COUNT(DISTINCT materia_id) AS total
+    FROM asignaciones
+    WHERE docente_id = ? AND periodo_id = ? AND estatus_acta = 'ABIERTA'
+  `;
+  const params = [docente_id, periodo_id];
+  if (excludeMateria) {
+    query += ' AND materia_id != ?';
+    params.push(excludeMateria);
+  }
+  const rows = await pool.query(query, params);
+  return parseInt(rows[0].total) || 0;
+};
+
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
   checkReglasNegocioAsignacion, createAsignaciones, getAllAsignaciones, updateAsignacionesAgrupadas,
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada,
-  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo
+  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo,
+  getTotalHorasDocente, countAsignacionesDocente
 };

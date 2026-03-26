@@ -146,6 +146,7 @@ export const PeriodosManagement = () => {
             <option value="ACTIVO">Activo</option>
             <option value="INACTIVO">Inactivo</option>
           </select>
+
         </div>
       </div>
 

@@ -1,11 +1,50 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { TrendingUp, Users, GraduationCap, Activity, Plus, Loader2, BookOpen, BarChart2, LineChart as LineChartIcon, Filter } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line,
+  PieChart, Pie
+} from 'recharts';
+import {
+  TrendingUp, Users, GraduationCap, Activity,
+  Plus, Loader2, BookOpen, BarChart2,
+  LineChart as LineChartIcon, Filter,
+  PieChart as PieChartIcon
+} from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { MetricasForm } from './MetricasForm';
 
+
+/* ── Tooltip personalizado del donut ────────────────────────── */
+const CustomPieTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  const total = item.payload.total;
+  return (
+    <div className="bg-white border border-slate-100 rounded-xl shadow-lg px-4 py-2.5 text-sm">
+      <p className="font-bold text-slate-700">{item.name}</p>
+      <p className="text-slate-500">
+        <span className="font-black text-slate-800 text-base">{item.value}</span>
+        {total > 0 && (
+          <span className="text-slate-400 ml-1">
+            ({((item.value / total) * 100).toFixed(1)}%)
+          </span>
+        )}
+      </p>
+    </div>
+  );
+};
+
+/* ── Placeholder vacío para gráficos ────────────────────────── */
+const EmptyChart = ({ label }) => (
+  <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+    <BarChart2 className="w-8 h-8 opacity-40" />
+    <p className="text-sm font-medium text-center">{label}</p>
+  </div>
+);
+
+/* ── Componente principal ───────────────────────────────────── */
 export const DashboardMetricas = () => {
   const { user } = useAuth();
   const isSuperAdmin = user?.rol_id === 1;
@@ -15,7 +54,6 @@ export const DashboardMetricas = () => {
   const [carreras, setCarreras] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-
   const [graficaPeriodo, setGraficaPeriodo] = useState('');
 
   const fetchData = async () => {
@@ -46,15 +84,14 @@ export const DashboardMetricas = () => {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleFormSuccess = () => {
     setShowForm(false);
-    fetchData(); // Recargamos las métricas para que se actualicen las gráficas
+    fetchData();
   };
 
+  /* ── Datos derivados ──────────────────────────────────────── */
   const datosGraficaBarras = useMemo(() => {
     if (!graficaPeriodo) return [];
     return metricas
@@ -76,7 +113,6 @@ export const DashboardMetricas = () => {
       promediosPorPeriodo[m.nombre_periodo].suma += parseFloat(m.promedio_general);
       promediosPorPeriodo[m.nombre_periodo].count += 1;
     });
-
     return Object.keys(promediosPorPeriodo).map(periodo => ({
       periodo,
       Promedio: (promediosPorPeriodo[periodo].suma / promediosPorPeriodo[periodo].count).toFixed(2)
@@ -89,36 +125,46 @@ export const DashboardMetricas = () => {
     const totalEgresados = dataFiltrada.reduce((acc, m) => acc + m.total_egresados, 0);
     const promedioSuma = dataFiltrada.reduce((acc, m) => acc + parseFloat(m.promedio_general), 0);
     const promedioGlobal = dataFiltrada.length > 0 ? (promedioSuma / dataFiltrada.length).toFixed(2) : 0;
-
     return { totalInscritos, totalEgresados, promedioGlobal };
   }, [metricas, graficaPeriodo]);
 
+  const datosGraficaPastel = useMemo(() => {
+    const { totalInscritos, totalEgresados } = resumenKPIs;
+    if (totalInscritos === 0) return [];
+    const enCurso = Math.max(0, totalInscritos - totalEgresados);
+    return [
+      { name: 'Egresados', value: totalEgresados, total: totalInscritos, fill: '#10b981' },
+      { name: 'En curso', value: enCurso, total: totalInscritos, fill: '#3b82f6' },
+    ];
+  }, [resumenKPIs]);
+
+  /* ── Loading ──────────────────────────────────────────────── */
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
         <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium">Cargando panel de control y métricas de red...</p>
+        <p className="text-slate-500 font-medium">Cargando panel de control y métricas...</p>
       </div>
     );
   }
 
-  // ── FORM VIEW ──────────────────────────────────────────────────────────────
+  /* ── Vista formulario ─────────────────────────────────────── */
   if (showForm && isSuperAdmin) {
     return (
-      <MetricasForm 
-        periodos={periodos} 
-        carreras={carreras} 
-        onBack={() => setShowForm(false)} 
-        onSuccess={handleFormSuccess} 
+      <MetricasForm
+        periodos={periodos}
+        carreras={carreras}
+        onBack={() => setShowForm(false)}
+        onSuccess={handleFormSuccess}
       />
     );
   }
 
-  // ── MAIN DASHBOARD VIEW ────────────────────────────────────────────────────
+  /* ── Vista principal ──────────────────────────────────────── */
   return (
     <div className="space-y-6">
 
-      {/* Header */}
+      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -139,10 +185,10 @@ export const DashboardMetricas = () => {
         )}
       </div>
 
-      {/* Period filter */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-        <div className="flex items-center text-sm font-bold text-slate-700 whitespace-nowrap">
-          <Filter className="w-4 h-4 mr-2 text-slate-400" />
+      {/* Filtro de periodo */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-700 whitespace-nowrap">
+          <Filter className="w-4 h-4 text-slate-400" />
           Viendo estadísticas del periodo:
         </div>
         <select
@@ -158,42 +204,32 @@ export const DashboardMetricas = () => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center">
-          <div className="bg-blue-50 p-4 rounded-full mr-4">
-            <Users className="w-8 h-8 text-blue-600" />
+        {[
+          { label: 'Total inscritos', value: resumenKPIs.totalInscritos, icon: Users, bg: 'bg-blue-50', color: 'text-blue-600' },
+          { label: 'Total egresados', value: resumenKPIs.totalEgresados, icon: GraduationCap, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+          { label: 'Promedio institucional', value: resumenKPIs.promedioGlobal, icon: TrendingUp, bg: 'bg-amber-50', color: 'text-amber-600' },
+        ].map(({ label, value, icon: Icon, bg, color }) => (
+          <div key={label} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+            <div className={`${bg} p-4 rounded-xl`}>
+              <Icon className={`w-8 h-8 ${color}`} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{label}</p>
+              <h3 className="text-3xl font-black text-slate-800">{value}</h3>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total inscritos</p>
-            <h3 className="text-3xl font-black text-slate-800">{resumenKPIs.totalInscritos}</h3>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center">
-          <div className="bg-emerald-50 p-4 rounded-full mr-4">
-            <GraduationCap className="w-8 h-8 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total egresados</p>
-            <h3 className="text-3xl font-black text-slate-800">{resumenKPIs.totalEgresados}</h3>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center">
-          <div className="bg-amber-50 p-4 rounded-full mr-4">
-            <TrendingUp className="w-8 h-8 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Promedio institucional</p>
-            <h3 className="text-3xl font-black text-slate-800">{resumenKPIs.promedioGlobal}</h3>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Charts */}
+      {/* Gráficos fila 1: Barras + Pastel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Barras */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center justify-center">
-            <BarChart2 className="w-5 h-5 mr-2 text-blue-500" /> Retención estudiantil por carrera
+          <h3 className="text-base font-bold text-slate-800 mb-5 flex items-center gap-2">
+            <BarChart2 className="w-5 h-5 text-blue-500" /> Retención estudiantil por carrera
           </h3>
-          <div className="h-[300px] w-full">
+          <div className="h-[280px]">
             {datosGraficaBarras.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={datosGraficaBarras} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -210,43 +246,72 @@ export const DashboardMetricas = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">
-                No hay métricas capturadas para el periodo actual.
-              </div>
+              <EmptyChart label="No hay métricas capturadas para el periodo actual." />
             )}
           </div>
         </div>
 
+        {/* Pastel */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center justify-center">
-            <LineChartIcon className="w-5 h-5 mr-2 text-amber-500" /> Evolución del promedio histórico
+          <h3 className="text-base font-bold text-slate-800 mb-5 flex items-center gap-2">
+            <PieChartIcon className="w-5 h-5 text-indigo-500" /> Distribución inscritos vs. egresados
           </h3>
-          <div className="h-[300px] w-full">
-            {datosGraficaLineas.length > 0 ? (
+          <div className="h-[280px]">
+            {datosGraficaPastel.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={datosGraficaLineas} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <YAxis domain={['auto', 10]} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
-                  <Line type="monotone" dataKey="Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                </LineChart>
+                <PieChart>
+                  <Pie
+                    data={datosGraficaPastel}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="52%"
+                    outerRadius="78%"
+                    paddingAngle={3}
+                    dataKey="value"
+                  />
+                  <Tooltip content={<CustomPieTooltip />} />
+                  <Legend
+                    iconType="circle"
+                    iconSize={10}
+                    wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">
-                No hay datos históricos suficientes en el sistema.
-              </div>
+              <EmptyChart label="No hay métricas para calcular la distribución." />
             )}
           </div>
         </div>
       </div>
 
-      {/* Metrics history table */}
+      {/* Gráfico fila 2: Líneas (ancho completo) */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <h3 className="text-base font-bold text-slate-800 mb-5 flex items-center gap-2">
+          <LineChartIcon className="w-5 h-5 text-amber-500" /> Evolución del promedio histórico
+        </h3>
+        <div className="h-[240px]">
+          {datosGraficaLineas.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={datosGraficaLineas} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: '#64748b' }} />
+                <YAxis domain={['auto', 10]} tick={{ fontSize: 12, fill: '#64748b' }} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+                <Line type="monotone" dataKey="Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <EmptyChart label="No hay datos históricos suficientes en el sistema." />
+          )}
+        </div>
+      </div>
+
+      {/* Tabla historial */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
-          <h3 className="text-base font-bold text-slate-800 flex items-center">
-            <BookOpen className="w-5 h-5 mr-2 text-slate-400" /> Historial detallado de métricas
+          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-slate-400" /> Historial detallado de métricas
           </h3>
         </div>
         <div className="overflow-x-auto max-h-[300px]">
