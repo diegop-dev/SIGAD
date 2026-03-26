@@ -4,7 +4,7 @@ const docenteController = require('../controllers/docenteController');
 const upload = require('../middlewares/multerConfig');
 // Importación del middleware de seguridad y control de acceso basado en roles
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
-
+const { obtenerHistorialDocente } = require('../controllers/docenteController');
 // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
 router.get('/sincronizacion', verifyToken, docenteController.getDocenteParaSincronizacion);
 
@@ -59,4 +59,5 @@ router.patch('/:id/deactivate', verifyToken, requireRole([1, 2]), docenteControl
 // 6. Ruta para reactivar un docente
 router.patch('/:id/reactivate', verifyToken, requireRole([1, 2]), docenteController.reactivateDocente);
 
+router.get('/historial/:id_docente', verifyToken, obtenerHistorialDocente);
 module.exports = router;

@@ -30,12 +30,11 @@ exports.createAcademia = async (req, res) => {
   }
 };
 
-// 🔹 ACTUALIZAR
 exports.updateAcademia = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 🔥 temporal mientras no haya auth
+    
     const modificado_por = 1; 
 
     const data = {
@@ -52,13 +51,10 @@ exports.updateAcademia = async (req, res) => {
   }
 };
 
-// 🔹 CAMBIAR ESTATUS (INACTIVAR / ACTIVAR)
 exports.updateEstatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { estatus } = req.body;
-
-    // 🔥 temporal mientras no haya auth
     const modificado_por = 1;
 
     await Academia.cambiarEstatus(id, estatus, modificado_por);

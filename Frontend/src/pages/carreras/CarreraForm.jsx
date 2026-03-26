@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, BookOpen, Loader2, Layers, Trash2, Edit3 } from "lucide-react";
+import { Save, ArrowLeft, BookOpen, Loader2, Layers, Trash2, Edit3, GraduationCap } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { TOAST_CARRERAS, TOAST_COMMON } from "../../../constants/toastMessages";
@@ -16,6 +16,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const [formData, setFormData] = useState({
     nombre_carrera: initialData?.nombre_carrera || "",
+    nivel_academico: initialData?.nivel_academico || "LICENCIATURA", // <-- NUEVO ESTADO INICIAL
     modalidad: initialData?.modalidad || "",
     academia_id: initialData?.academia_id || "",
   });
@@ -44,7 +45,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const validate = () => {
     const newErrors = {};
-    const { nombre_carrera, modalidad, academia_id } = formData;
+    const { nombre_carrera, modalidad, academia_id, nivel_academico } = formData;
     
     const nombreLimpio = nombre_carrera.trim();
     const palabras = nombreLimpio.split(/\s+/);
@@ -64,6 +65,10 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
       newErrors.nombre_carrera = "El nombre no puede estar formado solo por letras sueltas";
     } else if (palabrasSinSentido) {
       newErrors.nombre_carrera = 'El nombre contiene palabras no válidas (ej. "Aa")';
+    }
+
+    if (!nivel_academico) {
+      newErrors.nivel_academico = "El nivel académico es obligatorio";
     }
 
     if (!modalidad) {
@@ -96,7 +101,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
       if (isEditing) {
         await api.put(`/carreras/${initialData.id_carrera}`, payload);
-        // FIX: mensaje de éxito diferenciado por operación (antes era genérico "Operación exitosa")
         toast.success(TOAST_CARRERAS.actualizadoOk, { id: toastId });
       } else {
         await api.post("/carreras", payload);
@@ -132,9 +136,9 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar carrera" : "Nueva carrera"}</h2>
+            <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar programa" : "Nuevo programa académico"}</h2>
             <p className="text-sm text-slate-500 font-medium">
-              {isEditing ? "Modifica los datos de la carrera." : "El código único se generará automáticamente."}
+              {isEditing ? "Modifica los datos del programa." : "El código único se generará automáticamente."}
             </p>
           </div>
         </div>
@@ -154,7 +158,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
             
             <div className="md:col-span-2 space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
-                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Nombre de la carrera
+                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Nombre del programa (Carrera/Maestría)
               </label>
               <input
                 type="text"
@@ -169,6 +173,25 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.nombre_carrera && <p className="text-xs font-bold text-red-500">{errores.nombre_carrera}</p>}
             </div>
 
+            {/* Nivel Académico - NUEVO CAMPO */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
+              </label>
+              <select
+                name="nivel_academico"
+                value={formData.nivel_academico}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.nivel_academico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="LICENCIATURA">Licenciatura</option>
+                <option value="MAESTRIA">Maestría</option>
+              </select>
+              {errores.nivel_academico && <p className="text-xs font-bold text-red-500">{errores.nivel_academico}</p>}
+            </div>
+
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
@@ -177,7 +200,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
                 name="modalidad"
                 value={formData.modalidad}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.modalidad ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
               >
@@ -189,7 +212,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.modalidad && <p className="text-xs font-bold text-red-500">{errores.modalidad}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <Layers className="w-4 h-4 mr-2 text-blue-500" /> Academia responsable
               </label>
@@ -198,7 +221,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
                 value={formData.academia_id}
                 onChange={handleChange}
                 disabled={cargandoAcademias}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
                   errores.academia_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
                 }`}
               >
@@ -228,7 +251,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
                 className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md"
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-                Guardar carrera
+                Guardar programa
               </button>
             )}
           </div>

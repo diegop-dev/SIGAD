@@ -22,6 +22,7 @@ export const Academias = ({ onNueva }) => {
   useEffect(() => {
     cargarAcademias();
     cargarCoordinadores();
+    cargarCoordinadores();
   }, []);
 
   const cargarAcademias = async () => {
@@ -72,11 +73,14 @@ export const Academias = ({ onNueva }) => {
     }
   };
 
-  const handleToggleEstatus = async (id, estatusActual) => {
-    const nuevoEstatus = estatusActual === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+  const confirmarCambioEstatus = async () => {
+    if (!academiaAEliminar) return;
+    const nuevoEstatus = academiaAEliminar.estatus === "ACTIVO" ? "INACTIVO" : "ACTIVO";
     try {
-      await api.patch(`/academias/${id}/estatus`, { estatus: nuevoEstatus });
+      await api.patch(`/academias/${academiaAEliminar.id_academia}/estatus`, { estatus: nuevoEstatus });
       toast.success(`Estatus cambiado a ${nuevoEstatus}`);
+      setModalConfirmacion(false);
+      setAcademiaAEliminar(null);
       cargarAcademias();
     } catch {
       toast.error('No se pudo cambiar el estatus');
@@ -279,7 +283,7 @@ export const Academias = ({ onNueva }) => {
                   required
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all cursor-pointer"
                 >
-                  <option value="">Seleccione un coordinador</option>
+                  <option value="">Seleccione</option>
                   {coordinadores.map(c => (
                     <option key={c.id_usuario} value={c.id_usuario}>
                       {c.nombres} {c.apellido_paterno}

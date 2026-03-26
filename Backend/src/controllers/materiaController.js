@@ -28,31 +28,36 @@ const obtenerTresLetras = (texto) => {
   return palabras.map((p) => p[0]).join("").substring(0, 3);
 };
 
-const generarCodigoMateria = async (nombreMateria, carreraId) => {
+// ========================================================
+// MODIFICADO: Recibe nivelAcademico para inyectar L o M
+// ========================================================
+const generarCodigoMateria = async (nombreMateria, carreraId, nivelAcademico = 'LICENCIATURA') => {
 
   const prefijoMateria = obtenerTresLetras(nombreMateria);
 
-  const carrera = await carreraModel.getCarreraById(carreraId);
-
-  if (!carrera) {
-    throw new Error(`La carrera con id ${carreraId} no existe`);
+  // Si no hay carrera (Tronco Común), usamos un prefijo genérico
+  let prefijoCarrera = "GEN";
+  if (carreraId) {
+    const carrera = await carreraModel.getCarreraById(carreraId);
+    if (carrera) {
+      const nombreCarrera = carrera.nombre_carrera || carrera.nombre || "";
+      prefijoCarrera = obtenerTresLetras(nombreCarrera);
+    }
   }
 
-  const nombreCarrera = carrera.nombre_carrera || carrera.nombre || "";
-
-  const prefijoCarrera = obtenerTresLetras(nombreCarrera);
+  // Determinamos el sufijo del nivel (L para Licenciatura, M para Maestría)
+  const sufijoNivel = nivelAcademico.toUpperCase() === 'MAESTRIA' ? 'M' : 'L';
 
   let codigo;
   let existe = true;
 
   while (existe) {
-
     const numeroRandom = Math.floor(100 + Math.random() * 900);
-
-    codigo = `${prefijoMateria}-${prefijoCarrera}-${numeroRandom}`;
+    
+    // Ej: MAT-CAR-M123 o MAT-CAR-L123
+    codigo = `${prefijoMateria}-${prefijoCarrera}-${sufijoNivel}${numeroRandom}`;
 
     existe = await materiaModel.verificarCodigoExistente(codigo);
-
   }
 
   return codigo;
@@ -136,41 +141,61 @@ const createMateria = async (req, res) => {
       creditos,
       cupo_maximo,
       tipo_asignatura,
+      nivel_academico, 
       periodo_id,
       cuatrimestre_id,
       carrera_id
     } = req.body;
 
-    if (!nombre || !carrera_id) {
+    if (!nombre) {
       return res.status(400).json({
-        error: "Nombre y carrera son obligatorios"
+        error: "El nombre de la materia es obligatorio"
       });
     }
 
-    const codigo_unico = await generarCodigoMateria(nombre, carrera_id);
+    // Normalización de datos para la validación
+    const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
+    const nombreLimpio = nombre.toUpperCase().trim();
+    const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
+
+    // ✨ VALIDACIÓN DE DUPLICADOS EN LA CREACIÓN ✨
+    const existeDuplicado = await materiaModel.verificarMateriaDuplicada(
+      nombreLimpio,
+      carreraSegura,
+      nivelSeguro
+    );
+
+    if (existeDuplicado) {
+      return res.status(409).json({
+        error: "Ya existe una materia con este nombre registrada en este nivel académico para esta carrera."
+      });
+    }
+
+    // Generamos el código incluyendo el nivel académico
+    const codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
 
     const nuevaMateria = {
-
       codigo_unico,
-      nombre: nombre.toUpperCase().trim(),
+      nombre: nombreLimpio,
       creditos,
       cupo_maximo,
       tipo_asignatura,
+      nivel_academico: nivelSeguro,
       periodo_id,
       cuatrimestre_id,
-      carrera_id,
+      carrera_id: carreraSegura,
       creado_por: req.user?.id_usuario || null
-
     };
-const resultado = await materiaModel.createMateria(nuevaMateria);
+    
+    const resultado = await materiaModel.createMateria(nuevaMateria);
 
-const insertId = resultado.insertId || resultado[0]?.insertId;
+    const insertId = resultado.insertId || resultado[0]?.insertId;
 
-res.status(201).json({
-  message: "Materia creada correctamente",
-  id_materia: insertId,
-  codigo_unico
-});
+    res.status(201).json({
+      message: "Materia creada correctamente",
+      id_materia: insertId,
+      codigo_unico
+    });
 
   } catch (error) {
 
@@ -207,6 +232,7 @@ const updateMateria = async (req, res) => {
       creditos,
       cupo_maximo,
       tipo_asignatura,
+      nivel_academico, 
       periodo_id,
       cuatrimestre_id,
       carrera_id
@@ -234,11 +260,9 @@ const updateMateria = async (req, res) => {
     );
 
     if (cuatrimestreActivo) {
-
       return res.status(409).json({
         error: "No se puede modificar la materia porque el cuatrimestre está activo"
       });
-
     }
 
     /*
@@ -258,11 +282,9 @@ const updateMateria = async (req, res) => {
       const academia = await materiaModel.getAcademiaDeMateria(id);
 
       if (!academia || academia.usuario_id !== usuario.id_usuario) {
-
         return res.status(403).json({
           error: "No eres el coordinador de la academia de esta materia"
         });
-
       }
 
     }
@@ -272,20 +294,23 @@ const updateMateria = async (req, res) => {
     VALIDAR DUPLICADOS
     =========================
     */
+    // Normalización de datos
+    const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
+    const nombreLimpio = nombre.toUpperCase().trim();
+    const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
 
+    // ✨ VALIDACIÓN DE DUPLICADOS EN LA ACTUALIZACIÓN ✨
     const existeDuplicado = await materiaModel.verificarMateriaDuplicada(
-      nombre.toUpperCase().trim(),
-      tipo_asignatura,
-      carrera_id,
+      nombreLimpio,
+      carreraSegura,
+      nivelSeguro,
       id
     );
 
     if (existeDuplicado) {
-
       return res.status(409).json({
-        error: "Ya existe una materia con el mismo nombre y tipo en esta carrera"
+        error: "Ya existe una materia con este nombre registrada en este nivel académico para esta carrera."
       });
-
     }
 
     /*
@@ -296,13 +321,13 @@ const updateMateria = async (req, res) => {
 
     let codigo_unico = materiaActual.codigo_unico;
 
+    // Si cambia el nombre, la carrera o el nivel académico, regeneramos el código
     if (
-      nombre !== materiaActual.nombre ||
-      carrera_id !== materiaActual.carrera_id
+      nombreLimpio !== materiaActual.nombre ||
+      carreraSegura !== materiaActual.carrera_id ||
+      nivelSeguro !== materiaActual.nivel_academico
     ) {
-
-      codigo_unico = await generarCodigoMateria(nombre, carrera_id);
-
+      codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
     }
 
     /*
@@ -314,13 +339,14 @@ const updateMateria = async (req, res) => {
     await materiaModel.updateMateria(id, {
 
       codigo_unico,
-      nombre: nombre.toUpperCase().trim(),
+      nombre: nombreLimpio,
       creditos,
       cupo_maximo,
       tipo_asignatura,
+      nivel_academico: nivelSeguro, 
       periodo_id,
       cuatrimestre_id,
-      carrera_id,
+      carrera_id: carreraSegura,
       modificado_por
 
     });
