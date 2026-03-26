@@ -86,7 +86,7 @@ export const AuditLogs = () => {
             <ShieldCheck className="w-5 h-5 text-slate-600" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800">Registro de auditoría</h1>
+            <h1 className="text-xl font-bold text-slate-800">Registro de auditoria</h1>
             <p className="text-sm text-slate-500">{total.toLocaleString()} eventos registrados</p>
           </div>
         </div>
