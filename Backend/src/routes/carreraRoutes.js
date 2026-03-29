@@ -5,7 +5,7 @@ const { verifyToken } = require('../middlewares/authMiddleware');
 const carreraController = require('../controllers/carreraController');
 
 // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
-router.get('/programas_academicos', verifyToken, carreraController.ObtenerProgramasAcademicos);
+router.get('/programas_academicos', carreraController.ObtenerProgramasAcademicos);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-01)

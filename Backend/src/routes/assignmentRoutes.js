@@ -4,11 +4,11 @@ const assignmentController = require('../controllers/assignmentController');
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 
 // ─── EP-06 SESA: GET /asignaciones/catalogo ──────────────────────────────────
-router.get('/catalogo', verifyToken, assignmentController.ObtenerAsignaciones);
+router.get('/catalogo', assignmentController.ObtenerAsignaciones);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── HU-38: Sincronizar promedios consolidados desde SESA ────────────────────
-router.post('/sincronizar-promedios', verifyToken, requireRole([1, 2]), assignmentController.sincronizarPromedios);
+router.post('/sincronizar-promedios', requireRole([1, 2]), assignmentController.sincronizarPromedios);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-05)

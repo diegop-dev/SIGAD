@@ -7,7 +7,7 @@ const userController = require('../controllers/userController');
 const docenteController = require('../controllers/docenteController');
 
 // ─── EP-08 SESA: GET /users/catalogo/{id_usuario} ──────────────────────────────
-router.get('/catalogo/:id_usuario', verifyToken, docenteController.ObtenerUsuarioPorId);
+router.get('/catalogo/:id_usuario', docenteController.ObtenerUsuarioPorId);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // HU-02: Listar usuarios — solo directivos

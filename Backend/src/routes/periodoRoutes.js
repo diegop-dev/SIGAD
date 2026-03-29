@@ -8,7 +8,6 @@ const periodoController            = require("../controllers/periodoController")
 // Declarada antes de /:id para evitar colisión de parámetros en Express.
 router.get(
   "/activo",
-  verifyToken,
   periodoController.ObtenerPeriodoActivo
 );
 // ─────────────────────────────────────────────────────────────────────────────

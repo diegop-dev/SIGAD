@@ -6,7 +6,7 @@ const materiaController = require("../controllers/materiaController");
 
 // ─── EP-04 SESA: GET /materias/catalogo ───────────────────────────────────────────────
 // Soporta query params opcionales: ?id_programa_academico=X&cuatrimestre_id=Y&tipo_asignatura=Z
-router.get("/catalogo", verifyToken, materiaController.ObtenerMaterias);
+router.get("/catalogo", materiaController.ObtenerMaterias);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-03)
