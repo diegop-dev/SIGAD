@@ -12,7 +12,6 @@ const carreraModel = {
     }
   },
 
-  // MODIFICADO: Agregamos nivel_academico para evitar colisiones entre Licenciaturas y Maestrías con el mismo nombre
   findExistingCarrera: async (nombre_carrera, modalidad, nivel_academico) => {
     let conn;
     try {
@@ -35,13 +34,10 @@ const carreraModel = {
       conn = await pool.getConnection();
       let query = "SELECT COUNT(*) AS total FROM carreras WHERE codigo_unico = ?";
       let params = [siglas];
-      
-      // Si estamos editando, le decimos a la base de datos que ignore nuestra propia carrera
       if (excluir_id) {
         query += " AND id_carrera != ?";
         params.push(excluir_id);
       }
-      
       const rows = await conn.query(query, params);
       return rows[0].total > 0;
     } finally {
@@ -62,7 +58,6 @@ const carreraModel = {
     }
   },
 
-  // MODIFICADO: Incluye nivel_academico en la inserción
   crearCarrera: async (datosCarrera) => {
     const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, creado_por } = datosCarrera;
     let conn;
@@ -79,14 +74,11 @@ const carreraModel = {
     }
   },
 
-  // MODIFICADO: Incluye c.nivel_academico en las extracciones
   getAllCarreras: async (periodo_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      
       if (periodo_id) {
-        // Retorna SOLO carreras activas que tienen al menos una materia en ese periodo (Para el Dashboard)
         const rows = await conn.query(`
           SELECT DISTINCT 
             c.id_carrera, 
@@ -103,7 +95,6 @@ const carreraModel = {
         `, [periodo_id]);
         return rows;
       } else {
-        // Consulta normal que retorna todas las carreras (Para el Catálogo de Gestión)
         const rows = await conn.query(`
           SELECT 
             c.id_carrera, 
@@ -129,14 +120,13 @@ const carreraModel = {
     let conn;
     try {
       conn = await pool.getConnection();
-      const rows = await conn.query(` SELECT id_carrera, nombre_carrera FROM carreras WHERE estatus = 'ACTIVO' `);
+      const rows = await conn.query(`SELECT id_carrera, nombre_carrera FROM carreras WHERE estatus = 'ACTIVO'`);
       return rows;
     } finally {
       if (conn) conn.release();
     }
   },
 
-  // MODIFICADO: Incluye nivel_academico en la actualización
   actualizarCarrera: async (id_carrera, datosCarrera) => {
     const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = datosCarrera;
     let conn;
@@ -168,7 +158,33 @@ const carreraModel = {
     } finally {
       if (conn) conn.release();
     }
-  }
+  },
+
+  // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+  // Devuelve carreras activas con los nombres de campo que espera SESA.
+  // id_carrera  → id_programa_academico
+  // nombre_carrera → nombre_programa
+  ObtenerProgramasAcademicos: async () => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT
+          id_carrera    AS id_programa_academico,
+          codigo_unico,
+          nombre_carrera AS nombre_programa,
+          modalidad,
+          nivel_academico
+        FROM carreras
+        WHERE estatus = 'ACTIVO'
+        ORDER BY nivel_academico ASC, nombre_carrera ASC
+      `);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
 };
 
 module.exports = carreraModel;

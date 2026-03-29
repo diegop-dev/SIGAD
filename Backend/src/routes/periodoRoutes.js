@@ -1,10 +1,17 @@
 const express = require("express");
-const router = express.Router();
-
+const router  = express.Router();
 const { verifyToken, requireRole } = require("../middlewares/authMiddleware");
-const { validatePeriodo } = require("../middlewares/periodoValidator");
+const { validatePeriodo }          = require("../middlewares/periodoValidator");
+const periodoController            = require("../controllers/periodoController");
 
-const periodoController = require("../controllers/periodoController");
+// ─── EP-01 SESA: GET /periodos/activo ────────────────────────────────────────
+// Declarada antes de /:id para evitar colisión de parámetros en Express.
+router.get(
+  "/activo",
+  verifyToken,
+  periodoController.ObtenerPeriodoActivo
+);
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.get(
   "/",
@@ -15,7 +22,7 @@ router.get(
 router.post(
   "/",
   verifyToken,
-  requireRole([1,2]),
+  requireRole([1, 2]),
   validatePeriodo,
   periodoController.createPeriodo
 );
@@ -23,7 +30,7 @@ router.post(
 router.put(
   "/:id",
   verifyToken,
-  requireRole([1,2]),
+  requireRole([1, 2]),
   validatePeriodo,
   periodoController.updatePeriodo
 );
