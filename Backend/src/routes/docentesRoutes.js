@@ -6,7 +6,7 @@ const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 const { obtenerHistorialDocente } = require('../controllers/docenteController');
 
 // ─── EP-07 SESA: GET /docentes/catalogo ────────────────────────────────────────────────
-router.get('/catalogo', verifyToken, docenteController.ObtenerDocentes);
+router.get('/catalogo', docenteController.ObtenerDocentes);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)

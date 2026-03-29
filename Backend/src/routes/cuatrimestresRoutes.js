@@ -4,7 +4,7 @@ const { verifyToken } = require("../middlewares/authMiddleware");
 const cuatrimestreController = require("../controllers/cuatrimestreController");
 
 // ─── EP-03 SESA: GET /cuatrimestres/catalogo ──────────────────────────────────────────
-router.get("/catalogo", verifyToken, cuatrimestreController.ObtenerCuatrimestres);
+router.get("/catalogo", cuatrimestreController.ObtenerCuatrimestres);
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/", verifyToken, cuatrimestreController.getCuatrimestres);
