@@ -1,21 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const { validarCreacionCarrera } = require('../middlewares/carreraValidator');
-// middleware de seguridad obligatorio para la HU-37
-const { verifyToken } = require('../middlewares/authMiddleware'); 
+const { verifyToken } = require('../middlewares/authMiddleware');
 const carreraController = require('../controllers/carreraController');
 
-// ruta exclusiva para la API de sincronización externa (HU-37 / API-01)
-// nota: el sistema externo deberá consumir GET /api/carreras/sincronizacion
+// ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+router.get('/programas_academicos', carreraController.ObtenerProgramasAcademicos);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Ruta exclusiva para la API de sincronización externa (HU-37 / API-01)
 router.get('/sincronizacion', verifyToken, carreraController.getCarrerasParaSincronizacion);
 
-// rutas originales para el consumo interno del frontend de SIGAD
-// se mantiene '/' para no romper las peticiones existentes en la interfaz web
+// Rutas originales para el consumo interno del frontend de SIGAD
 router.get('/academias-activas', verifyToken, carreraController.getAcademiasDisponibles);
 router.get('/', verifyToken, carreraController.getCarreras);
 router.post('/', verifyToken, validarCreacionCarrera, carreraController.crearCarrera);
 
-// RUTAS PARA MODIFICAR Y ELIMINAR 
+// Rutas para modificar y eliminar
 router.put('/:id', verifyToken, validarCreacionCarrera, carreraController.actualizarCarrera);
 router.patch('/:id/deactivate', verifyToken, carreraController.deactivateCarrera);
 
