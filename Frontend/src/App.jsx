@@ -38,7 +38,6 @@ function App() {
             <Route element={<ProtectedRoute allowedRoles={[1]} />}>
               <Route path="/metricas" element={<DashboardMetricas />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
-              <Route path="/audit-logs" element={<AuditLogs />} />
             </Route>
 
             {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
@@ -59,7 +58,6 @@ function App() {
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
               <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
               <Route path="/mi-perfil" element={<MiPerfil />} />
-              <Route path="/horarios" element={<HorariosManagement />} />
               <Route path="/horarios" element={<HorariosManagement />} />
             </Route>
           </Route> 
