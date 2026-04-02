@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authModel = require('../models/authModel');
 const userModel = require('../models/userModel'); // Importamos el userModel para poder reutilizar el updateUser
+const { logAudit, getClientIp } = require('../services/auditService');
 
 const login = async (req, res) => {
   try {
@@ -37,6 +38,13 @@ const login = async (req, res) => {
     // Firma del token con la llave secreta del servidor
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '8h'
+    });
+
+    logAudit({
+      modulo: 'AUTH', accion: 'LOGIN',
+      registro_afectado: `Usuario #${user.id_usuario} (${institutional_email})`,
+      detalle: null,
+      usuario_id: user.id_usuario, ip_address: getClientIp(req)
     });
 
     // Respuesta exitosa al cliente (excluyendo datos sensibles como el hash)
@@ -101,8 +109,15 @@ const changeTemporaryPassword = async (req, res) => {
       return res.status(400).json({ error: 'No se pudo procesar el cambio de contraseña.' });
     }
 
+    logAudit({
+      modulo: 'AUTH', accion: 'CAMBIO_CONTRASENA',
+      registro_afectado: `Usuario #${id_usuario}`,
+      detalle: null,
+      usuario_id: id_usuario, ip_address: getClientIp(req)
+    });
+
     // Respuesta exitosa. El usuario no necesita volver a loguearse.
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'Contraseña actualizada con éxito. ¡Bienvenido al sistema!',
       es_password_temporal: 0 // Le avisamos al frontend que ya se apagó
     });

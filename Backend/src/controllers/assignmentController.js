@@ -1,6 +1,14 @@
 const assignmentModel = require('../models/assignmentModel');
 const notificationModel = require('../models/notificationModel');
 const pool = require('../config/database');
+const configuracionModel = require('../models/configuracionModel');
+const { logAudit, getClientIp } = require('../services/auditService');
+
+// Helper: convierte "HH:MM:SS" o "HH:MM" a minutos
+const timeToMinutes = (t) => {
+  const parts = String(t).split(':');
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+};
 
 // Api de sincronización externa (HU-37 / API-05)
 const getAsignacionesParaSincronizacion = async (req, res) => {
@@ -242,6 +250,33 @@ const updateAsignacion = async (req, res) => {
     }
 
     const excludeIds = await assignmentModel.getIdsAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id);
+
+    // ==========================================
+    // Validaciones de límites configurables (modificación)
+    // ==========================================
+    const [maxContStrU, maxSemStrU] = await Promise.all([
+      configuracionModel.getValor('max_horas_continuas'),
+      configuracionModel.getValor('max_horas_semana')
+    ]);
+    const maxHorasContinuasU = parseFloat(maxContStrU) || 3;
+    const maxHorasSemanalesU = parseFloat(maxSemStrU) || 18;
+
+    let totalHorasNuevasU = 0;
+    for (const bloque of horarios) {
+      const durHoras = (timeToMinutes(bloque.hora_fin) - timeToMinutes(bloque.hora_inicio)) / 60;
+      if (durHoras <= 0) {
+        return res.status(400).json({ error: `El bloque del ${bloque.dia_semana} tiene una duración inválida.` });
+      }
+      if (durHoras > maxHorasContinuasU) {
+        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${maxHorasContinuasU}h continuas (duración: ${durHoras.toFixed(1)}h).` });
+      }
+      totalHorasNuevasU += durHoras;
+    }
+
+    const horasRestantes = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id, excludeIds);
+    if (horasRestantes + totalHorasNuevasU > maxHorasSemanalesU) {
+      return res.status(422).json({ error: `La modificación supera el límite semanal del docente (${maxHorasSemanalesU}h). Horas restantes: ${horasRestantes.toFixed(1)}h, nuevas: ${totalHorasNuevasU.toFixed(1)}h.` });
+    }
 
     for (const bloque of horarios) {
       const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;

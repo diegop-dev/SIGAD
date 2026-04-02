@@ -29,7 +29,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     nivel_academico: initialData?.nivel_academico || "LICENCIATURA", // <-- NUEVO ESTADO INICIAL
     periodo_id: initialData?.periodo_id || "",
     cuatrimestre_id: initialData?.cuatrimestre_id || "",
-    carrera_id: initialData?.carrera_id || "" 
+    carrera_id: initialData?.carrera_id || ""  // Aquí puede venir null o undefined
   });
 
   useEffect(() => {
@@ -160,6 +160,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Fallo en la petición a la API REST:", error);
+      console.error("Detalles del error:", error.response?.data); // Para debugging
       
       if (error.response?.data?.errores) {
         const backendErrors = {};
