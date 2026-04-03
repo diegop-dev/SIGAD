@@ -69,6 +69,54 @@ const userModel = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA BAJA DE USUARIOS ────────────────────────
+  // Regla de negocio: un usuario con rol docente no puede ser desactivado si
+  // tiene un expediente ligado a una asignación docente existente.
+  //
+  // PROBLEMA DE IDENTIDAD:
+  // En SIGAD cada fila de asignaciones tiene su propio id_asignacion único.
+  // Si solo hacemos un JOIN simple, podríamos contar registros huérfanos o 
+  // versiones de historial.
+  //
+  // SOLUCIÓN: Subquery que calcula MIN(id_asignacion) agrupado por la clave
+  // lógica (grupo_id, materia_id, docente_id, periodo_id, aula_id).
+  // Ese MIN actúa como ID estable y representativo. validamos cruzando la
+  // tabla Usuarios con Docentes y verificamos si existen bloques de asignación
+  // vigentes (acta abierta y periodo activo).
+  checkDependenciasDocente: async (id_usuario) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM Usuarios u
+        INNER JOIN Docentes d ON u.id_usuario = d.usuario_id
+        INNER JOIN Asignaciones a ON d.id_docente = a.docente_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE u.id_usuario = ? 
+          AND u.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_usuario]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   // ==========================================
   // CONSULTAS DE ESCRITURA (MUTACIONES)
   // ==========================================
@@ -147,7 +195,7 @@ const userModel = {
     let conn;
     try {
       conn = await pool.getConnection();
-      // Limpiamos los rastros de eliminación y lo volvemos a poner ACTIVO
+      // limpiamos los rastros de eliminación y lo volvemos a poner activo
       const result = await conn.query(
         `UPDATE Usuarios 
          SET estatus = 'ACTIVO', 

@@ -86,6 +86,35 @@ const updatePeriodo = async (req, res) => {
       });
     }
 
+    // 1. recuperar el estado actual del periodo
+    const periodoActual = await periodoModel.getPeriodoById(id);
+    if (!periodoActual) {
+      return res.status(404).json({ error: "Periodo no encontrado" });
+    }
+
+    // 2. normalizar las fechas a formato YYYY-MM-DD para una comparación segura
+    const parseDate = (d) => new Date(d).toISOString().split('T')[0];
+    const inicioActual = periodoActual.fecha_inicio ? parseDate(periodoActual.fecha_inicio) : null;
+    const finActual = periodoActual.fecha_fin ? parseDate(periodoActual.fecha_fin) : null;
+    const limiteActual = periodoActual.fecha_limite_calif ? parseDate(periodoActual.fecha_limite_calif) : null;
+
+    // 3. detectar intentos de mutación en fechas estructurales
+    const intentoCambioFechas = 
+      (fecha_inicio && parseDate(fecha_inicio) !== inicioActual) ||
+      (fecha_fin && parseDate(fecha_fin) !== finActual) ||
+      (fecha_limite_calif && parseDate(fecha_limite_calif) !== limiteActual);
+
+    if (intentoCambioFechas) {
+      const tieneAsignaciones = await periodoModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible modificar las fechas de este periodo porque ya cuenta con clases asignadas. Esto afectaría los procesos de emisión de actas y sincronización con SESA. Debe liberar la carga horaria previamente."
+        });
+      }
+    }
+
     const codigo = generarCodigoPeriodo(anio, fecha_inicio, fecha_fin);
     await periodoModel.updatePeriodo(id, {
       codigo,
@@ -139,6 +168,24 @@ const togglePeriodo = async (req, res) => {
   try {
     const { id }    = req.params;
     const usuario   = req.user?.id_usuario;
+
+    // validación de integridad antes del borrado lógico
+    const periodoActual = await periodoModel.getPeriodoById(id);
+    if (!periodoActual) {
+      return res.status(404).json({ error: "Periodo no encontrado" });
+    }
+
+    if (periodoActual.estatus === 'ACTIVO') {
+      const tieneAsignaciones = await periodoModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible desactivar este periodo porque cuenta con clases asignadas. Debe reubicar o cancelar estas clases antes de proceder."
+        });
+      }
+    }
+
     await periodoModel.togglePeriodoStatus(id, usuario);
     res.status(200).json({ message: "Estatus actualizado" });
   } catch (error) {

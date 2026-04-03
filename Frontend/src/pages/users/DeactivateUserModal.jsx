@@ -10,7 +10,7 @@ export const DeactivateUserModal = ({ userToDeactivate, onClose, onSuccess }) =>
 
   if (!userToDeactivate) return null;
 
-  // Construcción robusta de la URL de la imagen al igual que en UserModal
+  // Construcción robusta de la URL de la imagen
   const API_BASE = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
     : 'http://localhost:3000';
@@ -21,7 +21,7 @@ export const DeactivateUserModal = ({ userToDeactivate, onClose, onSuccess }) =>
 
   const handleDeactivate = async () => {
     setIsSubmitting(true);
-    const toastId = toast.loading("Procesando desactivación...");
+    const toastId = toast.loading("Validando integridad relacional y procesando desactivación...");
 
     try {
       await api.patch(`/users/${userToDeactivate.id_usuario}/deactivate`, {
@@ -31,8 +31,16 @@ export const DeactivateUserModal = ({ userToDeactivate, onClose, onSuccess }) =>
       toast.success("Usuario desactivado exitosamente.", { id: toastId });
       onSuccess();
     } catch (error) {
-      const errorMsg = error.response?.data?.error || "Error al comunicarse con el servidor.";
-      toast.error(`Error: ${errorMsg}`, { id: toastId });
+      // Interceptamos específicamente el error 409 de choque de dependencias (docentes con asignación)
+      if (error.response?.status === 409) {
+        const detalles = error.response.data?.detalles || "Conflicto de integridad en la base de datos.";
+        // Usamos un tiempo de visualización más largo (6 segundos) para que el admin pueda leer la instrucción
+        toast.error(`Operación denegada: ${detalles}`, { id: toastId, duration: 6000 });
+      } else {
+        // Fallback para otros errores (500, 404, 403)
+        const errorMsg = error.response?.data?.error || "Error al comunicarse con el servidor.";
+        toast.error(`Error: ${errorMsg}`, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }

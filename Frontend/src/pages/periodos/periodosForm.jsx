@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Loader2, Calendar, Edit3 } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Calendar, Edit3, Ban } from "lucide-react";
 import api from "../../services/api";
 
 const formatearFechaParaInput = (cadenaFecha) => {
@@ -31,10 +31,6 @@ const hayOverlap = (inicio1, fin1, inicio2, fin2) => {
   const start2 = new Date(inicio2);
   const end2 = new Date(fin2);
   
-  // Un periodo se sobrepone con otro si:
-  // - El inicio del primero está entre el inicio y fin del segundo
-  // - El fin del primero está entre el inicio y fin del segundo
-  // - El primero contiene completamente al segundo
   return (start1 <= end2 && end1 >= start2);
 };
 
@@ -42,9 +38,12 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
   const isEditing = !!periodoToEdit;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingOverlap, setIsCheckingOverlap] = useState(false);
   const [errores, setErrores] = useState({});
   const [periodosExistentes, setPeriodosExistentes] = useState([]);
+  
+  // Memoria del semáforo de integridad
+  const [serverAction, setServerAction] = useState(null); 
+  const [serverMessage, setServerMessage] = useState('');
 
   const [formData, setFormData] = useState({
     fecha_inicio: formatearFechaParaInput(periodoToEdit?.fecha_inicio),
@@ -52,7 +51,6 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     fecha_limite_calif: formatearFechaParaInput(periodoToEdit?.fecha_limite_calif)
   });
 
-  // Cargar periodos existentes al montar el componente
   useEffect(() => {
     const cargarPeriodos = async () => {
       try {
@@ -68,23 +66,19 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
+    setServerAction(null); // Limpiar alerta de integridad al intentar corregir
+    
     let updatedData = {
       ...formData,
       [name]: value
     };
 
-    // 🧠 Si cambia la fecha de inicio → recalcular automáticamente
     if (name === "fecha_inicio" && value) {
       const inicio = new Date(value);
-
-      // ➜ +12 semanas (84 días)
       const fechaFin = new Date(inicio);
-      fechaFin.setDate(fechaFin.getDate() + 84);
-
-      // ➜ -15 días desde fecha fin
+      fechaFin.setDate(fechaFin.getDate() + 84); // +12 semanas
       const fechaLimite = new Date(fechaFin);
-      fechaLimite.setDate(fechaLimite.getDate() - 15);
+      fechaLimite.setDate(fechaLimite.getDate() - 15); // -15 días
 
       updatedData.fecha_fin = fechaFin.toISOString().split("T")[0];
       updatedData.fecha_limite_calif = fechaLimite.toISOString().split("T")[0];
@@ -92,12 +86,10 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
 
     setFormData(updatedData);
 
-    // Limpiar errores específicos cuando se corrige el campo
     if (errores[name]) {
       setErrores((prev) => ({ ...prev, [name]: null }));
     }
     
-    // Limpiar error de overlap cuando se modifican las fechas
     if (name === "fecha_inicio" || name === "fecha_fin") {
       setErrores((prev) => ({ ...prev, overlap: null }));
     }
@@ -107,7 +99,6 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     if (!inicio || !fin) return null;
     
     for (const periodo of periodosExistentes) {
-      // Si estamos editando, ignorar el periodo actual
       if (idActual && periodo.id_periodo === idActual) continue;
       
       if (hayOverlap(inicio, fin, periodo.fecha_inicio, periodo.fecha_fin)) {
@@ -117,7 +108,6 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
         return `El periodo se sobrepone con el periodo ${periodo.codigo || 'existente'} (${fechaInicioExistente} - ${fechaFinExistente})`;
       }
     }
-    
     return null;
   };
 
@@ -125,16 +115,13 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     const newErrors = {};
     const { fecha_inicio, fecha_fin, fecha_limite_calif } = formData;
 
-    // Validaciones básicas
     if (!fecha_inicio) newErrors.fecha_inicio = "Fecha de inicio obligatoria";
     if (!fecha_fin) newErrors.fecha_fin = "Fecha de fin obligatoria";
     if (!fecha_limite_calif) newErrors.fecha_limite_calif = "Fecha límite obligatoria";
 
-    // Validación de 12 semanas mínimas
     if (fecha_inicio && fecha_fin) {
       const inicio = new Date(fecha_inicio);
       const fin = new Date(fecha_fin);
-
       const minFin = new Date(inicio);
       minFin.setDate(minFin.getDate() + 84);
 
@@ -143,26 +130,21 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
       }
     }
 
-    // Validación de fecha límite (15 días antes del fin)
     if (fecha_fin && fecha_limite_calif) {
       const fin = new Date(fecha_fin);
       const limite = new Date(fecha_limite_calif);
-
       const maxLimite = new Date(fin);
       maxLimite.setDate(maxLimite.getDate() - 15);
 
       if (limite > maxLimite) {
-        newErrors.fecha_limite_calif =
-          "Debe ser al menos 15 días antes de la fecha final";
+        newErrors.fecha_limite_calif = "Debe ser al menos 15 días antes de la fecha final";
       }
     }
 
-    // Validación de lógica de fechas (inicio no puede ser mayor que fin)
     if (fecha_inicio && fecha_fin && new Date(fecha_inicio) > new Date(fecha_fin)) {
       newErrors.fecha_fin = "La fecha de fin debe ser posterior a la fecha de inicio";
     }
 
-    // Validación de overlap con periodos existentes
     if (fecha_inicio && fecha_fin && Object.keys(newErrors).length === 0) {
       const errorOverlap = verificarOverlapConExistentes(
         fecha_inicio, 
@@ -181,8 +163,6 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validar antes de enviar
     if (!validate()) return;
 
     setIsSubmitting(true);
@@ -190,7 +170,6 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
 
     try {
       const codigo = generarCodigo(formData.fecha_inicio, formData.fecha_fin);
-
       const payload = {
         ...formData,
         codigo,
@@ -199,25 +178,32 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
 
       if (isEditing) {
         await api.put(`/periodos/${periodoToEdit.id_periodo}`, payload);
-        toast.success("Periodo actualizado", { id: toastId });
+        toast.success("Periodo actualizado correctamente", { id: toastId });
       } else {
         await api.post("/periodos", payload);
-        toast.success("Periodo creado", { id: toastId });
+        toast.success("Periodo creado correctamente", { id: toastId });
       }
 
       if (onSuccess) onSuccess();
     } catch (error) {
-      const msg =
-        error.response?.data?.error ||
-        error.response?.data?.mensaje ||
-        "Error al guardar el periodo";
-      
-      // Si el error es de overlap desde el backend, mostrarlo
-      if (error.response?.data?.error?.includes("sobrepone")) {
-        setErrores(prev => ({ ...prev, overlap: msg }));
+      const status = error.response?.status;
+      const errorData = error.response?.data || {};
+
+      toast.dismiss(toastId);
+
+      // Intercepción del bloqueo de integridad relacional
+      if (status === 409 && errorData.action === "BLOCK") {
+        setServerAction("BLOCK");
+        const detalles = errorData.detalles || "Conflicto de integridad referencial.";
+        setServerMessage(detalles);
+        toast.error("Operación denegada por reglas de integridad", { duration: 8000 });
+      } else {
+        const msg = errorData.error || errorData.mensaje || "Error al guardar el periodo";
+        if (msg.includes("sobrepone")) {
+          setErrores(prev => ({ ...prev, overlap: msg }));
+        }
+        toast.error(`Error: ${msg}`);
       }
-      
-      toast.error(msg, { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
@@ -246,13 +232,22 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
       <div className="p-6 md:p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           
-          {/* Error de overlap general */}
           {errores.overlap && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
               <p className="text-sm font-medium flex items-center">
                 <span className="mr-2">⚠️</span>
                 {errores.overlap}
               </p>
+            </div>
+          )}
+
+          {serverAction === 'BLOCK' && (
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start">
+              <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
+                <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+              </div>
             </div>
           )}
 
@@ -269,14 +264,14 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
                 name="fecha_inicio"
                 value={formData.fecha_inicio}
                 onChange={handleChange}
-                min={new Date().toISOString().split("T")[0]} // No permitir fechas pasadas
+                disabled={serverAction === 'BLOCK'}
+                min={new Date().toISOString().split("T")[0]}
                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
                   errores.fecha_inicio
                     ? "border-red-300 bg-red-50"
-                    : "border-slate-200"
+                    : "border-slate-200 focus:border-blue-500"
                 }`}
               />
-
               {errores.fecha_inicio && (
                 <p className="text-xs text-red-500">{errores.fecha_inicio}</p>
               )}
@@ -293,14 +288,14 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
                 name="fecha_fin"
                 value={formData.fecha_fin}
                 onChange={handleChange}
-                min={formData.fecha_inicio} // No permitir fechas anteriores al inicio
+                disabled={serverAction === 'BLOCK'}
+                min={formData.fecha_inicio}
                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
                   errores.fecha_fin
                     ? "border-red-300 bg-red-50"
-                    : "border-slate-200"
+                    : "border-slate-200 focus:border-blue-500"
                 }`}
               />
-
               {errores.fecha_fin && (
                 <p className="text-xs text-red-500">{errores.fecha_fin}</p>
               )}
@@ -317,14 +312,14 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
                 name="fecha_limite_calif"
                 value={formData.fecha_limite_calif}
                 onChange={handleChange}
-                max={formData.fecha_fin} // No puede ser después de la fecha fin
+                disabled={serverAction === 'BLOCK'}
+                max={formData.fecha_fin}
                 className={`w-full px-4 py-3 rounded-xl border text-sm ${
                   errores.fecha_limite_calif
                     ? "border-red-300 bg-red-50"
-                    : "border-slate-200"
+                    : "border-slate-200 focus:border-blue-500"
                 }`}
               />
-
               {errores.fecha_limite_calif && (
                 <p className="text-xs text-red-500">
                   {errores.fecha_limite_calif}
@@ -333,9 +328,8 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
             </div>
           </div>
 
-          {/* Vista previa del código generado */}
           {formData.fecha_inicio && formData.fecha_fin && (
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
               <p className="text-sm text-slate-600">
                 <span className="font-semibold">Código generado:</span>{" "}
                 <code className="bg-white px-2 py-1 rounded border border-slate-200 text-blue-600">
@@ -346,26 +340,36 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
           )}
 
           <div className="flex justify-end pt-6 border-t border-slate-100">
-            <button
-              type="submit"
-              disabled={isSubmitting || isCheckingOverlap}
-              className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              ) : isEditing ? (
-                <Edit3 className="w-5 h-5 mr-2" />
-              ) : (
-                <Save className="w-5 h-5 mr-2" />
-              )}
+            {serverAction === 'BLOCK' ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="px-8 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all"
+              >
+                Cerrar y volver
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : isEditing ? (
+                  <Edit3 className="w-5 h-5 mr-2" />
+                ) : (
+                  <Save className="w-5 h-5 mr-2" />
+                )}
 
-              {isSubmitting 
-                ? "Guardando..." 
-                : isEditing 
-                  ? "Actualizar periodo" 
-                  : "Guardar periodo"
-              }
-            </button>
+                {isSubmitting 
+                  ? "Guardando..." 
+                  : isEditing 
+                    ? "Actualizar periodo" 
+                    : "Guardar periodo"
+                }
+              </button>
+            )}
           </div>
 
         </form>

@@ -279,6 +279,22 @@ const deactivateUser = async (req, res) => {
       return res.status(400).json({ error: "Este usuario ya se encuentra inactivo." });
     }
 
+    // =================================================================
+    // INYECCIÓN: VALIDACIÓN DE INTEGRIDAD PARA DOCENTES EN ASIGNACIONES
+    // =================================================================
+    // Nota: Se asume que el ID 3 corresponde al rol "Docente" en el catálogo de Roles.
+    if (existingUser.rol_id === 3) {
+      const tieneAsignaciones = await userModel.checkDependenciasDocente(id);
+      
+      if (tieneAsignaciones) {
+        return res.status(409).json({ 
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible desactivar este usuario. Cuenta con un expediente docente vinculado a una carga horaria activa. Debe liberar las asignaciones y eliminar el expediente previamente." 
+        });
+      }
+    }
+    // =================================================================
+
     const affectedRows = await userModel.deactivateUser(id, eliminado_por);
     
     if (affectedRows === 0) {
