@@ -130,6 +130,25 @@ const updateDocente = async (req, res) => {
       return res.status(400).json({ error: "Faltan datos obligatorios para actualizar." });
     }
 
+    // validación de integridad referencial antes de permitir mutaciones críticas
+    const docenteActual = await docenteModel.getDocenteById(id);
+    if (!docenteActual) {
+      return res.status(404).json({ error: "El expediente del docente no fue encontrado." });
+    }
+
+    const intentoCambiarNivel = nivel_academico && nivel_academico !== docenteActual.nivel_academico;
+    const intentoCambiarAcademia = academia_id && Number(academia_id) !== Number(docenteActual.academia_id);
+
+    if (intentoCambiarNivel || intentoCambiarAcademia) {
+      const tieneAsignaciones = await docenteModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({ 
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible modificar el nivel académico ni la academia de este docente porque ya cuenta con clases asignadas. Debe liberar su carga horaria previamente para evitar inconsistencias." 
+        });
+      }
+    }
+
     let domicilio_completo = null;
     if (calle && numero && colonia && cp) {
       domicilio_completo = `${calle} Num. ${numero}, Col. Col. ${colonia}, C.P. ${cp}`;
@@ -163,22 +182,28 @@ const deactivateDocente = async (req, res) => {
     if (!eliminado_por) return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja." });
     if (!motivo_baja || motivo_baja.trim() === '') return res.status(400).json({ error: "Debe especificar un motivo para la baja." });
 
-    const asignaciones   = await assignmentModel.getAllAsignaciones({ docente_id: id });
-    const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
-    const tieneEnviadas  = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
-
+    // optimización SQL: validamos dependencias duras sin cargar el array en memoria
+    const tieneAceptadas = await docenteModel.checkDependenciasActivas(id);
     if (tieneAceptadas) {
       return res.status(409).json({
         action: "BLOCK",
-        error: "Este docente tiene clases ACEPTADAS. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la Gestión de Asignaciones."
+        error: "Conflicto de integridad relacional",
+        detalles: "Este docente tiene clases ACEPTADAS. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la gestión de asignaciones."
       });
     }
+
+    // mantenemos la consulta de asigaciones solo para verificar el estado ENVIADA
+    const asignaciones  = await assignmentModel.getAllAsignaciones({ docente_id: id });
+    const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
     if (tieneEnviadas && !confirmar_rechazo) {
       return res.status(409).json({
         action: "WARN",
-        error: "Este docente tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?"
+        error: "Advertencia de asignaciones pendientes",
+        detalles: "Este docente tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?"
       });
     }
+
     if (tieneEnviadas && confirmar_rechazo) {
       await assignmentModel.rechazarAsignacionesPorDocente(id, eliminado_por);
     }

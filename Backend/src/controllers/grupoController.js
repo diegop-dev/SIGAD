@@ -41,7 +41,7 @@ const grupoController = {
       const datosNuevoGrupo = {
         identificador: 'TEMP',
         carrera_id,
-        cuatrimestre_id: 1,
+        cuatrimestre_id: 1, // Por regla de negocio, inician en primer cuatrimestre
         nivel_academico: nivelSeguro,
         creado_por
       };
@@ -69,7 +69,7 @@ const grupoController = {
   actualizarGrupo: async (req, res) => {
     const { id } = req.params;
     try {
-      const { carrera_id, confirmar_rechazo, nivel_academico } = req.body;
+      const { carrera_id, cuatrimestre_id, confirmar_rechazo, nivel_academico } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
 
       const grupoExistente = await grupoModel.getGrupoById(id);
@@ -79,37 +79,53 @@ const grupoController = {
       const carreraInfo = await carreraModel.getCarreraById(carrera_id);
       const nivelSeguro = carreraInfo ? carreraInfo.nivel_academico : (nivel_academico || 'LICENCIATURA');
 
-      if (Number(grupoExistente.carrera_id) !== Number(carrera_id)) {
-        const asignaciones   = await assignmentModel.getAllAsignaciones({ grupo_id: id });
-        const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
-        const tieneEnviadas  = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+      // 1. Detección de mutaciones en campos estructurales críticos
+      const intentoCambioEstructural = 
+        Number(grupoExistente.carrera_id) !== Number(carrera_id) ||
+        Number(grupoExistente.cuatrimestre_id) !== Number(cuatrimestre_id) ||
+        grupoExistente.nivel_academico !== nivelSeguro;
 
-        if (tieneAceptadas) {
+      // 2. Validación de integridad referencial
+      if (intentoCambioEstructural) {
+        const tieneAsignacionesActivas = await grupoModel.checkDependenciasActivas(id);
+        
+        if (tieneAsignacionesActivas) {
           return res.status(409).json({
             action: "BLOCK",
-            error: "Este grupo tiene clases ACEPTADAS. No puedes cambiar su carrera hasta que liberes sus horarios en la Gestión de Asignaciones."
+            error: "Conflicto de integridad relacional",
+            detalles: "Este grupo tiene clases en progreso (Aceptadas). No puedes cambiar su carrera, cuatrimestre o nivel académico hasta que liberes sus horarios en la gestión de asignaciones."
           });
         }
+      }
+
+      // 3. Manejo de estados de advertencia (Solo si cambia la carrera, como antes)
+      if (Number(grupoExistente.carrera_id) !== Number(carrera_id)) {
+        const asignaciones = await assignmentModel.getAllAsignaciones({ grupo_id: id });
+        const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
         if (tieneEnviadas && !confirmar_rechazo) {
           return res.status(409).json({
             action: "WARN",
-            error: "Este grupo tiene asignaciones ENVIADAS pendientes. Cambiar la carrera rechazará automáticamente estas clases. ¿Deseas continuar?"
+            error: "Advertencia de asignaciones pendientes",
+            detalles: "Este grupo tiene asignaciones ENVIADAS pendientes. Cambiar la carrera rechazará automáticamente estas clases. ¿Deseas continuar?"
           });
         }
         if (tieneEnviadas && confirmar_rechazo) {
           await assignmentModel.rechazarAsignacionesPorGrupo(id, modificado_por);
         }
 
+        // Regeneración del identificador al cambiar de carrera
         const codigo_unico      = carreraInfo ? carreraInfo.codigo_unico : 'XXXX';
         const anio              = grupoExistente.identificador.substring(0, 4);
         const idFormateado      = String(id).padStart(3, '0');
         identificadorFinal      = `${anio}${codigo_unico}${idFormateado}`;
       }
 
+      // 4. Ejecución del UPDATE
       await grupoModel.actualizarGrupo(id, {
         identificador: identificadorFinal,
         carrera_id,
-        cuatrimestre_id: grupoExistente.cuatrimestre_id,
+        cuatrimestre_id: cuatrimestre_id || grupoExistente.cuatrimestre_id,
         nivel_academico: nivelSeguro,
         modificado_por
       });
@@ -132,20 +148,26 @@ const grupoController = {
 
       if (!eliminado_por) return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja." });
 
-      const asignaciones   = await assignmentModel.getAllAsignaciones({ grupo_id: id });
-      const tieneAceptadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ACEPTADA');
-      const tieneEnviadas  = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
-
+      // Optimización SQL: Bloqueo inmediato de integridad referencial
+      const tieneAceptadas = await grupoModel.checkDependenciasActivas(id);
+      
       if (tieneAceptadas) {
         return res.status(409).json({
           action: "BLOCK",
-          error: "Este grupo tiene clases ACEPTADAS. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la Gestión de Asignaciones."
+          error: "Conflicto de integridad relacional",
+          detalles: "Este grupo tiene clases ACEPTADAS vigentes. No puedes darlo de baja hasta que le reasignes o canceles sus clases en la gestión de asignaciones."
         });
       }
+
+      // Comprobación secundaria (en memoria) para advertencias "ENVIADAS"
+      const asignaciones = await assignmentModel.getAllAsignaciones({ grupo_id: id });
+      const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
       if (tieneEnviadas && !confirmar_rechazo) {
         return res.status(409).json({
           action: "WARN",
-          error: "Este grupo tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?"
+          error: "Advertencia de asignaciones pendientes",
+          detalles: "Este grupo tiene asignaciones ENVIADAS pendientes de confirmación. Darlo de baja rechazará automáticamente estas clases. ¿Deseas continuar?"
         });
       }
       if (tieneEnviadas && confirmar_rechazo) {

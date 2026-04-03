@@ -16,7 +16,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const [formData, setFormData] = useState({
     nombre_carrera: initialData?.nombre_carrera || "",
-    nivel_academico: initialData?.nivel_academico || "LICENCIATURA", // <-- NUEVO ESTADO INICIAL
+    nivel_academico: initialData?.nivel_academico || "LICENCIATURA",
     modalidad: initialData?.modalidad || "",
     academia_id: initialData?.academia_id || "",
   });
@@ -110,15 +110,31 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onSuccess) onSuccess();
       if (onBack) onBack();
     } catch (error) {
-      if (error.response?.data?.errores) {
+      const status = error.response?.status;
+      const errorData = error.response?.data || {};
+
+      // intercepción del bloqueo de integridad relacional
+      if (status === 409 && errorData.action === "BLOCK") {
+        const detalles = errorData.detalles || "Conflicto de integridad referencial.";
+        toast.error(`Operación denegada: ${detalles}`, { id: toastId, duration: 8000 });
+      } 
+      // intercepción para nombres o siglas duplicadas
+      else if (status === 409) {
+        const msg = errorData.message || "Conflicto de validación en el servidor.";
+        toast.error(msg, { id: toastId, duration: 6000 });
+      } 
+      // validaciones de middleware
+      else if (errorData.errores) {
         const backendErrors = {};
-        error.response.data.errores.forEach(err => {
+        errorData.errores.forEach(err => {
           backendErrors[err.path || err.param] = err.msg;
         });
         setErrores(backendErrors);
         toast.error(TOAST_CARRERAS.errorCamposBackend, { id: toastId });
-      } else {
-        const msg = error.response?.data?.message || TOAST_COMMON.errorServidor;
+      } 
+      // fallback genérico
+      else {
+        const msg = errorData.message || TOAST_COMMON.errorServidor;
         toast.error(msg, { id: toastId });
       }
     } finally {
@@ -173,7 +189,6 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.nombre_carrera && <p className="text-xs font-bold text-red-500">{errores.nombre_carrera}</p>}
             </div>
 
-            {/* Nivel Académico - NUEVO CAMPO */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico

@@ -169,6 +169,25 @@ const updateMateria = async (req, res) => {
     const nombreLimpio  = nombre.toUpperCase().trim();
     const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
 
+    // Validación de integridad referencial para atributos estructurales
+    const intentoCambioEstructural = 
+      (nivelSeguro !== materiaActual.nivel_academico) ||
+      (tipo_asignatura !== undefined && tipo_asignatura !== materiaActual.tipo_asignatura) ||
+      (carreraSegura !== materiaActual.carrera_id) ||
+      (periodo_id !== undefined && Number(periodo_id) !== Number(materiaActual.periodo_id)) ||
+      (cuatrimestre_id !== undefined && Number(cuatrimestre_id) !== Number(materiaActual.cuatrimestre_id));
+
+    if (intentoCambioEstructural) {
+      const tieneAsignaciones = await materiaModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible modificar los datos estructurales de esta materia (nivel académico, tipo, carrera, periodo o cuatrimestre) porque ya cuenta con clases asignadas. Debe liberar la carga horaria previamente."
+        });
+      }
+    }
+
     const existeDuplicado = await materiaModel.verificarMateriaDuplicada(
       nombreLimpio, carreraSegura, nivelSeguro, id
     );
@@ -242,8 +261,26 @@ const toggleMateria = async (req, res) => {
   try {
     const { id }    = req.params;
     const usuario   = req.user?.id_usuario;
+
+    // Validación de integridad antes del borrado lógico
+    const materiaActual = await materiaModel.getMateriaById(id);
+    if (!materiaActual) {
+      return res.status(404).json({ error: "Materia no encontrada" });
+    }
+
+    if (materiaActual.estatus === 'ACTIVO') {
+      const tieneAsignaciones = await materiaModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible desactivar esta materia porque cuenta con clases asignadas y activas. Debe reasignar o cancelar estas clases en el módulo de asignaciones antes de proceder."
+        });
+      }
+    }
+
     await materiaModel.toggleMateriaStatus(id, usuario);
-    res.status(200).json({ message: "Estatus actualizado" });
+    res.status(200).json({ message: "Estatus actualizado correctamente" });
   } catch (error) {
     console.error("Error cambiando estatus:", error);
     res.status(500).json({ error: "Error cambiando estatus" });
@@ -278,5 +315,5 @@ module.exports = {
   updateMateria,
   deleteMateria,
   toggleMateria,
-  ObtenerMaterias, // ← nuevo export EP-04 SESA
+  ObtenerMaterias, 
 };

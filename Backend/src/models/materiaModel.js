@@ -152,37 +152,90 @@ const materiaModel = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
+  // Regla de negocio: restringe mutaciones estructurales si la materia
+  // se encuentra vinculada a una asignación docente vigente.
+  checkDependenciasActivas: async (id_materia) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM Materias m
+        INNER JOIN Asignaciones a ON m.id_materia = a.materia_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE m.id_materia = ? 
+          AND m.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_materia]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   updateMateria: async (id, data) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      await conn.query(`
-        UPDATE Materias
-        SET
-          codigo_unico    = ?,
-          nombre          = ?,
-          creditos        = ?,
-          cupo_maximo     = ?,
-          tipo_asignatura = ?,
-          nivel_academico = ?,
-          periodo_id      = ?,
-          cuatrimestre_id = ?,
-          carrera_id      = ?,
-          modificado_por  = ?
-        WHERE id_materia = ?
-      `,[
+
+      // base de campos de actualización que siempre se permiten mutar
+      let updates = [
+        'codigo_unico = ?',
+        'nombre = ?',
+        'creditos = ?',
+        'cupo_maximo = ?',
+        'modificado_por = ?'
+      ];
+      
+      let queryParams = [
         data.codigo_unico,
         data.nombre,
         data.creditos,
         data.cupo_maximo,
-        data.tipo_asignatura,
-        data.nivel_academico,
-        data.periodo_id,
-        data.cuatrimestre_id,
-        data.carrera_id,
-        data.modificado_por,
-        id
-      ]);
+        data.modificado_por
+      ];
+
+      // inyección condicional de campos estructurales restringidos
+      if (data.tipo_asignatura !== undefined) {
+        updates.push('tipo_asignatura = ?');
+        queryParams.push(data.tipo_asignatura);
+      }
+      if (data.nivel_academico !== undefined) {
+        updates.push('nivel_academico = ?');
+        queryParams.push(data.nivel_academico);
+      }
+      if (data.periodo_id !== undefined) {
+        updates.push('periodo_id = ?');
+        queryParams.push(data.periodo_id);
+      }
+      if (data.cuatrimestre_id !== undefined) {
+        updates.push('cuatrimestre_id = ?');
+        queryParams.push(data.cuatrimestre_id);
+      }
+      if (data.carrera_id !== undefined) {
+        updates.push('carrera_id = ?');
+        queryParams.push(data.carrera_id);
+      }
+
+      let query = `UPDATE Materias SET ${updates.join(', ')} WHERE id_materia = ?`;
+      queryParams.push(id);
+
+      await conn.query(query, queryParams);
     } finally {
       if (conn) conn.release();
     }

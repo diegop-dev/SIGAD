@@ -127,6 +127,31 @@ const carreraController = {
       const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
       const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
+      // 1. Recuperar el estado actual para validación referencial
+      const carreraActual = await carreraModel.getCarreraById(id);
+      if (!carreraActual) {
+        return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      }
+
+      // 2. Detectar intentos de mutación en atributos estructurales de la malla
+      const intentoCambioEstructural = 
+        (nivelSeguro !== carreraActual.nivel_academico) ||
+        (modalidad !== carreraActual.modalidad) ||
+        (Number(academia_id) !== Number(carreraActual.academia_id));
+
+      if (intentoCambioEstructural) {
+        const tieneAsignaciones = await carreraModel.checkDependenciasActivas(id);
+        if (tieneAsignaciones) {
+          return res.status(409).json({
+            success: false,
+            action: "BLOCK",
+            error: "Conflicto de integridad relacional",
+            detalles: "No es posible modificar el nivel académico, modalidad o academia de este programa porque ya cuenta con clases asignadas. Debe liberar la carga horaria previamente."
+          });
+        }
+      }
+
+      // 3. Validación de duplicidad
       const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
         return res.status(409).json({
@@ -147,6 +172,7 @@ const carreraController = {
 
       await carreraModel.actualizarCarrera(id, datosUpdate);
 
+      // 4. Actualización en cascada de identificadores de grupo
       const grupos = await grupoModel.getGruposByCarrera(id);
       if (grupos && grupos.length > 0) {
         for (const grupo of grupos) {
@@ -180,6 +206,17 @@ const carreraController = {
 
       if (!motivo_baja || motivo_baja.trim() === '') {
         return res.status(400).json({ success: false, message: 'Debe especificar un motivo para la baja.' });
+      }
+
+      // Validación de integridad referencial antes del borrado lógico
+      const tieneAsignaciones = await carreraModel.checkDependenciasActivas(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          success: false,
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible desactivar este programa académico porque cuenta con materias impartiéndose actualmente. Debe cancelar o reasignar estas clases antes de proceder."
+        });
       }
 
       const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);

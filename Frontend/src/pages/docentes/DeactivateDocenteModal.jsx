@@ -13,7 +13,7 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
   const [serverAction, setServerAction] = useState(null); 
   const [serverMessage, setServerMessage] = useState('');
 
-  // ✨ NUEVO: Limpiamos la memoria cada vez que se abre el modal
+  // Limpiamos la memoria cada vez que se abre el modal
   useEffect(() => {
     if (docente) {
       setServerAction(null);
@@ -23,7 +23,7 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
     }
   }, [docente]);
 
-  // ✨ NUEVO: Función para limpiar todo al cerrar
+  // Función para limpiar todo al cerrar
   const handleCloseModal = () => {
     setServerAction(null);
     setServerMessage('');
@@ -57,27 +57,20 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
       toast.success("Docente dado de baja correctamente.", { id: toastId });
       onSuccess();
     } catch (error) {
+      const status = error.response?.status;
       const errorData = error.response?.data || {};
-      const errorMsg = errorData.error || errorData.message || (error.response?.data && typeof error.response.data === 'string' ? error.response.data : "Error al comunicarse con el servidor.");
       
-      const mensajeMayusculas = errorMsg.toUpperCase();
-      let action = errorData.action;
+      // Intercepción exacta de la estructura de error HTTP 409 definida en el controlador
+      const action = errorData.action;
+      const detalles = errorData.detalles || errorData.error || "Error al comunicarse con el servidor.";
       
-      if (!action) {
-        if (mensajeMayusculas.includes('ACEPTADA') || mensajeMayusculas.includes('REASIGNES')) {
-          action = 'BLOCK';
-        } else if (mensajeMayusculas.includes('ENVIADA') || mensajeMayusculas.includes('PENDIENTES')) {
-          action = 'WARN';
-        }
-      }
+      toast.dismiss(toastId); 
       
-      toast.dismiss(); 
-      
-      if (action === 'BLOCK' || action === 'WARN') {
+      if (status === 409 && (action === 'BLOCK' || action === 'WARN')) {
         setServerAction(action); 
-        setServerMessage(errorMsg);
+        setServerMessage(detalles);
       } else {
-        toast.error(`Error: ${errorMsg}`);
+        toast.error(`Error: ${detalles}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -95,7 +88,6 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
               {serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar baja del docente'}
             </h3>
           </div>
-          {/* ✨ Cambiamos onClose por handleCloseModal */}
           <button 
             onClick={handleCloseModal} disabled={isSubmitting}
             className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors"
@@ -119,7 +111,7 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
             <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
               <p className="text-sm text-amber-900 font-bold mb-3">{serverMessage}</p>
               <p className="text-xs text-amber-700 font-medium">
-                Por favor, cierra esta ventana y dirígete a la sección de Asignaciones para liberar al docente antes de intentar darle de baja.
+                Por favor, cierra esta ventana y dirígete a la sección de asignaciones para liberar al docente antes de intentar darle de baja.
               </p>
             </div>
           )}
@@ -155,7 +147,6 @@ export const DeactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
         </div>
 
         <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
-          {/* ✨ Cambiamos onClose por handleCloseModal */}
           <button 
             onClick={handleCloseModal} disabled={isSubmitting}
             className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
