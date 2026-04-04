@@ -1,44 +1,28 @@
 const carreraModel = require('../models/carreraModel');
+// Si te marca error en esta línea de grupoModel, puedes comentarla con // por ahora
 const grupoModel = require('../models/grupoModel');
 
-const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
+const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENCIATURA', excluir_id = null) => {
   const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
   
   const nombreLimpio = nombreCarrera.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  
-  const palabras = nombreLimpio.split(/\s+/);
-  const palabrasValidas = palabras.filter(palabra => !palabrasIgnoradas.includes(palabra));
+  const palabrasValidas = nombreLimpio.split(/\s+/).filter(palabra => !palabrasIgnoradas.includes(palabra));
 
-  let baseSiglas = "";
-  
+  let baseSiglas = palabrasValidas.length === 1 
+    ? palabrasValidas[0].substring(0, 3) 
+    : palabrasValidas.map(p => p[0]).join('').substring(0, 4);
 
-  // Si la carrera es de una sola palabra (ej. "Derecho") tomamos 3 letras
-  if (palabrasValidas.length === 1) {
-    baseSiglas = palabrasValidas[0].substring(0, 3);
-  } else {
-    // Si tiene más palabras, tomamos la inicial de cada una (máximo 4)
-    baseSiglas = palabrasValidas.map(p => p[0]).join('').substring(0, 4);
-  }
+  const sufijoNivel = nivel_academico.toUpperCase() === 'MAESTRIA' ? 'M' : 'L';
+  const sufijoModalidad = modalidad === 'EJECUTIVA' ? 'E' : (modalidad === 'HÍBRIDA' ? 'H' : '');
 
-  // Determinar sufijo por modalidad
-  let sufijo = '';
-  if (modalidad === 'EJECUTIVA') sufijo = 'E';
-  if (modalidad === 'HÍBRIDA') sufijo = 'H';
-
-  let siglas = baseSiglas + sufijo;
+  let siglas = baseSiglas + sufijoNivel + sufijoModalidad;
 
   const existe = await carreraModel.verificarSiglasExistentes(siglas, excluir_id);
-
   if (existe) {
-    // Plan B en caso de colisión
-    if (palabrasValidas.length === 1) {
-      // Si era de 1 palabra, extendemos a 4 letras (ej. DERE)
-      baseSiglas = palabrasValidas[0].substring(0, 4);
-    } else {
-      // Si era de varias, tomamos las 2 primeras letras de cada una
-      baseSiglas = palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
-    }
-    siglas = baseSiglas + sufijo;
+    baseSiglas = palabrasValidas.length === 1 
+      ? palabrasValidas[0].substring(0, 4) 
+      : palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
+    siglas = baseSiglas + sufijoNivel + sufijoModalidad;
   }
 
   return siglas;
@@ -46,39 +30,33 @@ const generarSiglas = async (nombreCarrera, modalidad, excluir_id = null) => {
 
 const carreraController = {
 
+  ObtenerProgramasAcademicos: async (req, res) => {
+    try {
+      const carreras = await carreraModel.getAllCarreras();
+      return res.status(200).json(carreras);
+    } catch (error) {
+      return res.status(500).json({ message: "Error al obtener programas SESA" });
+    }
+  },
+
   getAcademiasDisponibles: async (req, res) => {
     try {
       const academias = await carreraModel.getAcademiasActivas();
-      return res.status(200).json({
-        success: true,
-        data: academias
-      });
+      return res.status(200).json({ success: true, data: academias });
     } catch (error) {
       console.error('Error al obtener academias:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Error al obtener la lista de academias'
-      });
+      return res.status(500).json({ success: false, message: 'Error al obtener la lista de academias' });
     }
   },
-  
-  // ==========================================
-  // SE ACTUALIZÓ PARA RECIBIR periodo_id (HU-41)
-  // ==========================================
+
   getCarreras: async (req, res) => {
     try {
-      const { periodo_id } = req.query; // Extraemos el parámetro de la URL si existe
-      
-      // Se lo pasamos al modelo. Si viene vacío (null), el modelo traerá todas las carreras
-      const carreras = await carreraModel.getAllCarreras(periodo_id); 
-      
+      const { periodo_id } = req.query;
+      const carreras = await carreraModel.getAllCarreras(periodo_id);
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error al obtener carreras:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Error al obtener carreras' 
-      });
+      return res.status(500).json({ success: false, message: 'Error al obtener carreras' });
     }
   },
 
@@ -87,34 +65,32 @@ const carreraController = {
       const carreras = await carreraModel.getCarrerasParaSincronizacion();
       return res.status(200).json(carreras);
     } catch (error) {
-      console.error('Error en API de sincronización de carreras:', error);
-      return res.status(500).json({ 
-        message: 'Error interno al procesar el catálogo de carreras' 
-      });
+      console.error('Error sincronización de carreras:', error);
+      return res.status(500).json({ message: 'Error interno al procesar el catálogo de carreras' });
     }
   },
 
   crearCarrera: async (req, res) => {
     try {
-      const { nombre_carrera, modalidad, academia_id } = req.body;
+      const { nombre_carrera, modalidad, academia_id, nivel_academico } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : req.body.creado_por;
+      const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
-      
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente) {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe esta carrera registrada en la misma modalidad.'
+          message: `Ya existe esta ${nivelSeguro.toLowerCase()} registrada en la misma modalidad.`
         });
       }
 
-      const codigo_unico = await generarSiglas(nombre_carrera, modalidad);
-
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, nivelSeguro);
       const datosNuevaCarrera = {
-        codigo_unico, 
+        codigo_unico,
         nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
         academia_id,
+        nivel_academico: nivelSeguro,
         creado_por
       };
 
@@ -123,15 +99,8 @@ const carreraController = {
       return res.status(201).json({
         success: true,
         message: 'La carrera se ha registrado correctamente.',
-        data: {
-          id_carrera: Number(resultado.insertId), 
-          codigo_unico: datosNuevaCarrera.codigo_unico,
-          nombre_carrera: datosNuevaCarrera.nombre_carrera,
-          modalidad,
-          academia_id
-        }
+        data: { id_carrera: Number(resultado.insertId), ...datosNuevaCarrera }
       });
-
     } catch (error) {
       console.error('Error al crear la carrera:', error);
       return res.status(500).json({
@@ -142,62 +111,53 @@ const carreraController = {
     }
   },
 
-  //  FUNCIONES PARA MODIFICAR Y ELIMINAR 
-actualizarCarrera: async (req, res) => {
+  actualizarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre_carrera, modalidad, academia_id, modificado_por } = req.body;
+      const { nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = req.body;
       const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
+      const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
-      // 1. Evitar colisión de nombre y modalidad en la DB (Ignorando la propia carrera)
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad);
+      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
         return res.status(409).json({
           success: false,
-          message: 'Ya existe otra carrera registrada en la misma modalidad.'
+          message: `Ya existe otra ${nivelSeguro.toLowerCase()} registrada en la misma modalidad con ese nombre.`
         });
       }
 
-      // 2. Generamos las siglas ignorando el ID actual
-      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, id);
-
+      const codigo_unico = await generarSiglas(nombre_carrera, modalidad, nivelSeguro, id);
       const datosUpdate = {
         codigo_unico,
         nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
         academia_id,
+        nivel_academico: nivelSeguro,
         modificado_por: idUsuario
       };
 
       await carreraModel.actualizarCarrera(id, datosUpdate);
 
-      // 3. EFECTO CASCADA: Actualizar el identificador de todos los grupos vinculados
-      const grupos = await grupoModel.getGruposByCarrera(id);
-      if (grupos && grupos.length > 0) {
-        for (const grupo of grupos) {
-          // Extraemos los 4 primeros dígitos que representan el año
-          const anio = grupo.identificador.substring(0, 4);
-          // Rellenamos el ID con ceros
-          const idFormateado = String(grupo.id_grupo).padStart(3, '0');
-          
-          // Armamos el nuevo identificador
-          const nuevoIdentificador = `${anio}${codigo_unico}${idFormateado}`;
-
-          if (grupo.identificador !== nuevoIdentificador) {
-            await grupoModel.actualizarIdentificador(grupo.id_grupo, nuevoIdentificador);
+      if (grupoModel && grupoModel.getGruposByCarrera) {
+        const grupos = await grupoModel.getGruposByCarrera(id);
+        if (grupos && grupos.length > 0) {
+          for (const grupo of grupos) {
+            const anio = grupo.identificador.substring(0, 4);
+            const idFormateado = String(grupo.id_grupo).padStart(3, '0');
+            const nuevoIdentificador = `${anio}${codigo_unico}${idFormateado}`;
+            if (grupo.identificador !== nuevoIdentificador) {
+              await grupoModel.actualizarIdentificador(grupo.id_grupo, nuevoIdentificador);
+            }
           }
         }
       }
 
-      return res.status(200).json({
-        success: true,
-        message: 'La carrera y sus grupos vinculados se han actualizado correctamente.'
-      });
+      return res.status(200).json({ success: true, message: 'La carrera se ha actualizado correctamente.' });
     } catch (error) {
       console.error('Error al actualizar la carrera:', error);
       return res.status(500).json({
         success: false,
-        message: 'Ocurrió un error en el servidor al intentar actualizar la carrera.',
+        message: 'Ocurrió un error al actualizar la carrera.',
         error: error.message
       });
     }
@@ -209,59 +169,30 @@ actualizarCarrera: async (req, res) => {
       const { eliminado_por, motivo_baja } = req.body;
 
       if (!motivo_baja || motivo_baja.trim() === '') {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Debe especificar un motivo para la baja.' 
-        });
+        return res.status(400).json({ success: false, message: 'Debe especificar un motivo para la baja.' });
       }
 
       const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
 
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Carrera no encontrada. No se pudo cambiar el estatus.' 
-        });
-      }
-
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Carrera dada de baja exitosamente del sistema.' 
-      });
-
+      return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente.' });
     } catch (error) {
       console.error("Error al dar de baja la carrera:", error);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Error interno del servidor al procesar la baja de la carrera." 
-      });
+      return res.status(500).json({ success: false, message: "Error al procesar la baja de la carrera." });
     }
   },
+
   activateCarrera: async (req, res) => {
     try {
       const { id } = req.params;
       const { modificado_por } = req.body;
-
       const result = await carreraModel.activateCarrera(id, modificado_por);
 
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Carrera no encontrada. No se pudo cambiar el estatus.' 
-        });
-      }
-
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Carrera reactivada exitosamente en el sistema.' 
-      });
-
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      return res.status(200).json({ success: true, message: 'Carrera reactivada exitosamente.' });
     } catch (error) {
       console.error("Error al reactivar la carrera:", error);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Error interno del servidor al procesar la reactivación de la carrera." 
-      });
+      return res.status(500).json({ success: false, message: "Error interno al reactivar la carrera." });
     }
   }
 

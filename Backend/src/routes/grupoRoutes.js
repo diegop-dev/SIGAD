@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const grupoController = require('../controllers/grupoController');
-
-
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 const { validarCreacionGrupo } = require('../middlewares/grupoValidator');
 
-// ruta exclusiva para la API de sincronización externa (HU-37 / API-04)
+// ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
+// Soporta query params opcionales: ?id_programa_academico=X&cuatrimestre_id=Y
+router.get('/catalogo', grupoController.ObtenerGrupos);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Ruta exclusiva para la API de sincronización externa (HU-37 / API-04)
 router.get('/sincronizacion', verifyToken, grupoController.getGruposParaSincronizacion);
 
 // Rutas principales
-router.get('/', grupoController.getGrupos);
+router.get('/', verifyToken, grupoController.getGrupos);
 router.post('/', validarCreacionGrupo, grupoController.crearGrupo);
 router.put('/:id', validarCreacionGrupo, grupoController.actualizarGrupo);
 

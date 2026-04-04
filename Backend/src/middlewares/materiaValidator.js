@@ -43,11 +43,23 @@ const validateMateria = [
     .isIn(["TRONCO_COMUN", "OBLIGATORIA", "OPTATIVA"])
     .withMessage("Tipo de asignatura inválido"),
 
+  // ✨ NUEVO: Protegemos el nuevo campo de nivel académico
+  check("nivel_academico")
+    .optional()
+    .isIn(["LICENCIATURA", "MAESTRIA", "DOCTORADO"])
+    .withMessage("Nivel académico inválido"),
+
+  // ✨ CORRECCIÓN: Validación condicional
+  // Si no es tronco común, exigimos que venga una carrera válida. Si es tronco común, lo ignoramos.
   check("carrera_id")
-    .notEmpty()
-    .withMessage("Debe seleccionar una carrera")
-    .isInt({ min: 1 })
-    .withMessage("ID de carrera inválido"),
+    .custom((value, { req }) => {
+      if (req.body.tipo_asignatura !== "TRONCO_COMUN") {
+        if (!value || isNaN(value) || parseInt(value) < 1) {
+          throw new Error("Debe seleccionar una carrera");
+        }
+      }
+      return true;
+    }),
 
   (req, res, next) => {
     const errors = validationResult(req);

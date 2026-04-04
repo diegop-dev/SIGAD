@@ -12,15 +12,15 @@ const carreraModel = {
     }
   },
 
-  findExistingCarrera: async (nombre_carrera, modalidad) => {
+  findExistingCarrera: async (nombre_carrera, modalidad, nivel_academico) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(
         `SELECT id_carrera, nombre_carrera 
          FROM carreras 
-         WHERE nombre_carrera = ? AND modalidad = ? LIMIT 1`,
-        [nombre_carrera, modalidad],
+         WHERE nombre_carrera = ? AND modalidad = ? AND nivel_academico = ? LIMIT 1`,
+        [nombre_carrera, modalidad, nivel_academico],
       );
       return rows[0];
     } finally {
@@ -28,19 +28,16 @@ const carreraModel = {
     }
   },
 
-verificarSiglasExistentes: async (siglas, excluir_id = null) => {
+  verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
       let query = "SELECT COUNT(*) AS total FROM carreras WHERE codigo_unico = ?";
       let params = [siglas];
-      
-      // Si estamos editando, le decimos a la base de datos que ignore nuestra propia carrera
       if (excluir_id) {
         query += " AND id_carrera != ?";
         params.push(excluir_id);
       }
-      
       const rows = await conn.query(query, params);
       return rows[0].total > 0;
     } finally {
@@ -62,14 +59,14 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
   },
 
   crearCarrera: async (datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, creado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, creado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
-        `INSERT INTO carreras (codigo_unico, nombre_carrera, modalidad, academia_id, estatus, creado_por, fecha_creacion)
-         VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, creado_por],
+        `INSERT INTO carreras (codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, estatus, creado_por, fecha_creacion)
+         VALUES (?, ?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
+        [codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, creado_por],
       );
       return result;
     } finally {
@@ -77,22 +74,18 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     }
   },
 
-  // ==========================================
-  // SE ACTUALIZÓ PARA ACEPTAR periodo_id (HU-41)
-  // ==========================================
   getAllCarreras: async (periodo_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      
       if (periodo_id) {
-        // Retorna SOLO carreras activas que tienen al menos una materia en ese periodo (Para el Dashboard)
         const rows = await conn.query(`
           SELECT DISTINCT 
             c.id_carrera, 
             c.codigo_unico,
             c.nombre_carrera, 
             c.modalidad,
+            c.nivel_academico,
             c.estatus,
             c.academia_id
           FROM carreras c
@@ -102,13 +95,13 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
         `, [periodo_id]);
         return rows;
       } else {
-        // Consulta normal que retorna todas las carreras (Para el Catálogo de Gestión)
         const rows = await conn.query(`
           SELECT 
             c.id_carrera, 
             c.codigo_unico,
             c.nombre_carrera, 
             c.modalidad,
+            c.nivel_academico,
             c.estatus,
             c.academia_id, 
             a.nombre AS nombre_academia
@@ -127,24 +120,23 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      const rows = await conn.query(` SELECT id_carrera, nombre_carrera FROM carreras WHERE estatus = 'ACTIVO' `);
+      const rows = await conn.query(`SELECT id_carrera, nombre_carrera FROM carreras WHERE estatus = 'ACTIVO'`);
       return rows;
     } finally {
       if (conn) conn.release();
     }
   },
 
-  // MÉTODOS PARA MODIFICAR Y ELIMINAR 
   actualizarCarrera: async (id_carrera, datosCarrera) => {
-    const { codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por } = datosCarrera;
+    const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, nivel_academico = ?, modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, modificado_por, id_carrera]
+        [codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por, id_carrera]
       );
       return result;
     } finally {
@@ -181,7 +173,33 @@ verificarSiglasExistentes: async (siglas, excluir_id = null) => {
     } finally {
       if (conn) conn.release();
     }
-  }
+  },
+
+  // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+  // Devuelve carreras activas con los nombres de campo que espera SESA.
+  // id_carrera  → id_programa_academico
+  // nombre_carrera → nombre_programa
+  ObtenerProgramasAcademicos: async () => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT
+          id_carrera    AS id_programa_academico,
+          codigo_unico,
+          nombre_carrera AS nombre_programa,
+          modalidad,
+          nivel_academico
+        FROM carreras
+        WHERE estatus = 'ACTIVO'
+        ORDER BY nivel_academico ASC, nombre_carrera ASC
+      `);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
 };
 
 module.exports = carreraModel;

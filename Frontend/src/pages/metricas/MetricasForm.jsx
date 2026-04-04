@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Calendar, BookOpen, Users, GraduationCap, TrendingUp, Save, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -7,12 +7,12 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
   
-  // NUEVOS ESTADOS: Para manejar la carga dinámica de carreras
   const [carrerasDisponibles, setCarrerasDisponibles] = useState([]);
   const [isFetchingCarreras, setIsFetchingCarreras] = useState(false);
 
   const [formData, setFormData] = useState({
     periodo_id: '',
+    nivel_academico: 'LICENCIATURA', // <-- NUEVO ESTADO INICIAL
     carrera_id: '',
     total_inscritos: '',
     total_egresados: '',
@@ -22,7 +22,6 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
   // EFECTO DINÁMICO: Carga las carreras solo cuando se selecciona un periodo
   useEffect(() => {
     const fetchCarrerasPorPeriodo = async () => {
-      // Si no hay periodo seleccionado, vaciamos la lista de carreras
       if (!formData.periodo_id) {
         setCarrerasDisponibles([]);
         return;
@@ -30,7 +29,6 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
 
       setIsFetchingCarreras(true);
       try {
-        // Solicitamos al backend las carreras filtradas por periodo
         const response = await api.get('/carreras', { 
           params: { periodo_id: formData.periodo_id } 
         });
@@ -51,21 +49,38 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
     setFormData(prev => ({ ...prev, carrera_id: '' }));
   }, [formData.periodo_id]);
 
+  // ✨ FILTRO DINÁMICO: Filtramos las carreras cargadas por el nivel académico seleccionado
+  const carrerasFiltradas = useMemo(() => {
+    return carrerasDisponibles.filter(c => 
+      (c.nivel_academico || 'LICENCIATURA') === formData.nivel_academico
+    );
+  }, [carrerasDisponibles, formData.nivel_academico]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    let sanitizedValue = value.trimStart();
+    let sanitizedValue = value;
 
-    if (name === 'total_inscritos' || name === 'total_egresados') {
-      sanitizedValue = sanitizedValue.replace(/\D/g, '').slice(0, 4);
+    if (typeof value === 'string') {
+        sanitizedValue = value.trimStart();
+        if (name === 'total_inscritos' || name === 'total_egresados') {
+          sanitizedValue = sanitizedValue.replace(/\D/g, '').slice(0, 4);
+        }
+    
+        if (name === 'promedio_general') {
+          sanitizedValue = sanitizedValue.replace(/[^0-9.]/g, '')
+                                         .replace(/(\..*)\./g, '$1')
+                                         .slice(0, 4);
+        }
     }
 
-    if (name === 'promedio_general') {
-      sanitizedValue = sanitizedValue.replace(/[^0-9.]/g, '')
-                                     .replace(/(\..*)\./g, '$1')
-                                     .slice(0, 4);
-    }
-
-    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
+    setFormData(prev => {
+      const newData = { ...prev, [name]: sanitizedValue };
+      // Si cambia el nivel académico, reseteamos la carrera seleccionada
+      if (name === 'nivel_academico') {
+        newData.carrera_id = '';
+      }
+      return newData;
+    });
 
     if (errores[name]) {
       setErrores(prev => ({ ...prev, [name]: '' }));
@@ -105,7 +120,9 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
     const toastId = toast.loading('Guardando métricas en la base de datos...');
 
     try {
-      await api.post('/metricas', formData);
+      // Creamos una copia del payload sin el nivel académico, ya que la API de métricas solo espera la carrera_id
+      const { nivel_academico, ...payload } = formData;
+      await api.post('/metricas', payload);
       toast.success('Métricas guardadas exitosamente.', { id: toastId });
       
       onSuccess();
@@ -164,8 +181,25 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
               )}
             </div>
 
-            {/* Programa educativo DINÁMICO */}
+            {/* ✨ NUEVO: Nivel Académico ✨ */}
             <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
+              </label>
+              <select
+                name="nivel_academico"
+                value={formData.nivel_academico}
+                onChange={handleInputChange}
+                disabled={!formData.periodo_id || isFetchingCarreras}
+                className="w-full px-4 py-3 rounded-xl border text-sm border-slate-200 focus:ring-2 focus:ring-blue-100 transition-all disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <option value="LICENCIATURA">Licenciatura</option>
+                <option value="MAESTRIA">Maestría</option>
+              </select>
+            </div>
+
+            {/* Programa educativo DINÁMICO */}
+            <div className="space-y-2 md:col-span-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Programa educativo (Carrera)
               </label>
@@ -185,12 +219,13 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
                     ? '-- Selecciona un periodo primero --' 
                     : isFetchingCarreras 
                       ? 'Cargando carreras...' 
-                      : carrerasDisponibles.length === 0 
-                        ? '-- No hay carreras en este periodo --'
+                      : carrerasFiltradas.length === 0 
+                        ? '-- No hay carreras en este nivel --'
                         : '-- Selecciona una carrera --'}
                 </option>
-                {carrerasDisponibles.map(c => (
-                  <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                {/* ✨ AHORA MOSTRAMOS SOLO EL CÓDIGO DE LAS CARRERAS FILTRADAS ✨ */}
+                {carrerasFiltradas.map(c => (
+                  <option key={c.id_carrera} value={c.id_carrera}>{c.codigo_unico || c.nombre_carrera}</option>
                 ))}
               </select>
               {errores.carrera_id && (

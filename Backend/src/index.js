@@ -19,12 +19,23 @@ const grupoRoutes = require('./routes/grupoRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const metricasRoutes = require('./routes/metricasRoutes');
-
+const reporteRoutes = require('./routes/reporteRoutes');
+const horarioRoutes  = require('./routes/horarioRoutes');
+const auditRoutes = require('./routes/auditRoutes');
+const configuracionRoutes = require('./routes/configuracionRoutes');
 // --- NUEVA RUTA PARA HU-37 ---
-const externalRoutes = require('./routes/externalRoutes'); 
+const externalRoutes = require('./routes/externalRoutes');
+
+// Inicialización de tablas auto-gestionadas
+const { initAuditTable } = require('./models/auditModel');
+const { initConfigTable } = require('./models/configuracionModel');
+initAuditTable();
+initConfigTable();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Se define la variable host para controlar la interfaz de red
+const HOST = process.env.HOST || 'localhost';
 
 // Middlewares de seguridad y optimización de peticiones
 app.use(helmet({
@@ -53,6 +64,10 @@ app.use('/api/asignaciones', assignmentRoutes);
 app.use('/api/external', externalRoutes);
 app.use('/api/notificaciones', notificationRoutes);
 app.use('/api/metricas', metricasRoutes);
+app.use('/api/reportes', reporteRoutes);
+app.use('/api/horarios', horarioRoutes);
+app.use('/api/audit-logs', auditRoutes);
+app.use('/api/configuracion', configuracionRoutes);
 
 // Permite acceso público a las imágenes
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -69,7 +84,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Inicialización del servidor
-app.listen(PORT, () => {
-  console.log(`[Servidor] Ejecutándose de forma segura en el puerto ${PORT}`);
+// Inicialización del servidor con soporte para conexiones remotas
+app.listen(PORT, HOST, () => {
+  console.log(`[Servidor] Ejecutándose de forma segura en http://${HOST}:${PORT}`);
 });

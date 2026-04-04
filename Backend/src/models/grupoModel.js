@@ -1,19 +1,17 @@
 const pool = require("../config/database");
 
 const grupoModel = {
-  // método exclusivo para la API de sincronización externa (HU-37 / API-04)
   getGruposParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      
-      // si faltan parámetros devolvemos un arreglo vacío por seguridad
-      if (!carrera_id || !cuatrimestre_id) {
-        return [];
-      }
-
-      // consulta optimizada sin joins, proyectando estrictamente lo solicitado en el PDF
-      const rows = await conn.query(` SELECT id_grupo, identificador FROM grupos WHERE carrera_id = ? AND cuatrimestre_id = ? AND estatus = 'ACTIVO' ORDER BY id_grupo ASC `, [carrera_id, cuatrimestre_id]);
+      if (!carrera_id || !cuatrimestre_id) return [];
+      const rows = await conn.query(`
+        SELECT id_grupo, identificador
+        FROM grupos
+        WHERE carrera_id = ? AND cuatrimestre_id = ? AND estatus = 'ACTIVO'
+        ORDER BY id_grupo ASC
+      `, [carrera_id, cuatrimestre_id]);
       return rows;
     } finally {
       if (conn) conn.release();
@@ -21,14 +19,14 @@ const grupoModel = {
   },
 
   crearGrupo: async (datosGrupo) => {
-    const { identificador, carrera_id, cuatrimestre_id, creado_por } = datosGrupo;
+    const { identificador, carrera_id, cuatrimestre_id, nivel_academico, creado_por } = datosGrupo;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
-        `INSERT INTO grupos (identificador, carrera_id, cuatrimestre_id, estatus, creado_por, fecha_creacion)
-         VALUES (?, ?, ?, 'ACTIVO', ?, NOW())`,
-        [identificador, carrera_id, cuatrimestre_id, creado_por]
+        `INSERT INTO grupos (identificador, carrera_id, cuatrimestre_id, nivel_academico, estatus, creado_por, fecha_creacion)
+         VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
+        [identificador, carrera_id, cuatrimestre_id, nivel_academico, creado_por]
       );
       return result;
     } finally {
@@ -36,7 +34,7 @@ const grupoModel = {
     }
   },
 
-getAllGrupos: async () => {
+  getAllGrupos: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -46,6 +44,7 @@ getAllGrupos: async () => {
           g.identificador, 
           g.carrera_id, 
           g.cuatrimestre_id,
+          g.nivel_academico,
           g.estatus,
           c.nombre_carrera,
           c.modalidad,
@@ -61,24 +60,28 @@ getAllGrupos: async () => {
     }
   },
 
-  // Obtener las primeras 3 letras del código único de la carrera para usarlas como siglas
   getCarreraSiglas: async (carrera_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      const rows = await conn.query("SELECT codigo_unico FROM carreras WHERE id_carrera = ?", [carrera_id]);
-      return rows[0] ? rows[0].codigo_unico.substring(0, 3) : 'XXX';
+      const rows = await conn.query(
+        "SELECT codigo_unico FROM carreras WHERE id_carrera = ?",
+        [carrera_id]
+      );
+      return rows[0] ? rows[0].codigo_unico : 'XXX';
     } finally {
       if (conn) conn.release();
     }
   },
 
-  // Actualizar el texto del identificador después de haber generado el registro
   actualizarIdentificador: async (id_grupo, identificador) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      await conn.query("UPDATE grupos SET identificador = ? WHERE id_grupo = ?", [identificador, id_grupo]);
+      await conn.query(
+        "UPDATE grupos SET identificador = ? WHERE id_grupo = ?",
+        [identificador, id_grupo]
+      );
     } finally {
       if (conn) conn.release();
     }
@@ -89,7 +92,7 @@ getAllGrupos: async () => {
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(
-        `SELECT id_grupo, identificador, carrera_id, cuatrimestre_id, estatus 
+        `SELECT id_grupo, identificador, carrera_id, cuatrimestre_id, nivel_academico, estatus 
          FROM grupos WHERE id_grupo = ? LIMIT 1`,
         [id_grupo]
       );
@@ -99,7 +102,6 @@ getAllGrupos: async () => {
     }
   },
 
-  // Obtener todos los grupos asociados a una carrera específica
   getGruposByCarrera: async (carrera_id) => {
     let conn;
     try {
@@ -115,15 +117,15 @@ getAllGrupos: async () => {
   },
 
   actualizarGrupo: async (id_grupo, datosGrupo) => {
-    const { identificador, carrera_id, cuatrimestre_id, modificado_por } = datosGrupo;
+    const { identificador, carrera_id, cuatrimestre_id, nivel_academico, modificado_por } = datosGrupo;
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE grupos 
-         SET identificador = ?, carrera_id = ?, cuatrimestre_id = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET identificador = ?, carrera_id = ?, cuatrimestre_id = ?, nivel_academico = ?, modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_grupo = ?`,
-        [identificador, carrera_id, cuatrimestre_id, modificado_por, id_grupo]
+        [identificador, carrera_id, cuatrimestre_id, nivel_academico, modificado_por, id_grupo]
       );
       return result;
     } finally {
@@ -137,12 +139,10 @@ getAllGrupos: async () => {
       conn = await pool.getConnection();
       let query = "SELECT COUNT(*) AS total FROM grupos WHERE identificador = ? AND carrera_id = ?";
       let params = [identificador, carrera_id];
-
       if (grupo_id) {
         query += " AND id_grupo != ?";
         params.push(grupo_id);
       }
-
       const rows = await conn.query(query, params);
       return rows[0].total > 0;
     } finally {
@@ -150,7 +150,6 @@ getAllGrupos: async () => {
     }
   },
 
-// Dar de baja un grupo (Soft delete)
   desactivarGrupo: async (id_grupo, eliminado_por) => {
     let conn;
     try {
@@ -167,7 +166,6 @@ getAllGrupos: async () => {
     }
   },
 
-  // Reactivar un grupo dado de baja
   reactivarGrupo: async (id_grupo, modificado_por) => {
     let conn;
     try {
@@ -182,7 +180,48 @@ getAllGrupos: async () => {
     } finally {
       if (conn) conn.release();
     }
-  }
+  },
+
+  // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
+  // Filtro implícito: estatus = ACTIVO.
+  // Filtros opcionales: id_programa_academico (carrera_id), cuatrimestre_id.
+  ObtenerGrupos: async ({ id_programa_academico, cuatrimestre_id } = {}) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+
+      const filtros = [`g.estatus = 'ACTIVO'`];
+      const params  = [];
+
+      if (id_programa_academico) {
+        filtros.push(`g.carrera_id = ?`);
+        params.push(id_programa_academico);
+      }
+      if (cuatrimestre_id) {
+        filtros.push(`g.cuatrimestre_id = ?`);
+        params.push(cuatrimestre_id);
+      }
+
+      const where = filtros.join(" AND ");
+
+      const rows = await conn.query(`
+        SELECT
+          g.id_grupo,
+          g.identificador,
+          g.nivel_academico,
+          g.carrera_id    AS id_programa_academico,
+          g.cuatrimestre_id
+        FROM grupos g
+        WHERE ${where}
+        ORDER BY g.id_grupo ASC
+      `, params);
+
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
 };
 
 module.exports = grupoModel;

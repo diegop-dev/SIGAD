@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Award, Edit3, Trash2 } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Award, Edit3, Trash2, GraduationCap } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -26,9 +26,10 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     creditos: initialData?.creditos || 1,
     cupo_maximo: initialData?.cupo_maximo || 30,
     tipo_asignatura: esTroncoComunInicial ? "TRONCO_COMUN" : (initialData?.tipo_asignatura || "TRONCO_COMUN"),
+    nivel_academico: initialData?.nivel_academico || "LICENCIATURA", // <-- NUEVO ESTADO INICIAL
     periodo_id: initialData?.periodo_id || "",
     cuatrimestre_id: initialData?.cuatrimestre_id || "",
-    carrera_id: initialData?.carrera_id || "" // Aquí puede venir null o undefined
+    carrera_id: initialData?.carrera_id || ""  // Aquí puede venir null o undefined
   });
 
   useEffect(() => {
@@ -59,25 +60,29 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     
-    // 🔥 CORRECCIÓN: Manejo especial para tipo_asignatura
     if (name === "tipo_asignatura") {
       if (value === "TRONCO_COMUN") {
-        // Si es tronco común, limpiamos carrera_id (lo dejamos vacío)
         setFormData(prev => ({
           ...prev,
           tipo_asignatura: value,
-          carrera_id: "" // Vacío, no "0"
+          carrera_id: "" 
         }));
       } else {
-        // Si cambia a obligatoria u optativa, mantenemos el valor actual de carrera_id
         setFormData(prev => ({
           ...prev,
           tipo_asignatura: value
-          // No tocamos carrera_id, dejamos el que tenga
         }));
       }
-    } else {
-      // Para otros campos
+    } 
+    // ✨ NUEVA REGLA: Limpiar carrera_id si cambia el nivel académico
+    else if (name === "nivel_academico") {
+      setFormData(prev => ({
+        ...prev,
+        nivel_academico: value,
+        carrera_id: "" 
+      }));
+    }
+    else {
       let finalValue = value;
       
       if (name === 'codigo_unico') {
@@ -95,7 +100,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const validate = () => {
     const newErrors = {};
-    const { nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, tipo_asignatura, carrera_id } = formData;
+    const { nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, tipo_asignatura, carrera_id, nivel_academico } = formData;
 
     if (!nombre?.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
     
@@ -104,10 +109,9 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     
     if (!periodo_id) newErrors.periodo_id = "Seleccione el periodo escolar";
     if (!cuatrimestre_id) newErrors.cuatrimestre_id = "Seleccione el cuatrimestre";
+    if (!nivel_academico) newErrors.nivel_academico = "Seleccione el nivel académico";
     
-    // 🔥 CORRECCIÓN: Validación mejorada para carrera_id
     if (tipo_asignatura !== "TRONCO_COMUN") {
-      // Si no es tronco común, la carrera es obligatoria y debe ser un número válido
       if (!carrera_id || carrera_id === "" || carrera_id === "0") {
         newErrors.carrera_id = "Seleccione la carrera correspondiente";
       }
@@ -125,7 +129,6 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     const toastId = toast.loading(isEditing ? "Actualizando materia..." : "Guardando materia...");
 
     try {
-      // 🔥 CORRECCIÓN: Preparar payload correctamente
       const esTroncoComun = formData.tipo_asignatura === "TRONCO_COMUN";
       
       const payload = {
@@ -133,22 +136,18 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
         creditos: Number(formData.creditos),
         cupo_maximo: Number(formData.cupo_maximo),
         tipo_asignatura: formData.tipo_asignatura,
+        nivel_academico: formData.nivel_academico, 
         periodo_id: Number(formData.periodo_id),
         cuatrimestre_id: Number(formData.cuatrimestre_id)
       };
 
-      // 🔥 IMPORTANTE: Solo agregar carrera_id si NO es tronco común y tenemos un valor válido
       if (!esTroncoComun && formData.carrera_id && formData.carrera_id !== "") {
         payload.carrera_id = Number(formData.carrera_id);
       }
       
-      // Si es edición y la materia se convierte a tronco común, podríamos necesitar
-      // enviar carrera_id como null explícitamente para actualizar en BD
       if (isEditing && esTroncoComun) {
         payload.carrera_id = null;
       }
-
-      console.log("Payload a enviar:", payload); // Para debugging
 
       if (isEditing) {
         await api.put(`/materias/${initialData.id_materia}`, payload);
@@ -172,8 +171,8 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
         toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
       } else {
         const msg = error.response?.data?.error || 
-                   error.response?.data?.mensaje || 
-                   "Ocurrió un error al procesar la solicitud";
+                    error.response?.data?.mensaje || 
+                    "Ocurrió un error al procesar la solicitud";
         toast.error(msg, { id: toastId });
       }
     } finally {
@@ -221,6 +220,25 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.nombre && <p className="text-xs font-bold text-red-500">{errores.nombre}</p>}
             </div>
 
+            {/* Nivel Académico */}
+            <div className="space-y-2">
+              <label className="flex items-center text-sm font-bold text-slate-700">
+                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
+              </label>
+              <select
+                name="nivel_academico"
+                value={formData.nivel_academico}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
+                  errores.nivel_academico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
+                }`}
+              >
+                <option value="LICENCIATURA">Licenciatura</option>
+                <option value="MAESTRIA">Maestría</option>
+              </select>
+              {errores.nivel_academico && <p className="text-xs font-bold text-red-500">{errores.nivel_academico}</p>}
+            </div>
+
             {/* Tipo de asignatura */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
@@ -242,7 +260,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
             {!esTroncoComun && (
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-slate-700">
-                  <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera asignada
+                  <Layers className="w-4 h-4 mr-2 text-blue-500" /> Carrera / Maestría asignada
                 </label>
                 <select
                   name="carrera_id"
@@ -254,9 +272,14 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
                   }`}
                 >
                   <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la carrera --"}</option>
-                  {catalogos.carreras.map(c => (
-                    <option key={c.id_carrera} value={c.id_carrera}>{c.nombre_carrera}</option>
+                  
+                  {/* ✨ FILTRADO DINÁMICO POR NIVEL ACADÉMICO MOSTRANDO SOLO EL CÓDIGO ÚNICO ✨ */}
+                  {catalogos.carreras
+                    .filter(c => (c.nivel_academico || 'LICENCIATURA') === formData.nivel_academico)
+                    .map(c => (
+                      <option key={c.id_carrera} value={c.id_carrera}>{c.codigo_unico}</option>
                   ))}
+
                 </select>
                 {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
               </div>
@@ -287,7 +310,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
             {/* Cuatrimestre */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
-                <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Cuatrimestre
+                <Calendar className="w-4 h-4 mr-2 text-blue-500" /> Cuatrimestre / Semestre
               </label>
               <select
                 name="cuatrimestre_id"
