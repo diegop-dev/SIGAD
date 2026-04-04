@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, RefreshCcw } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, X, AlertTriangle, Ban } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { CarreraForm } from './CarreraForm';
@@ -20,6 +20,10 @@ export const CarreraManagement = () => {
   const [actionType, setActionType] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [motivoBaja, setMotivoBaja] = useState('');
+  
+  // ESTADOS PARA INTERCEPTAR INTEGRIDAD RELACIONAL
+  const [serverAction, setServerAction] = useState(null);
+  const [serverMessage, setServerMessage] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
@@ -89,15 +93,23 @@ export const CarreraManagement = () => {
     setShowForm(true);
   };
 
-  const handleToggleStatus = (carrera, type) => {
-    setSelectedCarrera(carrera);
-    setActionType(type);
+  // FUNCIONES PARA ELIMINAR 
+  const handleEliminarRapido = (carrera) => {
+    setCarreraToDelete(carrera);
     setMotivoBaja('');
-    setShowStatusModal(true);
+    setServerAction(null);
+    setServerMessage('');
+    setShowDeleteModal(true);
   };
 
-  const confirmStatusChange = async () => {
-    if (actionType === 'deactivate' && !motivoBaja.trim()) {
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setServerAction(null);
+    setServerMessage('');
+  };
+
+  const confirmDelete = async () => {
+    if (!motivoBaja.trim()) {
       toast.error("El motivo de la baja es obligatorio.");
       return;
     }
@@ -118,10 +130,22 @@ export const CarreraManagement = () => {
       }
       
       toast.success("Estatus actualizado correctamente", { id: toastId });
-      setShowStatusModal(false);
-      fetchCarreras();
+      handleCloseDeleteModal();
+      fetchCarreras(); 
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error al actualizar el estatus", { id: toastId });
+      const status = error.response?.status;
+      const data = error.response?.data || {};
+
+      // Intercepción del bloqueo por integridad relacional de la HU
+      if (status === 409 && data.action === "BLOCK") {
+        setServerAction("BLOCK");
+        const detalles = data.detalles || "Conflicto de integridad referencial.";
+        setServerMessage(detalles);
+        toast.error("Operación denegada por reglas de integridad", { id: toastId, duration: 8000 });
+      } else {
+        const msg = data.message || data.error || "Error al actualizar el estatus";
+        toast.error(msg, { id: toastId });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -337,13 +361,24 @@ export const CarreraManagement = () => {
         )}
       </div>
 
-      {showStatusModal && (
+      {/* MODAL DE CONFIRMACIÓN DE BAJA O BLOQUEO DE INTEGRIDAD */}
+      {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden border border-slate-100">
+            
+            <div className={`flex justify-between items-center px-6 py-5 border-b ${serverAction === 'BLOCK' ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50'}`}>
+               <div className={`flex items-center ${serverAction === 'BLOCK' ? 'text-amber-600' : 'text-red-600'}`}>
+                 {serverAction === 'BLOCK' ? <Ban className="w-5 h-5 mr-2" /> : <AlertTriangle className="w-5 h-5 mr-2" />}
+                 <h3 className="text-lg font-black tracking-tight">
+                   {serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar cambio de estatus'}
+                 </h3>
+               </div>
+               <button onClick={handleCloseDeleteModal} disabled={isDeleting} className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+
             <div className="p-6">
-              <h3 className="text-lg font-black text-slate-900 mb-2">
-                {actionType === 'deactivate' ? 'Confirmar baja' : 'Confirmar reactivación'}
-              </h3>
               <p className="text-sm text-slate-600 mb-4">
                 {actionType === 'deactivate' 
                   ? <>¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-slate-900">{selectedCarrera?.nombre_carrera}</span>?</>
@@ -351,27 +386,44 @@ export const CarreraManagement = () => {
                 }
               </p>
               
-              {actionType === 'deactivate' && (
+              {serverAction === 'BLOCK' ? (
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
+                  <p className="text-sm text-amber-900 font-bold mb-2">{serverMessage}</p>
+                  <p className="text-xs text-amber-700 font-medium">
+                    Dirígete a la sección de asignaciones para liberar la carga académica vinculada a este programa antes de intentar darle de baja.
+                  </p>
+                </div>
+              ) : (
                 <div className="space-y-2 mb-6">
                   <label className="text-sm font-bold text-slate-700">Motivo de la baja *</label>
-                  <textarea value={motivoBaja} onChange={(e) => setMotivoBaja(e.target.value)} placeholder="Escribe el motivo..." className="w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 focus:ring-red-100 transition-all resize-none h-24" />
+                  <textarea
+                    value={motivoBaja}
+                    onChange={(e) => setMotivoBaja(e.target.value)}
+                    placeholder="Escribe el motivo..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-red-100 transition-all resize-none h-24"
+                  />
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setShowStatusModal(false)} disabled={isProcessing} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50">
-                  Cancelar
-                </button>
+              <div className="flex justify-end gap-3">
                 <button
-                  onClick={confirmStatusChange}
-                  disabled={isProcessing}
-                  className={`flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all ${
-                    actionType === 'deactivate' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
+                  onClick={handleCloseDeleteModal}
+                  disabled={isDeleting}
+                  className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
                 >
-                  {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : (actionType === 'deactivate' ? <Trash2 className="w-4 h-4 mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />)}
-                  {actionType === 'deactivate' ? 'Confirmar baja' : 'Reactivar'}
+                  {serverAction === 'BLOCK' ? 'Entendido, cerrar' : 'Cancelar'}
                 </button>
+
+                {serverAction !== 'BLOCK' && (
+                  <button
+                    onClick={confirmDelete}
+                    disabled={isDeleting || !motivoBaja.trim()}
+                    className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Confirmar baja
+                  </button>
+                )}
               </div>
             </div>
           </div>

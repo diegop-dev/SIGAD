@@ -106,7 +106,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     try {
       const payload = { 
         carrera_id: Number(carreraId),
-        nivel_academico: nivelSeleccionado, // <-- ENVIAMOS EL NIVEL
+        nivel_academico: nivelSeleccionado, 
         creado_por: user?.id_usuario,
         confirmar_rechazo: serverAction === 'WARN' 
       };
@@ -122,22 +122,23 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onBack) onBack();
 
     } catch (error) {
+      const status = error.response?.status;
       const errorData = error.response?.data || {};
-      const errorMsg = errorData.error || errorData.message || "Error en el servidor";
-      const mensajeMayusculas = errorMsg.toUpperCase();
-      let action = errorData.action;
       
-      if (!action) {
-        if (mensajeMayusculas.includes('ACEPTADA') || mensajeMayusculas.includes('REASIGNES')) action = 'BLOCK';
-        else if (mensajeMayusculas.includes('ENVIADA') || mensajeMayusculas.includes('PENDIENTES')) action = 'WARN';
-      }
+      toast.dismiss(toastId);
       
-      if (action === 'BLOCK' || action === 'WARN') {
-        toast.dismiss(toastId); 
-        setServerAction(action); 
-        setServerMessage(errorMsg); 
+      // Intercepción exacta de la acción definida en el controlador (BLOCK o WARN)
+      if (status === 409 && (errorData.action === 'BLOCK' || errorData.action === 'WARN')) {
+        const detalles = errorData.detalles || errorData.error || "Conflicto de integridad referencial.";
+        setServerAction(errorData.action); 
+        setServerMessage(detalles); 
+        
+        if (errorData.action === 'BLOCK') {
+          toast.error("Operación denegada por reglas de integridad", { duration: 8000 });
+        }
       } else {
-        toast.error(errorMsg, { id: toastId });
+        const msg = errorData.message || errorData.error || "Ocurrió un error al procesar la solicitud.";
+        toast.error(msg);
       }
     } finally {
       setIsSubmitting(false);

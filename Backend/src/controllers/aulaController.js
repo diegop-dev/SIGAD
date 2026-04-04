@@ -1,5 +1,35 @@
 const pool = require('../config/database');
 
+// ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
+// Regla de negocio: restringe mutaciones en tipo y ubicación o la desactivación
+// física/lógica si el aula se encuentra vinculada a una asignación docente.
+const verificarDependenciasAula = async (id_aula) => {
+  const query = `
+    SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+    FROM Aulas au
+    INNER JOIN Asignaciones a ON au.id_aula = a.aula_id
+    INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+    INNER JOIN (
+      SELECT 
+        MIN(id_asignacion) AS min_id,
+        grupo_id, materia_id, docente_id, periodo_id, aula_id
+      FROM Asignaciones
+      GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+    ) rep ON a.grupo_id <=> rep.grupo_id 
+         AND a.materia_id = rep.materia_id 
+         AND a.docente_id = rep.docente_id 
+         AND a.periodo_id = rep.periodo_id 
+         AND a.aula_id = rep.aula_id
+    WHERE au.id_aula = ? 
+      AND au.estatus = 'ACTIVO'
+      AND a.estatus_acta = 'ABIERTA'
+      AND a.estatus_confirmacion = 'ACEPTADA'
+      AND p.estatus = 'ACTIVO'
+  `;
+  const resultado = await pool.query(query, [id_aula]);
+  return resultado[0].dependencias_activas > 0;
+};
+
 const registrarAula = async (req, res) => {
   const { nombre, tipo, capacidad, ubicacion, creado_por } = req.body;
   try {
@@ -43,6 +73,30 @@ const actualizarAula = async (req, res) => {
   const { id } = req.params;
   const { nombre, tipo, capacidad, ubicacion, estatus, modificado_por } = req.body;
   try {
+    // 1. recuperar el estado actual para validación referencial
+    const aulaActual = await pool.query(
+      'SELECT tipo, ubicacion FROM Aulas WHERE id_aula = ?',
+      [id]
+    );
+    if (aulaActual.length === 0) return res.status(404).json({ message: "Aula no encontrada." });
+
+    // 2. detectar intentos de mutación en atributos estructurales
+    const intentoCambioEstructural = 
+      (tipo !== undefined && tipo !== aulaActual[0].tipo) ||
+      (ubicacion !== undefined && ubicacion !== aulaActual[0].ubicacion);
+
+    if (intentoCambioEstructural) {
+      const tieneAsignaciones = await verificarDependenciasAula(id);
+      if (tieneAsignaciones) {
+        return res.status(409).json({
+          action: "BLOCK",
+          error: "Conflicto de integridad relacional",
+          detalles: "No es posible modificar el tipo ni la ubicación de este espacio porque ya cuenta con clases asignadas. Debe reubicar las clases previamente en el módulo de asignaciones."
+        });
+      }
+    }
+
+    // 3. validación normal de duplicidad
     const existente = await pool.query(
       'SELECT id_aula FROM Aulas WHERE nombre_codigo = ? AND id_aula != ?',
       [nombre, id]
@@ -50,6 +104,8 @@ const actualizarAula = async (req, res) => {
     if (existente.length > 0) {
       return res.status(409).json({ message: "Ya existe otra aula/laboratorio con ese nombre." });
     }
+
+    // 4. ejecución de actualización
     const resultado = await pool.query(
       `UPDATE Aulas 
        SET nombre_codigo = ?, tipo = ?, capacidad = ?, ubicacion = ?, estatus = ?,
@@ -69,6 +125,16 @@ const desactivarAula = async (req, res) => {
   const { id } = req.params;
   const { eliminado_por } = req.body;
   try {
+    // validación de integridad referencial antes del borrado lógico
+    const tieneAsignaciones = await verificarDependenciasAula(id);
+    if (tieneAsignaciones) {
+      return res.status(409).json({
+        action: "BLOCK",
+        error: "Conflicto de integridad relacional",
+        detalles: "No es posible desactivar esta aula porque cuenta con clases asignadas actualmente. Debe reubicar o cancelar estas clases antes de proceder."
+      });
+    }
+
     const resultado = await pool.query(
       `UPDATE Aulas SET estatus = 'INACTIVO', eliminado_por = ?, fecha_eliminacion = NOW() WHERE id_aula = ?`,
       [eliminado_por, id]

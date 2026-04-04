@@ -66,8 +66,9 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
     const toastId = toast.loading('Verificando disponibilidad...');
     const existe = await validarNombreUnico();
     toast.dismiss(toastId);
+    
     if (existe) {
-      toast.error('El nombre ya existe.');
+      toast.error('El nombre de la academia ya existe.');
       return;
     }
     setShowModal(true);
@@ -85,7 +86,15 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       toast.success('Academia registrada correctamente', { id: toastId });
       if (onSuccess) onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Error de servidor', { id: toastId });
+      const status = error.response?.status;
+      const errorData = error.response?.data || {};
+
+      // Intercepción de conflictos de concurrencia (ej. nombre duplicado)
+      if (status === 409) {
+        toast.error(errorData.error || 'El nombre ya está registrado.', { id: toastId, duration: 5000 });
+      } else {
+        toast.error(errorData.error || 'Error de servidor al registrar la academia.', { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -190,7 +199,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       {/* Modal de confirmación */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h3 className="text-base font-black text-slate-800">Confirmar registro</h3>
               <button
@@ -207,13 +216,13 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-5 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSubmit}
-                className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
+                className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
               >
                 Confirmar
               </button>

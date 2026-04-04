@@ -26,10 +26,10 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     creditos: initialData?.creditos || 1,
     cupo_maximo: initialData?.cupo_maximo || 30,
     tipo_asignatura: esTroncoComunInicial ? "TRONCO_COMUN" : (initialData?.tipo_asignatura || "TRONCO_COMUN"),
-    nivel_academico: initialData?.nivel_academico || "LICENCIATURA", // <-- NUEVO ESTADO INICIAL
+    nivel_academico: initialData?.nivel_academico || "LICENCIATURA",
     periodo_id: initialData?.periodo_id || "",
     cuatrimestre_id: initialData?.cuatrimestre_id || "",
-    carrera_id: initialData?.carrera_id || ""  // Aquí puede venir null o undefined
+    carrera_id: initialData?.carrera_id || "" 
   });
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
         }));
       }
     } 
-    // ✨ NUEVA REGLA: Limpiar carrera_id si cambia el nivel académico
+    // Limpiar carrera_id si cambia el nivel académico
     else if (name === "nivel_academico") {
       setFormData(prev => ({
         ...prev,
@@ -160,18 +160,33 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Fallo en la petición a la API REST:", error);
-      console.error("Detalles del error:", error.response?.data); // Para debugging
       
-      if (error.response?.data?.errores) {
+      const status = error.response?.status;
+      const errorData = error.response?.data || {};
+
+      // Intercepción del error 409 para proteger la integridad relacional de la estructura académica
+      if (status === 409 && errorData.action === "BLOCK") {
+        const detalles = errorData.detalles || errorData.error || "Conflicto de integridad relacional en la base de datos.";
+        toast.error(`Operación denegada: ${detalles}`, { id: toastId, duration: 8000 });
+      } 
+      // Intercepción para errores 409 comunes (como cuatrimestre activo o materia duplicada)
+      else if (status === 409) {
+        const msg = errorData.error || "Conflicto de validación en el servidor.";
+        toast.error(msg, { id: toastId, duration: 6000 });
+      } 
+      // Intercepción de errores de validación de campos (express-validator)
+      else if (errorData.errores) {
         const backendErrors = {};
-        error.response.data.errores.forEach(err => {
+        errorData.errores.forEach(err => {
           backendErrors[err.path || err.param] = err.msg;
         });
         setErrores(backendErrors);
         toast.error("Por favor corrige los campos señalados en rojo", { id: toastId });
-      } else {
-        const msg = error.response?.data?.error || 
-                    error.response?.data?.mensaje || 
+      } 
+      // Fallback genérico
+      else {
+        const msg = errorData.error || 
+                    errorData.mensaje || 
                     "Ocurrió un error al procesar la solicitud";
         toast.error(msg, { id: toastId });
       }
@@ -220,10 +235,10 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.nombre && <p className="text-xs font-bold text-red-500">{errores.nombre}</p>}
             </div>
 
-            {/* Nivel Académico */}
+            {/* Nivel académico */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
-                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
+                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel académico
               </label>
               <select
                 name="nivel_academico"
@@ -273,13 +288,12 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
                 >
                   <option value="">{cargandoCatalogos ? "Cargando..." : "-- Seleccione la carrera --"}</option>
                   
-                  {/* ✨ FILTRADO DINÁMICO POR NIVEL ACADÉMICO MOSTRANDO SOLO EL CÓDIGO ÚNICO ✨ */}
+                  {/* Filtrado dinámico por nivel académico */}
                   {catalogos.carreras
                     .filter(c => (c.nivel_academico || 'LICENCIATURA') === formData.nivel_academico)
                     .map(c => (
                       <option key={c.id_carrera} value={c.id_carrera}>{c.codigo_unico}</option>
                   ))}
-
                 </select>
                 {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
               </div>
