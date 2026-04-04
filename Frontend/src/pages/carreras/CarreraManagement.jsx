@@ -15,10 +15,10 @@ export const CarreraManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [carreraAEditar, setCarreraAEditar] = useState(null);
 
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [selectedCarrera, setSelectedCarrera] = useState(null);
-  const [actionType, setActionType] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  // ESTADOS PARA EL MODAL DE ELIMINAR
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [carreraToDelete, setCarreraToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [motivoBaja, setMotivoBaja] = useState('');
   
   // ESTADOS PARA INTERCEPTAR INTEGRIDAD RELACIONAL
@@ -52,7 +52,7 @@ export const CarreraManagement = () => {
       const response = await api.get('/academias');
       setAcademiasLista(response.data || []);
     } catch (error) {
-      console.error("Error al cargar academias:", error);
+      console.error("Error al cargar academias para el filtro:", error);
     }
   };
 
@@ -77,11 +77,20 @@ export const CarreraManagement = () => {
   }, [carreras, searchTerm, academiaFilter, statusFilter, nivelFilter]);
 
   const totalPages = Math.ceil(filteredCarreras.length / itemsPerPage) || 1;
-  const paginatedCarreras = filteredCarreras.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedCarreras = filteredCarreras.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, academiaFilter, statusFilter, nivelFilter]);
+
+  const handleSuccessAction = () => {
+    setShowForm(false);
+    setCarreraAEditar(null);
+    fetchCarreras();
+  };
 
   const handleNuevaCarrera = () => {
     setCarreraAEditar(null);
@@ -114,20 +123,14 @@ export const CarreraManagement = () => {
       return;
     }
 
-    setIsProcessing(true);
+    setIsDeleting(true);
     const toastId = toast.loading("Actualizando estatus...");
 
     try {
-      if (actionType === 'deactivate') {
-        await api.patch(`/carreras/${selectedCarrera.id_carrera}/deactivate`, {
-          eliminado_por: user?.id_usuario,
-          motivo_baja: motivoBaja
-        });
-      } else {
-        await api.patch(`/carreras/${selectedCarrera.id_carrera}/activate`, {
-          modificado_por: user?.id_usuario
-        });
-      }
+      await api.patch(`/carreras/${carreraToDelete.id_carrera}/deactivate`, {
+        eliminado_por: user?.id_usuario,
+        motivo_baja: motivoBaja
+      });
       
       toast.success("Estatus actualizado correctamente", { id: toastId });
       handleCloseDeleteModal();
@@ -147,15 +150,18 @@ export const CarreraManagement = () => {
         toast.error(msg, { id: toastId });
       }
     } finally {
-      setIsProcessing(false);
+      setIsDeleting(false);
     }
   };
 
   if (showForm) {
     return (
       <CarreraForm 
-        onBack={() => { setShowForm(false); setCarreraAEditar(null); }} 
-        onSuccess={() => { setShowForm(false); setCarreraAEditar(null); fetchCarreras(); }} 
+        onBack={() => {
+          setShowForm(false);
+          setCarreraAEditar(null);
+        }} 
+        onSuccess={handleSuccessAction} 
         initialData={carreraAEditar}
       />
     );
@@ -206,9 +212,17 @@ export const CarreraManagement = () => {
 
           <div className="relative flex items-center w-full sm:w-auto min-w-[200px]">
             <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
-            <select value={academiaFilter} onChange={(e) => setAcademiaFilter(e.target.value)} className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all appearance-none cursor-pointer">
+            <select
+              value={academiaFilter}
+              onChange={(e) => setAcademiaFilter(e.target.value)}
+              className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer"
+            >
               <option value="">Todas las academias</option>
-              {academiasLista.map(a => <option key={a.id_academia} value={a.nombre}>{a.nombre}</option>)}
+              {academiasLista.map(academia => (
+                <option key={academia.id_academia} value={academia.nombre}>
+                  {academia.nombre}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -237,9 +251,17 @@ export const CarreraManagement = () => {
                 <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
               </tr>
             </thead>
+            
             <tbody className="bg-white divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center"><Loader2 className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-4" /></td></tr>
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                      <p className="text-sm text-slate-500 font-medium">Cargando catálogo...</p>
+                    </div>
+                  </td>
+                </tr>
               ) : paginatedCarreras.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="px-6 py-16 text-center">
@@ -254,7 +276,7 @@ export const CarreraManagement = () => {
                 </tr>
               ) : (
                 paginatedCarreras.map((carrera) => (
-                  <tr key={carrera.id_carrera} className={`transition-colors duration-150 ${carrera.estatus === 'INACTIVO' ? 'bg-slate-50/50' : 'hover:bg-blue-50/50'}`}>
+                  <tr key={carrera.id_carrera} className="hover:bg-blue-50/50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <div className="flex items-center text-sm font-bold text-slate-700">
@@ -269,7 +291,7 @@ export const CarreraManagement = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 min-w-[250px] max-w-[400px] whitespace-normal align-middle">
-                      <div className={`text-sm font-bold leading-relaxed break-words ${carrera.estatus === 'INACTIVO' ? 'text-slate-500' : 'text-slate-900'}`}>
+                      <div className="text-sm font-bold text-slate-900 leading-relaxed break-words">
                         {carrera.nombre_carrera}
                       </div>
                     </td>
@@ -288,7 +310,9 @@ export const CarreraManagement = () => {
                       <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
                         carrera.estatus === 'ACTIVO' 
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
-                          : 'bg-red-100 text-red-800 border-red-200'
+                          : carrera.estatus === 'INACTIVO'
+                          ? 'bg-red-100 text-red-800 border-red-200'
+                          : 'bg-slate-100 text-slate-800 border-slate-200'
                       }`}>
                         {carrera.estatus}
                       </span>
@@ -302,24 +326,13 @@ export const CarreraManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        
-                        {carrera.estatus === 'ACTIVO' ? (
-                          <button 
-                            title="Dar de baja" 
-                            onClick={() => handleToggleStatus(carrera, 'deactivate')} 
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        ) : (
-                          <button 
-                            title="Reactivar programa" 
-                            onClick={() => handleToggleStatus(carrera, 'activate')} 
-                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                          >
-                            <RefreshCcw className="w-5 h-5" />
-                          </button>
-                        )}
+                        <button 
+                          title="Cambiar estatus" 
+                          onClick={() => handleEliminarRapido(carrera)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -328,7 +341,7 @@ export const CarreraManagement = () => {
             </tbody>
           </table>
         </div>
-        
+
         {!isLoading && filteredCarreras.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
@@ -342,7 +355,7 @@ export const CarreraManagement = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 transition-all shadow-sm"
+                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -352,7 +365,7 @@ export const CarreraManagement = () => {
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 transition-all shadow-sm"
+                className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -380,10 +393,7 @@ export const CarreraManagement = () => {
 
             <div className="p-6">
               <p className="text-sm text-slate-600 mb-4">
-                {actionType === 'deactivate' 
-                  ? <>¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-slate-900">{selectedCarrera?.nombre_carrera}</span>?</>
-                  : <>¿Deseas volver a activar el programa <span className="font-bold text-slate-900">{selectedCarrera?.nombre_carrera}</span> en el sistema?</>
-                }
+                ¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-slate-900">{carreraToDelete?.nombre_carrera}</span>?
               </p>
               
               {serverAction === 'BLOCK' ? (

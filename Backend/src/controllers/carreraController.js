@@ -1,27 +1,35 @@
 const carreraModel = require('../models/carreraModel');
-// Si te marca error en esta línea de grupoModel, puedes comentarla con // por ahora
 const grupoModel = require('../models/grupoModel');
 
 const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENCIATURA', excluir_id = null) => {
   const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
   
   const nombreLimpio = nombreCarrera.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const palabrasValidas = nombreLimpio.split(/\s+/).filter(palabra => !palabrasIgnoradas.includes(palabra));
+  const palabras = nombreLimpio.split(/\s+/);
+  const palabrasValidas = palabras.filter(palabra => !palabrasIgnoradas.includes(palabra));
 
-  let baseSiglas = palabrasValidas.length === 1 
-    ? palabrasValidas[0].substring(0, 3) 
-    : palabrasValidas.map(p => p[0]).join('').substring(0, 4);
+  let baseSiglas = "";
+  if (palabrasValidas.length === 1) {
+    baseSiglas = palabrasValidas[0].substring(0, 3);
+  } else {
+    baseSiglas = palabrasValidas.map(p => p[0]).join('').substring(0, 4);
+  }
 
   const sufijoNivel = nivel_academico.toUpperCase() === 'MAESTRIA' ? 'M' : 'L';
-  const sufijoModalidad = modalidad === 'EJECUTIVA' ? 'E' : (modalidad === 'HÍBRIDA' ? 'H' : '');
+
+  let sufijoModalidad = '';
+  if (modalidad === 'EJECUTIVA') sufijoModalidad = 'E';
+  if (modalidad === 'HÍBRIDA')   sufijoModalidad = 'H';
 
   let siglas = baseSiglas + sufijoNivel + sufijoModalidad;
 
   const existe = await carreraModel.verificarSiglasExistentes(siglas, excluir_id);
   if (existe) {
-    baseSiglas = palabrasValidas.length === 1 
-      ? palabrasValidas[0].substring(0, 4) 
-      : palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
+    if (palabrasValidas.length === 1) {
+      baseSiglas = palabrasValidas[0].substring(0, 4);
+    } else {
+      baseSiglas = palabrasValidas.map(p => p.substring(0, 2)).join('').substring(0, 4);
+    }
     siglas = baseSiglas + sufijoNivel + sufijoModalidad;
   }
 
@@ -30,22 +38,16 @@ const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENC
 
 const carreraController = {
 
-  ObtenerProgramasAcademicos: async (req, res) => {
-    try {
-      const carreras = await carreraModel.getAllCarreras();
-      return res.status(200).json(carreras);
-    } catch (error) {
-      return res.status(500).json({ message: "Error al obtener programas SESA" });
-    }
-  },
-
   getAcademiasDisponibles: async (req, res) => {
     try {
       const academias = await carreraModel.getAcademiasActivas();
       return res.status(200).json({ success: true, data: academias });
     } catch (error) {
       console.error('Error al obtener academias:', error);
-      return res.status(500).json({ success: false, message: 'Error al obtener la lista de academias' });
+      return res.status(500).json({
+        success: false,
+        message: 'Error al obtener la lista de academias'
+      });
     }
   },
 
@@ -65,7 +67,7 @@ const carreraController = {
       const carreras = await carreraModel.getCarrerasParaSincronizacion();
       return res.status(200).json(carreras);
     } catch (error) {
-      console.error('Error sincronización de carreras:', error);
+      console.error('Error en API de sincronización de carreras:', error);
       return res.status(500).json({ message: 'Error interno al procesar el catálogo de carreras' });
     }
   },
@@ -99,7 +101,14 @@ const carreraController = {
       return res.status(201).json({
         success: true,
         message: 'La carrera se ha registrado correctamente.',
-        data: { id_carrera: Number(resultado.insertId), ...datosNuevaCarrera }
+        data: {
+          id_carrera: Number(resultado.insertId),
+          codigo_unico: datosNuevaCarrera.codigo_unico,
+          nombre_carrera: datosNuevaCarrera.nombre_carrera,
+          modalidad,
+          nivel_academico: nivelSeguro,
+          academia_id
+        }
       });
     } catch (error) {
       console.error('Error al crear la carrera:', error);
@@ -176,12 +185,15 @@ const carreraController = {
         }
       }
 
-      return res.status(200).json({ success: true, message: 'La carrera se ha actualizado correctamente.' });
+      return res.status(200).json({
+        success: true,
+        message: 'La carrera y sus grupos vinculados se han actualizado correctamente.'
+      });
     } catch (error) {
       console.error('Error al actualizar la carrera:', error);
       return res.status(500).json({
         success: false,
-        message: 'Ocurrió un error al actualizar la carrera.',
+        message: 'Ocurrió un error en el servidor al intentar actualizar la carrera.',
         error: error.message
       });
     }
@@ -208,29 +220,28 @@ const carreraController = {
       }
 
       const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);
-      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Carrera no encontrada. No se pudo cambiar el estatus.' });
+      }
 
-      return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente.' });
+      return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente del sistema.' });
     } catch (error) {
       console.error("Error al dar de baja la carrera:", error);
-      return res.status(500).json({ success: false, message: "Error al procesar la baja de la carrera." });
+      return res.status(500).json({ success: false, message: "Error interno del servidor al procesar la baja de la carrera." });
     }
   },
 
-  activateCarrera: async (req, res) => {
+  // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+  ObtenerProgramasAcademicos: async (req, res) => {
     try {
-      const { id } = req.params;
-      const { modificado_por } = req.body;
-      const result = await carreraModel.activateCarrera(id, modificado_por);
-
-      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
-      return res.status(200).json({ success: true, message: 'Carrera reactivada exitosamente.' });
+      const programas = await carreraModel.ObtenerProgramasAcademicos();
+      res.status(200).json(programas);
     } catch (error) {
-      console.error("Error al reactivar la carrera:", error);
-      return res.status(500).json({ success: false, message: "Error interno al reactivar la carrera." });
+      console.error("[Error ObtenerProgramasAcademicos]:", error);
+      res.status(500).json({ error: "Error al consultar los programas académicos" });
     }
-  }
-
+  },
+  // ─────────────────────────────────────────────────────────────────────────────
 };
 
 module.exports = carreraController;
