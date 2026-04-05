@@ -296,15 +296,24 @@ const obtenerHistorialDocente = async (req, res) => {
 
     if (perfil.length === 0) return res.status(404).json({ message: "Docente no encontrado." });
 
+    // NUEVO: Extrayendo nivel_academico y tipo_asignatura para los badges
+    // Y aplicando COALESCE con 'TRONCO COMÚN' para evitar el N/A
     const historial = await pool.query(`
       SELECT 
         p.codigo AS periodo, p.anio,
         m.nombre AS materia,
-        g.identificador AS grupo,
+        m.nivel_academico,
+        m.tipo_asignatura,
+        COALESCE(g.identificador, 'N/A') AS grupo,
         a.promedio_consolidado, a.estatus_acta
       FROM Asignaciones a
+      INNER JOIN (
+        SELECT MIN(id_asignacion) AS min_id
+        FROM Asignaciones
+        GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+      ) rep ON a.id_asignacion = rep.min_id
       JOIN Materias m  ON a.materia_id = m.id_materia
-      JOIN Grupos g    ON a.grupo_id   = g.id_grupo
+      LEFT JOIN Grupos g ON a.grupo_id = g.id_grupo
       JOIN Periodos p  ON a.periodo_id = p.id_periodo
       WHERE a.docente_id = ? AND a.estatus_acta IN ('CERRADA', 'HISTORIAL')
       ORDER BY p.fecha_inicio DESC
