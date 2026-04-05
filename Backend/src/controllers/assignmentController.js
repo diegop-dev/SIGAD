@@ -1,13 +1,40 @@
 const assignmentModel = require('../models/assignmentModel');
 const notificationModel = require('../models/notificationModel');
 const pool = require('../config/database');
-const configuracionModel = require('../models/configuracionModel');
 const { logAudit, getClientIp } = require('../services/auditService');
 
 // Helper: convierte "HH:MM:SS" o "HH:MM" a minutos
 const timeToMinutes = (t) => {
   const parts = String(t).split(':');
   return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+};
+
+// ==========================================
+// NUEVO HELPER: Valida si hay empalmes dentro del mismo arreglo de horarios
+// ==========================================
+const validarEmpalmesInternos = (horarios) => {
+  for (let i = 0; i < horarios.length; i++) {
+    for (let j = i + 1; j < horarios.length; j++) {
+      const b1 = horarios[i];
+      const b2 = horarios[j];
+      
+      if (b1.dia_semana === b2.dia_semana) {
+        const start1 = timeToMinutes(b1.hora_inicio);
+        const end1 = timeToMinutes(b1.hora_fin);
+        const start2 = timeToMinutes(b2.hora_inicio);
+        const end2 = timeToMinutes(b2.hora_fin);
+
+        // Si se traslapan
+        if ((start1 < end2 && end1 > start2) || (start1 >= start2 && start1 < end2)) {
+          return {
+            conflicto: true,
+            mensaje: `Has ingresado dos bloques que se empalman el día ${b1.dia_semana} entre las ${b1.hora_inicio} y las ${b1.hora_fin}.`
+          };
+        }
+      }
+    }
+  }
+  return { conflicto: false };
 };
 
 // Api de sincronización externa (HU-37 / API-05)
@@ -44,8 +71,6 @@ const sincronizarReportesExternos = async (req, res) => {
     const token          = process.env.EXTERNAL_API_TOKEN || '';
 
     // ─── Paginación: consumimos todas las páginas hasta agotar el total ───────
-    // SESA devuelve { page, page_size, total, data: [...] } según su PDF.
-    // page_size default = 50, máx = 100. Usamos 100 para minimizar llamadas.
     const PAGE_SIZE = 100;
     let   paginaActual   = 1;
     let   totalRegistros = null;
@@ -61,11 +86,9 @@ const sincronizarReportesExternos = async (req, res) => {
         headers: {
           'Content-Type':    'application/json',
           'Accept-Encoding': 'gzip',
-          'Authorization':   `Bearer ${token}`,
         }
       });
 
-      // 404 de SESA significa que no hay asignaciones para ese grupo+periodo
       if (response.status === 404) {
         return res.status(200).json({
           message: "Sincronización completada. No se encontraron asignaciones para ese grupo y periodo en el sistema externo.",
@@ -79,8 +102,6 @@ const sincronizarReportesExternos = async (req, res) => {
       }
 
       const jsonPagina = await response.json();
-
-      // Extraemos el arreglo real desde la envoltura paginada { page, page_size, total, data }
       const registrosPagina = jsonPagina?.data ?? [];
       totalRegistros        = jsonPagina?.total ?? registrosPagina.length;
 
@@ -98,7 +119,6 @@ const sincronizarReportesExternos = async (req, res) => {
       });
     }
 
-    // Extraemos los docente_id que tienen reporte activo (tiene_reporte_externo = 1)
     const docentesMorososIds = todasLasAsignaciones
       .filter(item => item.tiene_reporte_externo === 1 || item.tiene_reporte_externo === true)
       .map(item => item.docente_id);
@@ -140,6 +160,12 @@ const createAsignacion = async (req, res) => {
       return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios." });
     }
 
+    // 1. Validar que no haya empalmes dentro del mismo arreglo que mandó el Frontend
+    const validacionInterna = validarEmpalmesInternos(horarios);
+    if (validacionInterna.conflicto) {
+      return res.status(400).json({ error: validacionInterna.mensaje });
+    }
+
     const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
     if (!cumpleReglasAcademicas) {
       return res.status(422).json({
@@ -161,14 +187,51 @@ const createAsignacion = async (req, res) => {
       }
     }
 
+    // ==========================================
+    // Validación de límites configurables (Creación)
+    // ==========================================
+    const { 
+      total_horas, 
+      asignaciones_actuales, 
+      limite_horas, 
+      max_horas_continuas, 
+      max_asignaciones_docente 
+    } = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id);
+
+    if (asignaciones_actuales >= max_asignaciones_docente) {
+      return res.status(422).json({ 
+        error: `Bloqueo de asignación: El docente ha alcanzado el límite máximo de ${max_asignaciones_docente} materias asignadas en este periodo.` 
+      });
+    }
+
+    let totalHorasNuevas = 0;
+    for (const bloque of horarios) {
+      const durHoras = (timeToMinutes(bloque.hora_fin) - timeToMinutes(bloque.hora_inicio)) / 60;
+      if (durHoras <= 0) {
+        return res.status(400).json({ error: `El bloque del ${bloque.dia_semana} tiene una duración inválida.` });
+      }
+      if (durHoras > max_horas_continuas) {
+        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${max_horas_continuas}h continuas (duración: ${durHoras.toFixed(1)}h).` });
+      }
+      totalHorasNuevas += durHoras;
+    }
+
+    if (total_horas + totalHorasNuevas > limite_horas) {
+      return res.status(422).json({ 
+        error: `La asignación supera el límite semanal del docente (${limite_horas}h). Horas actuales: ${total_horas.toFixed(1)}h, nuevas a agregar: ${totalHorasNuevas.toFixed(1)}h.` 
+      });
+    }
+    // ==========================================
+
+    // Validar contra la Base de Datos
     for (const bloque of horarios) {
       const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
       const docenteConflict = await assignmentModel.checkDocenteConflict(docente_id, periodo_id, dia_semana, hora_inicio, hora_fin);
-      if (docenteConflict) return res.status(409).json({ error: `Conflicto detectado: El docente ya tiene una clase asignada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (docenteConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El docente ya tiene una clase asignada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
       const grupoConflict = await assignmentModel.checkGrupoConflict(grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin);
-      if (grupoConflict) return res.status(409).json({ error: `Conflicto detectado: El grupo ya tiene clases el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (grupoConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El grupo ya tiene clases el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
       const aulaConflict = await assignmentModel.checkAulaConflict(aula_id, periodo_id, dia_semana, hora_inicio, hora_fin);
-      if (aulaConflict) return res.status(409).json({ error: `Conflicto detectado: El aula seleccionada ya está ocupada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (aulaConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El aula seleccionada ya está ocupada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
     }
 
     const asignacionesToInsert = horarios.map(bloque => ({
@@ -228,6 +291,12 @@ const updateAsignacion = async (req, res) => {
       return res.status(400).json({ error: "Faltan datos obligatorios o no se han definido los horarios para la modificación." });
     }
 
+    // 1. Validar que no haya empalmes dentro del mismo arreglo que mandó el Frontend
+    const validacionInterna = validarEmpalmesInternos(horarios);
+    if (validacionInterna.conflicto) {
+      return res.status(400).json({ error: validacionInterna.mensaje });
+    }
+
     const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
     if (!cumpleReglasAcademicas) {
       return res.status(422).json({
@@ -252,14 +321,15 @@ const updateAsignacion = async (req, res) => {
     const excludeIds = await assignmentModel.getIdsAsignacionAgrupada(periodo_id, materia_id, docente_id, grupo_id);
 
     // ==========================================
-    // Validaciones de límites configurables (modificación)
+    // ACTUALIZADO: Validaciones de límites configurables (Modificación)
     // ==========================================
-    const [maxContStrU, maxSemStrU] = await Promise.all([
-      configuracionModel.getValor('max_horas_continuas'),
-      configuracionModel.getValor('max_horas_semana')
-    ]);
-    const maxHorasContinuasU = parseFloat(maxContStrU) || 3;
-    const maxHorasSemanalesU = parseFloat(maxSemStrU) || 18;
+    
+    // Traemos todo en 1 llamada (ya excluyendo los bloques actuales en la sumatoria de horas)
+    const { 
+      total_horas, 
+      limite_horas, 
+      max_horas_continuas 
+    } = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id, excludeIds);
 
     let totalHorasNuevasU = 0;
     for (const bloque of horarios) {
@@ -267,25 +337,27 @@ const updateAsignacion = async (req, res) => {
       if (durHoras <= 0) {
         return res.status(400).json({ error: `El bloque del ${bloque.dia_semana} tiene una duración inválida.` });
       }
-      if (durHoras > maxHorasContinuasU) {
-        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${maxHorasContinuasU}h continuas (duración: ${durHoras.toFixed(1)}h).` });
+      if (durHoras > max_horas_continuas) {
+        return res.status(422).json({ error: `El bloque del ${bloque.dia_semana} excede el límite de ${max_horas_continuas}h continuas (duración: ${durHoras.toFixed(1)}h).` });
       }
       totalHorasNuevasU += durHoras;
     }
 
-    const horasRestantes = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id, excludeIds);
-    if (horasRestantes + totalHorasNuevasU > maxHorasSemanalesU) {
-      return res.status(422).json({ error: `La modificación supera el límite semanal del docente (${maxHorasSemanalesU}h). Horas restantes: ${horasRestantes.toFixed(1)}h, nuevas: ${totalHorasNuevasU.toFixed(1)}h.` });
+    if (total_horas + totalHorasNuevasU > limite_horas) {
+      return res.status(422).json({ 
+        error: `La modificación supera el límite semanal del docente (${limite_horas}h). Horas restantes disponibles: ${total_horas.toFixed(1)}h, nuevas a agregar: ${totalHorasNuevasU.toFixed(1)}h.` 
+      });
     }
 
+    // Validar contra Base de datos
     for (const bloque of horarios) {
       const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
       const docenteConflict = await assignmentModel.checkDocenteConflict(docente_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
-      if (docenteConflict) return res.status(409).json({ error: `Conflicto detectado: El docente ya tiene una clase asignada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (docenteConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El docente ya tiene una clase asignada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
       const grupoConflict = await assignmentModel.checkGrupoConflict(grupo_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
-      if (grupoConflict) return res.status(409).json({ error: `Conflicto detectado: El grupo ya tiene clases el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (grupoConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El grupo ya tiene clases el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
       const aulaConflict = await assignmentModel.checkAulaConflict(aula_id, periodo_id, dia_semana, hora_inicio, hora_fin, excludeIds);
-      if (aulaConflict) return res.status(409).json({ error: `Conflicto detectado: El aula seleccionada ya está ocupada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
+      if (aulaConflict) return res.status(409).json({ error: `Conflicto detectado en Base de Datos: El aula seleccionada ya está ocupada el ${dia_semana} de ${hora_inicio} a ${hora_fin}.` });
     }
 
     const asignacionesToUpdate = horarios.map(bloque => ({
@@ -428,7 +500,7 @@ const actualizarConfirmacion = async (req, res) => {
         );
       }
     } catch (notifError) {
-      console.error("[Advertencia] No se pudo notificar al creador de la asignación:", notifError);
+      console.error("[Advertencia] No se pudo notify al creador de la asignación:", notifError);
     }
 
     const mensaje = estatus_confirmacion === 'ACEPTADA'
@@ -481,16 +553,13 @@ const sincronizarPromedios = async (req, res) => {
     }
 
     const externalApiUrl = process.env.EXTERNAL_API_URL || 'http://localhost:3000';
-    const token          = process.env.EXTERNAL_API_TOKEN || '';
     const PAGE_SIZE      = 100;
 
     const headers = {
       'Content-Type':    'application/json',
       'Accept-Encoding': 'gzip',
-      'Authorization':   `Bearer ${token}`,
     };
 
-    // ── Helper: consume todas las páginas de un endpoint paginado ─────────
     const fetchAllPages = async (baseUrl) => {
       let pagina   = 1;
       let total    = null;
@@ -512,26 +581,20 @@ const sincronizarPromedios = async (req, res) => {
 
       return todos;
     };
-    // ─────────────────────────────────────────────────────────────────────
 
-    // ── PASO 1: Catálogo de materias de SESA ──────────────────────────────
     const materiasSesa = await fetchAllPages(
       `${externalApiUrl}/api/materias/recepcion?_placeholder=1`
     );
 
-    // Mapa codigo_unico → id_materia en SESA
     const mapaMateriasSesa = {};
     for (const m of materiasSesa) {
       mapaMateriasSesa[m.codigo_unico] = m.id_materia;
     }
-    // ─────────────────────────────────────────────────────────────────────
 
-    // ── PASO 2: Catálogo de grupos de SESA → encontrar id_grupo_sesa ──────
     const gruposSesa = await fetchAllPages(
       `${externalApiUrl}/api/grupos/recepcion?_placeholder=1`
     );
 
-    // Obtenemos el identificador del grupo local para hacer el match
     const gruposLocales = await pool.query(
       'SELECT id_grupo, identificador FROM grupos WHERE id_grupo = ? LIMIT 1',
       [grupo_id]
@@ -551,9 +614,6 @@ const sincronizarPromedios = async (req, res) => {
     }
 
     const id_grupo_sesa = grupoSesa.id_grupo;
-    // ─────────────────────────────────────────────────────────────────────
-
-    // ── PASO 3: Asignaciones locales ABIERTA+ACEPTADA del grupo ───────────
     const asignacionesLocales = await assignmentModel.ObtenerAsignacionesAbiertasPorGrupo(grupo_id);
 
     if (asignacionesLocales.length === 0) {
@@ -563,9 +623,7 @@ const sincronizarPromedios = async (req, res) => {
         sin_promedio: 0,
       });
     }
-    // ─────────────────────────────────────────────────────────────────────
 
-    // ── PASO 4: Por cada materia, consultar promedio en SESA ──────────────
     let actualizadas = 0;
     let sin_promedio = 0;
 
@@ -573,7 +631,6 @@ const sincronizarPromedios = async (req, res) => {
       const id_materia_sesa = mapaMateriasSesa[asignacion.codigo_unico];
 
       if (!id_materia_sesa) {
-        // La materia no existe en SESA aún — la saltamos sin romper el flujo
         console.warn(`[HU-38] Materia "${asignacion.codigo_unico}" no encontrada en catálogo SESA.`);
         sin_promedio++;
         continue;
@@ -585,7 +642,6 @@ const sincronizarPromedios = async (req, res) => {
 
         const respPromedio = await fetch(urlPromedio, { method: 'GET', headers });
 
-        // 404 de SESA = asignación aún no existe allá
         if (respPromedio.status === 404) {
           sin_promedio++;
           continue;
@@ -599,13 +655,11 @@ const sincronizarPromedios = async (req, res) => {
 
         const { promedio_consolidado } = await respPromedio.json();
 
-        // null = calificaciones aún incompletas en SESA
         if (promedio_consolidado === null || promedio_consolidado === undefined) {
           sin_promedio++;
           continue;
         }
 
-        // Cerramos la asignación y guardamos el promedio
         await assignmentModel.cerrarAsignacionConPromedio(
           grupo_id,
           asignacion.materia_id,
@@ -615,12 +669,10 @@ const sincronizarPromedios = async (req, res) => {
         actualizadas++;
 
       } catch (err) {
-        // Error de red por materia individual — no cortamos el loop completo
         console.error(`[HU-38] Error consultando promedio de materia ${asignacion.codigo_unico}:`, err.message);
         sin_promedio++;
       }
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     return res.status(200).json({
       mensaje:      `Sincronización completada. ${actualizadas} asignación(es) cerrada(s) con promedio.`,

@@ -124,6 +124,49 @@ const marcarReporteExternoMasivo = async (periodo_id, grupo_id, docentesReportad
   return result.affectedRows;
 };
 
+// =========================================================================
+// Calcula el total de horas asignadas y materias a un docente leyendo 
+// TODOS los límites desde la tabla de configuración.
+// =========================================================================
+const getTotalHorasDocente = async (docente_id, periodo_id, asignacion_id_excluir = null) => {
+  let query = `
+    SELECT 
+      COALESCE(SUM(TIMESTAMPDIFF(MINUTE, a.hora_inicio, a.hora_fin)) / 60, 0) AS total_horas,
+      COUNT(DISTINCT CONCAT(a.materia_id, '_', IFNULL(a.grupo_id, 'GLOBAL'))) AS asignaciones_actuales,
+      (SELECT valor FROM configuracion WHERE clave = 'max_horas_semana') AS limite_horas,
+      (SELECT valor FROM configuracion WHERE clave = 'max_horas_continuas') AS max_horas_continuas,
+      (SELECT valor FROM configuracion WHERE clave = 'max_asignaciones_docente') AS max_asignaciones_docente
+    FROM asignaciones a
+    WHERE a.docente_id = ? 
+      AND a.periodo_id = ? 
+      AND a.estatus_acta = 'ABIERTA'
+      AND a.estatus_confirmacion != 'RECHAZADA'
+  `;
+  
+  const params = [docente_id, periodo_id];
+
+  if (asignacion_id_excluir) {
+    // Soporta excluir un arreglo de IDs (para update) o un ID único
+    if (Array.isArray(asignacion_id_excluir) && asignacion_id_excluir.length > 0) {
+      query += ` AND a.id_asignacion NOT IN (?)`;
+      params.push(asignacion_id_excluir);
+    } else if (!Array.isArray(asignacion_id_excluir)) {
+      query += ` AND a.id_asignacion != ?`;
+      params.push(asignacion_id_excluir);
+    }
+  }
+
+  const rows = await pool.query(query, params);
+  
+  return {
+    total_horas: Number(rows[0].total_horas) || 0,
+    asignaciones_actuales: Number(rows[0].asignaciones_actuales) || 0,
+    limite_horas: Number(rows[0].limite_horas) || 18,
+    max_horas_continuas: Number(rows[0].max_horas_continuas) || 3,
+    max_asignaciones_docente: Number(rows[0].max_asignaciones_docente) || 6
+  };
+};
+
 // ==========================================
 // Transacciones
 // ==========================================
@@ -420,6 +463,7 @@ const cerrarAsignacionConPromedio = async (grupo_id, materia_id, promedio, usuar
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
   checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, createAsignaciones,
+  getTotalHorasDocente, // ← NUEVA FUNCIÓN AGREGADA
   getAllAsignaciones, updateAsignacionesAgrupadas, getIdsAsignacionAgrupada, cancelarAsignacionAgrupada,
   getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, actualizarConfirmacionDocente,
   rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo,

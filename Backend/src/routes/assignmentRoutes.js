@@ -8,7 +8,7 @@ router.get('/catalogo', assignmentController.ObtenerAsignaciones);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── HU-38: Sincronizar promedios consolidados desde SESA ────────────────────
-router.post('/sincronizar-promedios', requireRole([1, 2]), assignmentController.sincronizarPromedios);
+router.post('/sincronizar-promedios', assignmentController.sincronizarPromedios);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-05)
