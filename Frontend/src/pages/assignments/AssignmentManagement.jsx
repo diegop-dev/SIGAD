@@ -1,5 +1,10 @@
+// AssignmentManagement.jsx
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, CalendarDays, Loader2, Calendar, MapPin, ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle, X, RefreshCcw, Users, FileText, BarChart2 } from 'lucide-react';
+import {
+  Plus, Search, CalendarDays, Loader2, Calendar, MapPin,
+  ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle,
+  X, RefreshCcw, Users, FileText, BarChart2, CheckCircle2, ClipboardList
+} from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AssignmentForm } from './AssignmentForm';
@@ -17,7 +22,7 @@ export const AssignmentManagement = () => {
   const [gruposLista, setGruposLista] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isSyncingPromedios, setIsSyncingPromedios] = useState(false); // ← HU-38
+  const [isSyncingPromedios, setIsSyncingPromedios] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [periodoFilter, setPeriodoFilter] = useState('');
@@ -36,23 +41,33 @@ export const AssignmentManagement = () => {
     isOpen: false, periodo_id: '', grupo_id: ''
   });
 
-  // ─── HU-38: Modal de promedios consolidados ──────────────────────────────────
   const [promediosModal, setPromediosModal] = useState({
+    isOpen: false, grupo_id: ''
+  });
+
+  // ─── Modal de resultados compartido para HU-38 y HU-39 ───────────────────────
+  const [resultadosModal, setResultadosModal] = useState({
     isOpen: false,
-    grupo_id: ''
+    tipo: null,          // 'incumplimientos' | 'promedios'
+    asignaciones: [],    // filas deduplicadas a mostrar
+    resumen: {}          // datos del response original para el header
   });
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // Retorna el array crudo para poder filtrarlo inmediatamente después del refresh
   const fetchAsignaciones = async () => {
     setIsLoading(true);
     try {
       const response = await api.get('/asignaciones');
       const data = response.data.data || response.data;
-      setAsignacionesRaw(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      setAsignacionesRaw(arr);
+      return arr;
     } catch (error) {
       console.error("Error al cargar asignaciones:", error);
       toast.error('Error al cargar el listado de asignaciones');
       setAsignacionesRaw([]);
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -78,24 +93,65 @@ export const AssignmentManagement = () => {
     fetchCatalogosFiltrosYSync();
   }, []);
 
+  // ─── Helper: deduplica filas crudas por materia+docente ──────────────────────
+  const deduplicarPorMateriaDocente = (items) => {
+    const seen = new Set();
+    return items.filter(item => {
+      const key = `${item.materia_id}_${item.docente_id}_${item.grupo_id ?? 'NULL'}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // ─── HU-39: Sincronizar incumplimientos ──────────────────────────────────────
   const handleSincronizarReportes = async () => {
     if (!syncModal.periodo_id || !syncModal.grupo_id) {
       toast.error("Por favor, selecciona un Periodo y un Grupo.");
       return;
     }
+
+    const { grupo_id, periodo_id } = syncModal;
     setIsSyncing(true);
     const toastId = toast.loading('Conectando vía VPN con el sistema externo...');
+
     try {
-      const response = await api.get(`/asignaciones/recepcion?grupo_id=${syncModal.grupo_id}&periodo_id=${syncModal.periodo_id}`);
-      toast.success(response.data.message || 'Sincronización exitosa', { id: toastId, duration: 4000 });
+      const response = await api.get(
+        `/asignaciones/recepcion?grupo_id=${grupo_id}&periodo_id=${periodo_id}`
+      );
+      toast.success(response.data.message || 'Sincronización exitosa', { id: toastId, duration: 3000 });
       setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' });
-      fetchAsignaciones();
+
+      // Refrescamos y filtramos inmediatamente sobre los datos actualizados
+      const rawActualizado = await fetchAsignaciones();
+
+      const conReporte = deduplicarPorMateriaDocente(
+        rawActualizado.filter(item =>
+          (item.tiene_reporte_externo === 1 || item.tiene_reporte_externo === true) &&
+          String(item.grupo_id) === String(grupo_id) &&
+          String(item.periodo_id) === String(periodo_id)
+        )
+      );
+
+      setResultadosModal({
+        isOpen: true,
+        tipo: 'incumplimientos',
+        asignaciones: conReporte,
+        resumen: {
+          reportes_recibidos: response.data.reportes_recibidos ?? conReporte.length,
+          asignaciones_afectadas: response.data.asignaciones_afectadas ?? conReporte.length,
+          paginas_consumidas: response.data.paginas_consumidas ?? 1,
+        }
+      });
+
     } catch (error) {
       toast.error(error.response?.data?.error || 'Error al sincronizar reportes', { id: toastId });
     } finally {
       setIsSyncing(false);
     }
   };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // ─── HU-38: Sincronizar promedios consolidados ───────────────────────────────
   const handleSincronizarPromedios = async () => {
@@ -104,31 +160,51 @@ export const AssignmentManagement = () => {
       return;
     }
 
+    const { grupo_id } = promediosModal;
     setIsSyncingPromedios(true);
     const toastId = toast.loading('Consultando promedios en el sistema externo...');
 
     try {
       const response = await api.post(
-        `/asignaciones/sincronizar-promedios?grupo_id=${promediosModal.grupo_id}`
+        `/asignaciones/sincronizar-promedios?grupo_id=${grupo_id}`
       );
-
       const { actualizadas, sin_promedio, mensaje } = response.data;
 
       toast.success(
         mensaje || `Sincronización completada: ${actualizadas} asignacion(es) cerrada(s).`,
-        { id: toastId, duration: 5000 }
+        { id: toastId, duration: 3000 }
       );
 
-      // Si hubo materias sin promedio aún disponible, avisamos sin cortar el flujo
-      if (sin_promedio && sin_promedio > 0) {
+      if (sin_promedio > 0) {
         toast(`${sin_promedio} materia(s) aún sin promedio disponible en SESA.`, {
-          icon: '⚠️',
-          duration: 5000
+          icon: '⚠️', duration: 5000
         });
       }
 
       setPromediosModal({ isOpen: false, grupo_id: '' });
-      fetchAsignaciones();
+
+      // Refrescamos y filtramos inmediatamente sobre los datos actualizados
+      const rawActualizado = await fetchAsignaciones();
+
+      const conPromedio = deduplicarPorMateriaDocente(
+        rawActualizado.filter(item =>
+          item.promedio_consolidado !== null &&
+          item.promedio_consolidado !== undefined &&
+          String(item.grupo_id) === String(grupo_id) &&
+          item.estatus_acta === 'CERRADA'
+        )
+      );
+
+      setResultadosModal({
+        isOpen: true,
+        tipo: 'promedios',
+        asignaciones: conPromedio,
+        resumen: {
+          actualizadas: actualizadas ?? conPromedio.length,
+          sin_promedio: sin_promedio ?? 0,
+        }
+      });
+
     } catch (error) {
       console.error("Error al sincronizar promedios:", error);
       toast.error(
@@ -256,8 +332,6 @@ export const AssignmentManagement = () => {
         </div>
         {(user?.rol_id === 1 || user?.rol_id === 2) && (
           <div className="flex flex-wrap gap-3">
-
-            {/* Botón Incumplimientos (HU-39) */}
             <button
               onClick={() => setSyncModal({ ...syncModal, isOpen: true })}
               className="flex items-center px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all duration-200 shadow-sm font-bold"
@@ -265,8 +339,6 @@ export const AssignmentManagement = () => {
               <RefreshCcw className="w-4 h-4 mr-2 text-slate-500" />
               Sincronizar Incumplimientos
             </button>
-
-            {/* ─── Botón Promedios (HU-38) ─────────────────────────────────── */}
             <button
               onClick={() => setPromediosModal({ isOpen: true, grupo_id: '' })}
               className="flex items-center px-4 py-2.5 bg-white border border-violet-200 text-violet-700 rounded-xl hover:bg-violet-50 transition-all duration-200 shadow-sm font-bold"
@@ -274,15 +346,12 @@ export const AssignmentManagement = () => {
               <BarChart2 className="w-4 h-4 mr-2 text-violet-500" />
               Obtener Promedios
             </button>
-            {/* ──────────────────────────────────────────────────────────────── */}
-
             <button
               onClick={() => { setAsignacionToEdit(null); setShowForm(true); }}
               className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
             >
               <Plus className="w-5 h-5 mr-2" /> Nueva asignación
             </button>
-
           </div>
         )}
       </div>
@@ -396,7 +465,6 @@ export const AssignmentManagement = () => {
                           <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
                             {(asignacion.tipo_asignatura || 'DESCONOCIDO').replace(/_/g, ' ')}
                           </span>
-                          {/* ── Promedio consolidado (HU-38) ── */}
                           {asignacion.promedio_consolidado !== null && asignacion.promedio_consolidado !== undefined && (
                             <span className="px-2 py-0.5 rounded-md font-bold text-[10px] border bg-violet-100 text-violet-700 border-violet-200 flex items-center gap-1">
                               <BarChart2 className="w-3 h-3" />
@@ -521,7 +589,7 @@ export const AssignmentManagement = () => {
         </div>
       )}
 
-      {/* ─── Modal Obtener Promedios (HU-38) ─────────────────────────────────── */}
+      {/* ── Modal Obtener Promedios (HU-38) ── */}
       {promediosModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
@@ -567,6 +635,155 @@ export const AssignmentManagement = () => {
               >
                 {isSyncingPromedios ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BarChart2 className="w-4 h-4 mr-2" />}
                 {isSyncingPromedios ? 'Consultando SESA...' : 'Obtener promedios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal de Resultados SESA (compartido HU-38 y HU-39) ──────────────── */}
+      {resultadosModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+
+            {/* Header */}
+            <div className={`flex justify-between items-center p-5 border-b ${resultadosModal.tipo === 'incumplimientos' ? 'border-red-100 bg-red-50/40' : 'border-violet-100 bg-violet-50/40'}`}>
+              <div className="flex items-center gap-3">
+                {resultadosModal.tipo === 'incumplimientos' ? (
+                  <div className="p-2 bg-red-100 rounded-xl">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-violet-100 rounded-xl">
+                    <BarChart2 className="w-5 h-5 text-violet-600" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-base font-black text-slate-800">
+                    {resultadosModal.tipo === 'incumplimientos'
+                      ? 'Resultados de sincronización — Incumplimientos'
+                      : 'Resultados de sincronización — Promedios'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Datos recibidos desde SESA y cruzados con registros locales
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tarjetas de resumen */}
+            <div className={`px-5 pt-4 pb-3 grid gap-3 ${resultadosModal.tipo === 'incumplimientos' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {resultadosModal.tipo === 'incumplimientos' ? (
+                <>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-slate-800">{resultadosModal.resumen.paginas_consumidas ?? '—'}</p>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Páginas SESA</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-red-700">{resultadosModal.resumen.reportes_recibidos ?? '—'}</p>
+                    <p className="text-xs text-red-600 font-medium mt-0.5">Reportes recibidos</p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-amber-700">{resultadosModal.resumen.asignaciones_afectadas ?? '—'}</p>
+                    <p className="text-xs text-amber-600 font-medium mt-0.5">Registros actualizados</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-violet-700">{resultadosModal.resumen.actualizadas ?? '—'}</p>
+                    <p className="text-xs text-violet-600 font-medium mt-0.5">Actas cerradas</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-black text-slate-600">{resultadosModal.resumen.sin_promedio ?? '—'}</p>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">Sin promedio aún</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Listado de asignaciones afectadas */}
+            <div className="px-5 pb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <ClipboardList className="w-4 h-4 text-slate-400" />
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {resultadosModal.tipo === 'incumplimientos'
+                    ? `Asignaciones con reporte externo (${resultadosModal.asignaciones.length})`
+                    : `Asignaciones con promedio consolidado (${resultadosModal.asignaciones.length})`}
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 pb-5">
+              {resultadosModal.asignaciones.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-3" />
+                  <p className="text-sm font-bold text-slate-600">
+                    {resultadosModal.tipo === 'incumplimientos'
+                      ? 'No se detectaron docentes con reporte de incumplimiento en este grupo y periodo.'
+                      : 'No se encontraron asignaciones cerradas con promedio para este grupo.'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">Los datos locales están al día con SESA.</p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <table className="min-w-full divide-y divide-slate-100 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Docente</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Materia</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Grupo</th>
+                        <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {resultadosModal.tipo === 'incumplimientos' ? 'Estatus' : 'Promedio'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-50">
+                      {resultadosModal.asignaciones.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                            {`${item.docente_nombres ?? ''} ${item.docente_apellido_paterno ?? ''} ${item.docente_apellido_materno ?? ''}`.trim()}
+                          </td>
+                          <td className="px-4 py-3 text-slate-700">
+                            <span className="font-semibold">{item.nombre_materia}</span>
+                            <span className="block text-[11px] text-slate-400 font-mono">{item.codigo_unico}</span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                            {item.nombre_grupo || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {resultadosModal.tipo === 'incumplimientos' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                                <AlertTriangle className="w-3 h-3" /> Reporte externo
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                <BarChart2 className="w-3 h-3" />
+                                {Number(item.promedio_consolidado).toFixed(2)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
+                className="px-5 py-2.5 text-sm font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-xl transition-colors shadow-sm"
+              >
+                Cerrar
               </button>
             </div>
           </div>
