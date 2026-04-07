@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, UserCheck, Shield, Mail } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -11,6 +12,7 @@ import { TOAST_USUARIOS } from '../../../constants/toastMessages';
 
 export const UserManagement = () => {
   const { user: currentUser } = useAuth(); 
+  const navigate = useNavigate();
   
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -104,7 +106,11 @@ export const UserManagement = () => {
     const targetRoleId = Number(targetUser.rol_id);
     const isSelf = Number(currentUser?.id_usuario) === Number(targetUser.id_usuario);
 
-    if (isSelf && (currentRoleId === 1 || currentRoleId === 2)) {
+    if (isSelf) {
+      if (action === 'edit') {
+        navigate('/mi-perfil');
+        return;
+      }
       toast.error(TOAST_USUARIOS.accesoDenegadoPropioPerfil);
       return;
     }

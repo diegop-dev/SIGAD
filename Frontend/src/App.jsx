@@ -19,7 +19,6 @@ import { MiPerfil } from "./pages/docentes/MiPerfil";
 import { HorariosManagement } from "./pages/horarios/HorariosManagement";
 import { AuditLogs } from "./pages/audit/AuditLogs";
 
-
 function App() {
   return (
     <>
@@ -51,13 +50,14 @@ function App() {
               <Route path="/carreras" element={<CarreraManagement />} />
               <Route path="/grupos" element={<GrupoManagement />} />
               <Route path="/asignaciones" element={<AssignmentManagement />} />
-              
+            </Route>
+            <Route element={<ProtectedRoute allowedRoles={[1, 2, 3]} />}>
+              <Route path="/mi-perfil" element={<MiPerfil />} />
             </Route>
 
-            {/* 3. Rutas específicas para docentes (rol_id = 3) */}
+            {/* Rutas exclusivas para docentes */}
             <Route element={<ProtectedRoute allowedRoles={[3]} />}>
               <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
-              <Route path="/mi-perfil" element={<MiPerfil />} />
               <Route path="/horarios" element={<HorariosManagement />} />
             </Route>
           </Route> 

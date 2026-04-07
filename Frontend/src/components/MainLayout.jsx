@@ -8,7 +8,7 @@ import { NotificationDropdown } from './NotificationDropdown';
 
 export const MainLayout = () => {
   const { user, logout } = useAuth();
-  const { notifications } = useNotifications(); // Ya no necesitamos clearNotifications aquí
+  const { notifications } = useNotifications();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +21,6 @@ export const MainLayout = () => {
 
   const closeSidebar = () => setIsSidebarOpen(false);
 
-  // cerrar el panel de notificaciones al hacer clic fuera
   useEffect(() => {
     const handle = e => {
       if (!e.target.closest('.notif-container')) {
@@ -47,7 +46,6 @@ export const MainLayout = () => {
     { name: 'Registro de auditoría', path: '/audit-logs', icon: ShieldCheck, roles: [1]},
     { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]},
     { name: 'Mi horario', path: '/horarios', icon: CalendarDays, roles: [3]},
-    { name: 'Mi perfil', path: '/mi-perfil', icon: User, roles: [3] }
   ];
 
   const filteredMenu = menuItems.filter(item => item.roles.includes(user?.rol_id));
@@ -89,21 +87,31 @@ export const MainLayout = () => {
           </button>
         </div>
 
-        <div className="px-6 py-8 border-b border-slate-800/50">
-          <div className="flex items-center gap-4">
+        {/* CAMBIO DEL PERFIL  */}
+        <div className="px-4 py-6 border-b border-slate-800/50">
+          <div 
+            onClick={() => {
+              navigate('/mi-perfil');
+              closeSidebar();
+            }}
+            className="flex items-center gap-4 p-2 rounded-2xl hover:bg-slate-900 cursor-pointer transition-colors group"
+            title="Ir a mi perfil"
+          >
             <div className="relative">
-              <div className="h-12 w-12 rounded-full bg-slate-800 border-2 border-blue-500 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="h-12 w-12 rounded-full bg-slate-800 border-2 border-blue-500 overflow-hidden flex items-center justify-center shrink-0 group-hover:border-blue-400 transition-colors">
                 {profileImageUrl ? (
                   <img src={profileImageUrl} alt="Perfil" className="h-full w-full object-cover" />
                 ) : (
-                  <User className="h-6 w-6 text-slate-400" />
+                  <User className="h-6 w-6 text-slate-400 group-hover:text-white transition-colors" />
                 )}
               </div>
               <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-slate-950 rounded-full"></span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white truncate">{user?.nombres.split(' ')[0]} {user?.apellido_paterno}</p>
-              <p className="text-xs text-blue-400 font-medium truncate">
+              <p className="text-sm font-bold text-white truncate group-hover:text-blue-100 transition-colors">
+                {user?.nombres.split(' ')[0]} {user?.apellido_paterno}
+              </p>
+              <p className="text-xs text-blue-400 font-medium truncate group-hover:text-blue-300 transition-colors">
                 {user?.rol_id === 1 ? 'Superadministrador' : user?.rol_id === 2 ? 'Administrador' : 'Docente'}
               </p>
             </div>
@@ -170,7 +178,7 @@ export const MainLayout = () => {
             <div className="flex items-center gap-4">
               <div className="relative notif-container">
                 <button
-                  onClick={() => setIsNotifOpen(!isNotifOpen)} // Forma correcta y limpia
+                  onClick={() => setIsNotifOpen(!isNotifOpen)}
                   className="relative p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all duration-200"
                 >
                   <Bell className="h-5 w-5" />
@@ -178,7 +186,6 @@ export const MainLayout = () => {
                     <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
                       <span
                         className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                          // Determinamos el color basado en la severidad real de la DB
                           (() => {
                             const rank = { BAJA: 1, MEDIA: 2, ALTA: 3 };
                             let top = 'BAJA';

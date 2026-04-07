@@ -190,11 +190,13 @@ const Dashboard = () => {
 
       try {
         // ── Batch 1: datos base en paralelo ──
-        const [resMaterias, resPeriodos, resUsers, resAulas, resAudit] = await Promise.all([
+        const [resMaterias, resPeriodos, resUsers, /*resAulas*/, resAudit] = await Promise.all([
           api.get('/materias').catch(() => ({ data: [] })),
           api.get('/periodos').catch(() => ({ data: [] })),
           admin      ? api.get('/users').catch(() => ({ data: [] }))                                  : null,
-          admin      ? api.get('/aulas').catch(() => ({ data: [] }))                                  : null,
+          // --- AQUÍ COMENTAMOS TEMPORALMENTE LA LLAMADA A /aulas ---
+          // admin      ? api.get('/aulas').catch(() => ({ data: [] }))                                  : null,
+          null, // Pasamos null para mantener el orden del array resultante
           superAdmin ? api.get('/audit-logs', { params: { page: 1, limit: 1 } }).catch(() => null)    : null,
         ]);
 
