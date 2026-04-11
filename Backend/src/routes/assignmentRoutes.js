@@ -11,6 +11,11 @@ router.get('/catalogo', assignmentController.ObtenerAsignaciones);
 router.post('/sincronizar-promedios', assignmentController.sincronizarPromedios);
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Nuevo: Validar borrador de asignación (Pre-flight Validation)
+router.post('/validar-borrador', verifyToken, requireRole([1, 2]), assignmentController.validarBorrador);
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-05)
 router.get('/sincronizacion', verifyToken, assignmentController.getAsignacionesParaSincronizacion);
 
