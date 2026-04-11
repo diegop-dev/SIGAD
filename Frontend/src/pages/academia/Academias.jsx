@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Pencil, Trash2, Plus, X, Filter, Loader2, BookOpen, UserCheck } from 'lucide-react';
+import { Search, Pencil, Trash2, Plus, X, Filter, Loader2, BookOpen, UserCheck, Ban, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -13,6 +13,11 @@ export const Academias = ({ onNueva }) => {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [academiaSeleccionada, setAcademiaSeleccionada] = useState(null);
 
+  // Memoria para intercepción de reglas de negocio
+  const [serverAction, setServerAction] = useState(null);
+  const [serverMessage, setServerMessage] = useState('');
+  const [modalBloqueoEstatus, setModalBloqueoEstatus] = useState(null);
+
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
@@ -21,7 +26,6 @@ export const Academias = ({ onNueva }) => {
 
   useEffect(() => {
     cargarAcademias();
-    cargarCoordinadores();
     cargarCoordinadores();
   }, []);
 
@@ -47,6 +51,8 @@ export const Academias = ({ onNueva }) => {
   };
 
   const prepararEdicion = (academia) => {
+    setServerAction(null);
+    setServerMessage('');
     setAcademiaSeleccionada(academia);
     setFormData({
       nombre: academia.nombre,
@@ -56,34 +62,65 @@ export const Academias = ({ onNueva }) => {
     setModalAbierto(true);
   };
 
+  const handleInputChange = (campo, valor) => {
+    setFormData(prev => ({ ...prev, [campo]: valor }));
+    setServerAction(null); // Limpiar bloqueo si el usuario intenta corregir
+  };
+
   const handleUpdate = async (e) => {
     e.preventDefault();
+    const toastId = toast.loading("Actualizando academia...");
+    
     try {
-      const check = await api.get(
-        `/academias/validar-nombre/${formData.nombre}?id=${academiaSeleccionada.id_academia}`
-      );
-      if (check.data.existe) return toast.error('Ese nombre ya está en uso');
-
       await api.put(`/academias/${academiaSeleccionada.id_academia}`, formData);
-      toast.success('Academia actualizada correctamente');
+      toast.success('Academia actualizada correctamente', { id: toastId });
       setModalAbierto(false);
       cargarAcademias();
-    } catch {
-      toast.error('Error al actualizar la academia');
+    } catch (error) {
+      const status = error.response?.status;
+      const data = error.response?.data || {};
+
+      toast.dismiss(toastId);
+
+      // Intercepción del bloqueo de integridad relacional
+      if (status === 409 && data.action === "BLOCK") {
+        setServerAction("BLOCK");
+        setServerMessage(data.detalles || "Conflicto de integridad referencial.");
+        toast.error("Operación denegada por reglas de integridad", { duration: 8000 });
+      } 
+      // Error por nombre duplicado u otros 409
+      else if (status === 409) {
+        toast.error(data.error || 'Ese nombre ya está en uso');
+      } 
+      else {
+        toast.error(data.error || 'Error al actualizar la academia');
+      }
     }
   };
 
-  const confirmarCambioEstatus = async () => {
-    if (!academiaAEliminar) return;
-    const nuevoEstatus = academiaAEliminar.estatus === "ACTIVO" ? "INACTIVO" : "ACTIVO";
+  const handleToggleEstatus = async (id_academia, estatusActual) => {
+    const nuevoEstatus = estatusActual === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+    const toastId = toast.loading(`Cambiando estatus a ${nuevoEstatus}...`);
+    
     try {
-      await api.patch(`/academias/${academiaAEliminar.id_academia}/estatus`, { estatus: nuevoEstatus });
-      toast.success(`Estatus cambiado a ${nuevoEstatus}`);
-      setModalConfirmacion(false);
-      setAcademiaAEliminar(null);
+      await api.patch(`/academias/${id_academia}/estatus`, { estatus: nuevoEstatus });
+      toast.success(`Estatus cambiado a ${nuevoEstatus}`, { id: toastId });
       cargarAcademias();
-    } catch {
-      toast.error('No se pudo cambiar el estatus');
+    } catch (error) {
+      const status = error.response?.status;
+      const data = error.response?.data || {};
+
+      toast.dismiss(toastId);
+
+      // Si el backend rechaza la baja lógica por clases activas
+      if (status === 409 && data.action === "BLOCK") {
+        setModalBloqueoEstatus({
+          mensaje: data.detalles || "No se puede desactivar la academia debido a dependencias activas."
+        });
+      } else {
+        toast.error(data.error || 'Error de conexión al cambiar el estatus');
+        console.error('Error en handleToggleEstatus:', error);
+      }
     }
   };
 
@@ -199,9 +236,7 @@ export const Academias = ({ onNueva }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-medium">
-                      {new Date(a.fecha_creacion).toLocaleDateString('es-MX', {
-                        year: 'numeric', month: 'short', day: 'numeric',
-                      })}
+                      {a.fecha_creacion}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${
@@ -246,6 +281,7 @@ export const Academias = ({ onNueva }) => {
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden">
+            
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h3 className="text-lg font-black text-slate-800">Editar academia</h3>
               <button
@@ -255,31 +291,38 @@ export const Academias = ({ onNueva }) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <form onSubmit={handleUpdate} className="p-6 space-y-5">
+              
+              {/* Alerta de bloqueo (Integridad Relacional) */}
+              {serverAction === 'BLOCK' && (
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start">
+                  <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
+                    <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-slate-700">Nombre de la academia</label>
                 <input
                   type="text"
                   value={formData.nombre}
-                  onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  onChange={(e) => handleInputChange('nombre', e.target.value)}
+                  disabled={serverAction === 'BLOCK'}
                   required
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700">Descripción</label>
-                <textarea
-                  value={formData.descripcion}
-                  onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all resize-none"
-                />
-              </div>
+
               <div className="space-y-1.5">
                 <label className="text-sm font-bold text-slate-700">Coordinador</label>
                 <select
                   value={formData.usuario_id}
-                  onChange={(e) => setFormData({ ...formData, usuario_id: e.target.value })}
+                  onChange={(e) => handleInputChange('usuario_id', e.target.value)}
+                  disabled={serverAction === 'BLOCK'}
                   required
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all cursor-pointer"
                 >
@@ -291,25 +334,83 @@ export const Academias = ({ onNueva }) => {
                   ))}
                 </select>
               </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-slate-700">Descripción</label>
+                <textarea
+                  value={formData.descripcion}
+                  onChange={(e) => handleInputChange('descripcion', e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm transition-all resize-none"
+                />
+              </div>
+
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setModalAbierto(false)}
-                  className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
-                >
-                  Guardar cambios
-                </button>
+                {serverAction === 'BLOCK' ? (
+                  <button
+                    type="button"
+                    onClick={() => setModalAbierto(false)}
+                    className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                  >
+                    Entendido, cerrar
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setModalAbierto(false)}
+                      className="px-5 py-2.5 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm"
+                    >
+                      Guardar cambios
+                    </button>
+                  </>
+                )}
               </div>
             </form>
+
           </div>
         </div>
       )}
+
+      {/* Modal Independiente para Bloqueo de Estatus */}
+      {modalBloqueoEstatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 transition-all">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-auto overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-amber-100 bg-amber-50">
+              <div className="flex items-center text-amber-600">
+                <Ban className="w-5 h-5 mr-2" />
+                <h3 className="text-lg font-black tracking-tight">Acción bloqueada</h3>
+              </div>
+              <button onClick={() => setModalBloqueoEstatus(null)} className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                {modalBloqueoEstatus.mensaje}
+              </p>
+              <p className="text-xs text-slate-500 mt-4">
+                Dirígete al módulo de Gestión de Asignaciones para liberar la carga académica vinculada antes de intentar dar de baja esta academia.
+              </p>
+            </div>
+            <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setModalBloqueoEstatus(null)}
+                className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

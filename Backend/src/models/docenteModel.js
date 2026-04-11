@@ -2,6 +2,17 @@ const db = require('../config/database');
 
 const docenteModel = {
 
+  getDocenteById: async (id_docente) => {
+    try {
+      const query = `SELECT * FROM docentes WHERE id_docente = ? LIMIT 1`;
+      const rows = await db.query(query, [id_docente]);
+      return rows[0] || null;
+    } catch (error) {
+      console.error("[Error getDocenteById]:", error.message);
+      throw error;
+    }
+  },
+
   getDocenteParaSincronizacion: async (id_docente) => {
     try {
       if (!id_docente) return [];
@@ -39,6 +50,43 @@ const docenteModel = {
     const query = 'SELECT id_docente FROM docentes WHERE rfc = ? OR curp = ? LIMIT 1';
     const rows = await db.query(query, [rfc, curp]);
     return rows.length > 0 ? rows[0] : null;
+  },
+
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA DE DOCENTES ─────────────
+  // Regla de negocio: no se puede desactivar a un docente ni alterar su
+  // nivel académico o academia si cuenta con asignaciones vigentes.
+  // Modificar el nivel académico corrompería la validación de la HU-58.
+  checkDependenciasActivas: async (id_docente) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM docentes d
+        INNER JOIN asignaciones a ON d.id_docente = a.docente_id
+        INNER JOIN periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE d.id_docente = ? 
+          AND d.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_docente]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
   },
 
   createUsuarioYDocente: async (datos) => {
@@ -127,24 +175,33 @@ const docenteModel = {
       conn = await db.getConnection();
       await conn.beginTransaction();
 
-      let updateQuery = `
-        UPDATE docentes 
-        SET rfc = ?, curp = ?, clave_ine = ?, celular = ?, 
-            nivel_academico = ?, academia_id = ?, modificado_por = ?, 
-            fecha_modificacion = NOW()
-      `;
+      // construcción dinámica de la consulta para permitir exclusión de campos sensibles
+      let updates = [
+        'rfc = ?', 'curp = ?', 'clave_ine = ?', 
+        'celular = ?', 'modificado_por = ?', 'fecha_modificacion = NOW()'
+      ];
       let queryParams = [
-        datos.rfc, datos.curp, datos.clave_ine, datos.celular,
-        datos.nivel_academico, datos.academia_id, datos.modificado_por || null
+        datos.rfc, datos.curp, datos.clave_ine, 
+        datos.celular, datos.modificado_por || null
       ];
 
-      if (datos.domicilio) {
-        updateQuery += `, domicilio = ?`;
+      // solo inyectamos nivel_academico y academia_id si el controlador los envía
+      if (datos.nivel_academico !== undefined) {
+        updates.push('nivel_academico = ?');
+        queryParams.push(datos.nivel_academico);
+      }
+      if (datos.academia_id !== undefined) {
+        updates.push('academia_id = ?');
+        queryParams.push(datos.academia_id);
+      }
+      if (datos.domicilio !== undefined) {
+        updates.push('domicilio = ?');
         queryParams.push(datos.domicilio);
       }
 
-      updateQuery += ` WHERE id_docente = ?`;
+      let updateQuery = `UPDATE docentes SET ${updates.join(', ')} WHERE id_docente = ?`;
       queryParams.push(id);
+      
       await conn.query(updateQuery, queryParams);
 
       if (datos.documentos && datos.documentos.length > 0) {
@@ -213,8 +270,7 @@ const docenteModel = {
     `);
     return rows;
   },
-  // ─────────────────────────────────────────────────────────────────────────────
-
+  
   // ─── EP-08 SESA: GET /users/catalogo/{id_usuario} ───────────────────────────────────
   // Devuelve los datos personales de un usuario por su ID.
   // Se llama una vez por cada docente obtenido en EP-07 para enriquecer su perfil.
@@ -232,8 +288,7 @@ const docenteModel = {
       LIMIT 1
     `, [id_usuario]);
     return rows[0] ?? null;
-  },
-  // ─────────────────────────────────────────────────────────────────────────────
+  }
 };
 
 module.exports = docenteModel;

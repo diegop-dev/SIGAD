@@ -190,7 +190,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       if (!errorMsj && sanitizedValue.length >= 4 && formData.nombres) {
         const raizEsperada = calcularRaizRFC(formData.nombres, formData.apellido_paterno, formData.apellido_materno);
         const raizIngresada = sanitizedValue.substring(0, 4).replace(/Ñ/g, 'X');
-        if (raizIngresada !== raizEsperada) errorMsj = `No coincide, porfavor verifique`;
+        if (raizIngresada !== raizEsperada) errorMsj = `No coincide, por favor verifique`;
       }
 
       setErrores(prev => ({ ...prev, [name]: errorMsj }));
@@ -273,8 +273,13 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         setRegistroExitoso(true);
       }
     } catch (error) {
-      const msg = error.response?.data?.error || TOAST_COMMON.errorServidor;
-      toast.error(msg, { id: toastId });
+      // intercepción del error 409 para proteger la integridad relacional de la HU-58
+      if (error.response?.status === 409 && error.response.data?.detalles) {
+        toast.error(`Operación denegada: ${error.response.data.detalles}`, { id: toastId, duration: 8000 });
+      } else {
+        const msg = error.response?.data?.error || TOAST_COMMON.errorServidor;
+        toast.error(`Error: ${msg}`, { id: toastId });
+      }
     } finally {
       setIsSubmitting(false);
     }
