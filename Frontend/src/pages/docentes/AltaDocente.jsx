@@ -47,7 +47,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const { user } = useAuth();
   const isEditing = !!docenteToEdit;
   
-// --- REGLA DE ROLES (RBAC) EXPLICITA Y SEGURA ---
   const rolId = Number(user?.rol_id);
   const tienePrivilegiosAdmin = rolId === 1 || rolId === 2 || user?.rol === 'Superadministrador' || user?.rol === 'Administrador';
   
@@ -101,8 +100,8 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   };
 
   const regexRFC  = /^([A-ZÑ&]{4})\d{6}([A-Z0-9]{3})$/;
-  const regexCURP = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
-  const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const regexCURP = /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d$/;
+  const regexEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   useEffect(() => {
     const fetchCatalogos = async () => {
@@ -154,15 +153,31 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
             setEstadoRepublica(data.places[0].state);
             const colonias = data.places.map(place => place["place name"]);
             setColoniasDisponibles(colonias);
+            setErrores(prev => ({ ...prev, cp: null }));
             if (colonias.length === 1 && !formData.colonia) {
               setFormData(prev => ({ ...prev, colonia: colonias[0] }));
             }
+          } else {
+            setColoniasDisponibles([]);
+            setEstadoRepublica("");
+            setFormData(prev => ({ ...prev, colonia: "" }));
+            setErrores(prev => ({ ...prev, cp: "Código postal no encontrado" }));
           }
         } catch (error) {
           console.error("Error al buscar CP", error);
+          setColoniasDisponibles([]);
+          setEstadoRepublica("");
+          setErrores(prev => ({ ...prev, cp: "Error de conexión al validar C.P." }));
         }
       };
       fetchCP();
+    } else if (formData.cp && formData.cp.length < 5) {
+      if (coloniasDisponibles.length > 0 || estadoRepublica !== "") {
+        setColoniasDisponibles([]);
+        setEstadoRepublica("");
+        setFormData(prev => ({ ...prev, colonia: "" }));
+      }
+      if (errores.cp) setErrores(prev => ({ ...prev, cp: null }));
     }
   }, [formData.cp]);
 
@@ -177,9 +192,15 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     let sanitizedValue = value;
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]/g, '').replace(/\s{2,}/g, ' '); 
+      sanitizedValue = sanitizedValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').replace(/\s{2,}/g, ' '); 
     } else if (['personal_email', 'institutional_email'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._-]/g, '').toLowerCase(); 
+      sanitizedValue = sanitizedValue.replace(/\s/g, '').toLowerCase(); 
+      const atCount = (sanitizedValue.match(/@/g) || []).length;
+      if (atCount > 1) {
+        const parts = sanitizedValue.split('@');
+        sanitizedValue = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
+      }
+      sanitizedValue = sanitizedValue.replace(/\.{2,}/g, '.');
     } else if (name === "rfc" || name === "curp" || name === "clave_ine") {
       sanitizedValue = sanitizedValue.toUpperCase().replace(/[^A-Z0-9Ñ]/g, "");
       
@@ -223,8 +244,16 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     if (!formData.nombres.trim()) newErrors.nombres = "Requerido";
     if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "Requerido";
     if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "Requerido";
-    if (!regexEmail.test(formData.personal_email)) newErrors.personal_email = "Correo inválido";
-    if (!regexEmail.test(formData.institutional_email)) newErrors.institutional_email = "Correo inválido";
+    
+    if (!formData.personal_email) {
+      newErrors.personal_email = "Requerido";
+    } else if (!regexEmail.test(formData.personal_email)) {
+      newErrors.personal_email = "Correo inválido";
+    }
+
+    if (formData.institutional_email && !regexEmail.test(formData.institutional_email)) {
+      newErrors.institutional_email = "Correo inválido";
+    }
     
     setErrores(newErrors);
     if (Object.keys(newErrors).length === 0) setPaso(2);
@@ -273,7 +302,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         setRegistroExitoso(true);
       }
     } catch (error) {
-      // intercepción del error 409 para proteger la integridad relacional de la HU-58
       if (error.response?.status === 409 && error.response.data?.detalles) {
         toast.error(`Operación denegada: ${error.response.data.detalles}`, { id: toastId, duration: 8000 });
       } else {
@@ -350,7 +378,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         
         {paso === 1 && !isEditing && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ... Contenido del Paso 1 sin cambios ... */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-slate-700">
@@ -401,7 +428,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
               </div>
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-slate-700">
-                  <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo institucional *
+                  <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo institucional
                 </label>
                 <input
                   type="email" name="institutional_email" value={formData.institutional_email} onChange={handleChange}
@@ -441,7 +468,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
           </div>
         )}
 
-        {/* PASO 2: Expediente docente */}
         {paso === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
             {bloquearCamposLegales && (
@@ -490,29 +516,39 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <input
                   type="text" name="cp" required maxLength="5" value={formData.cp} onChange={handleChange}
                   placeholder="97000"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
+                    errores.cp ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'
+                  }`}
                 />
+                {errores.cp && <p className="text-xs font-bold text-red-500">{errores.cp}</p>}
               </div>
               <div className="col-span-3 space-y-2">
                 <label className="flex items-center text-sm font-bold text-slate-700">
                   Colonia *
                   {estadoRepublica && <span className="ml-2 text-xs font-medium text-slate-400">({estadoRepublica})</span>}
                 </label>
-                {coloniasDisponibles.length > 0 ? (
-                  <select
-                    name="colonia" required value={formData.colonia} onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="">Seleccione una colonia</option>
-                    {coloniasDisponibles.map((col, idx) => <option key={idx} value={col}>{col}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    type="text" name="colonia" required value={formData.colonia} onChange={handleChange}
-                    placeholder="Nombre de la colonia"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                )}
+                <select
+                  name="colonia" required value={formData.colonia} onChange={handleChange}
+                  disabled={coloniasDisponibles.length === 0}
+                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all appearance-none ${
+                    coloniasDisponibles.length === 0 
+                      ? 'bg-slate-100 cursor-not-allowed text-slate-500 border-slate-200' 
+                      : 'bg-white border-slate-200 focus:ring-blue-100 cursor-pointer'
+                  }`}
+                >
+                  {coloniasDisponibles.length === 0 ? (
+                    <option value="">
+                      {formData.cp?.length === 5 ? 'C.P. inválido o no encontrado' : 'Ingresa un C.P.'}
+                    </option>
+                  ) : (
+                    <>
+                      <option value="">Seleccione una colonia</option>
+                      {coloniasDisponibles.map((col, idx) => (
+                        <option key={idx} value={col}>{col}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
               </div>
             </div>
 
@@ -540,6 +576,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <input
                   type="text" name="clave_ine" required value={formData.clave_ine} onChange={handleChange}
                   disabled={bloquearCamposLegales}
+                  maxLength="18" // FIX BUG 17.5: Se agregó límite de caracteres
                   placeholder="IDMEX..."
                   className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all uppercase ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} border-slate-200 focus:ring-blue-100`}
                 />
@@ -576,6 +613,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {documentosRequeridos.map((doc) => {
                   const urlActual = getDocumentoUrl(doc.tipoBackend);
+                  const archivoSeleccionado = archivos[doc.id];
                   return (
                     <div key={doc.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                       <div className="flex justify-between items-center mb-2">
@@ -592,9 +630,15 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                       </div>
                       <input
                         type="file" name={doc.id} accept="application/pdf"
-                        required={!isEditing} onChange={handleFileChange}
+                        required={!isEditing && !archivoSeleccionado} onChange={handleFileChange}
                         className="block w-full text-xs file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer transition-colors"
                       />
+                      {archivoSeleccionado && (
+                        <p className="mt-2 text-xs font-medium text-emerald-600 flex items-center truncate" title={archivoSeleccionado.name}>
+                          <CheckCircle className="w-3 h-3 mr-1 shrink-0" />
+                          {archivoSeleccionado.name}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -630,7 +674,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         )}
       </form>
 
-      {/* Modal de confirmación */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden">
@@ -648,8 +691,8 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   <span className="text-slate-600">{formData.rfc}</span>
                 </div>
                 <div className="flex">
-                  <span className="font-bold w-1/3 text-slate-700">Correo inst.:</span>
-                  <span className="text-slate-600">{formData.institutional_email || 'No modificado'}</span>
+                  <span className="font-bold w-1/3 text-slate-700">Correo institucional:</span>
+                  <span className="text-slate-600">{formData.institutional_email || 'No asignado'}</span>
                 </div>
               </div>
             </div>
