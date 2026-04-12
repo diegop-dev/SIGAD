@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { verifyToken } = require('../middlewares/authMiddleware'); // Importamos el protector de rutas
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Endpoint para el inicio de sesión
-router.post('/login', authController.login);
+router.post('/login', authController.inicioDeSesion);
 
-// NUEVO: Endpoint para cambiar la contraseña temporal (requiere sesión activa)
-router.post('/change-temporary-password', verifyToken, authController.changeTemporaryPassword);
+// Endpoint para cambiar la contraseña temporal
+router.post('/change-temporary-password', verifyToken, authController.cambiarContraseñaTemporal);
 
 module.exports = router;

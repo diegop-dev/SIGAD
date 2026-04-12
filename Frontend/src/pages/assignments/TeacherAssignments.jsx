@@ -1,8 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { BookOpen, CalendarDays, MapPin, Clock, Loader2, CheckCircle2, XCircle, AlertCircle, Info, AlertTriangle, X, Hash } from 'lucide-react';
+import { BookOpen, CalendarDays, MapPin, Clock, Loader2, CheckCircle2, XCircle, AlertCircle, Info, AlertTriangle, X, Users, Calendar } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
+
+// Helper para convertir hora militar (HH:mm) a formato AM/PM amigable
+const formatAMPM = (timeStr) => {
+  if (!timeStr) return '--:--';
+  const [hourStr, minuteStr] = timeStr.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour = hour % 12;
+  hour = hour ? hour : 12; 
+  return `${hour.toString().padStart(2, '0')}:${minuteStr} ${ampm}`;
+};
 
 export const TeacherAssignments = () => {
   const { user } = useAuth();
@@ -10,7 +21,6 @@ export const TeacherAssignments = () => {
   const [asignacionesRaw, setAsignacionesRaw] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Estado para controlar el modal de rechazo
   const [rechazoModal, setRechazoModal] = useState({
     isOpen: false,
     asignacion: null
@@ -28,20 +38,17 @@ export const TeacherAssignments = () => {
       const miPerfilDocente = docentes.find(d => d.usuario_id === user?.id_usuario);
 
       if (!miPerfilDocente) {
-        toast.error("Tu usuario no está vinculado a un perfil de docente.");
+        toast.error("Tu cuenta de usuario no está vinculada a un expediente docente válido. Por favor, contacta a soporte.");
         setIsLoading(false);
         return;
       }
 
-      // Nos traemos las asignaciones de este docente
       const response = await api.get(`/asignaciones?docente_id=${miPerfilDocente.id_docente}`);
       const data = response.data.data || response.data;
       
-      // Hacemos una llamada extra al catálogo de materias para tener el "tipo_asignatura" exacto
       const resMaterias = await api.get('/materias').catch(() => ({ data: [] }));
       const materiasCatalogo = resMaterias.data?.data || resMaterias.data || [];
 
-      // Cruzamos los datos para inyectar el tipo de asignatura
       const dataConTipo = (Array.isArray(data) ? data : []).map(asig => {
         const materiaInfo = materiasCatalogo.find(m => m.id_materia === asig.materia_id);
         return {
@@ -53,7 +60,7 @@ export const TeacherAssignments = () => {
       setAsignacionesRaw(dataConTipo);
     } catch (error) {
       console.error("Error al cargar mis asignaciones:", error);
-      toast.error('Error al cargar tu carga académica.');
+      toast.error('Ocurrió un problema de conexión al consultar tu carga académica. Inténtalo nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -92,26 +99,28 @@ export const TeacherAssignments = () => {
   }, [asignacionesRaw]);
 
   const procesarPeticion = async (asignacion, nuevoEstatus) => {
-    const toastId = toast.loading(`Procesando tu respuesta...`);
+    const toastId = toast.loading(`Registrando tu decisión en el sistema...`);
 
     try {
       await api.patch('/asignaciones/confirmacion', {
         periodo_id: asignacion.periodo_id,
         materia_id: asignacion.materia_id,
         docente_id: asignacion.docente_id,
-        grupo_id: asignacion.grupo_id, // Puede ser null si es tronco común, el backend ya lo soporta
+        grupo_id: asignacion.grupo_id, 
         estatus_confirmacion: nuevoEstatus
       });
 
       toast.success(
-        nuevoEstatus === 'ACEPTADA' ? '¡Clase aceptada exitosamente!' : 'Clase rechazada. Coordinación notificada.',
-        { id: toastId }
+        nuevoEstatus === 'ACEPTADA' 
+          ? 'La asignación ha sido aceptada y confirmada exitosamente.' 
+          : 'La asignación ha sido declinada. Se ha notificado a la coordinación.',
+        { id: toastId, duration: 4000 }
       );
       
-      setRechazoModal({ isOpen: false, asignacion: null }); // Cerramos modal si estaba abierto
+      setRechazoModal({ isOpen: false, asignacion: null }); 
       fetchMisAsignaciones();
     } catch (error) {
-      toast.error(error.response?.data?.error || "Error al procesar tu decisión.", { id: toastId });
+      toast.error(error.response?.data?.error || "Ocurrió un error inesperado al procesar tu respuesta. Intenta nuevamente.", { id: toastId, duration: 5000 });
     }
   };
 
@@ -123,7 +132,6 @@ export const TeacherAssignments = () => {
     setRechazoModal({ isOpen: true, asignacion });
   };
 
-  // ✨ COLORES DE LA INSIGNIA DEL TIPO DE ASIGNATURA ✨
   const getTipoAsignaturaStyles = (tipo) => {
     if (tipo === 'TRONCO_COMUN') return 'bg-white text-slate-700 border-slate-300';
     if (tipo === 'OBLIGATORIA') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
@@ -133,142 +141,160 @@ export const TeacherAssignments = () => {
 
   return (
     <div className="space-y-6 relative">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
-          <BookOpen className="w-8 h-8 mr-3 text-blue-600" />
-          Mi Carga Académica
-        </h1>
-        <p className="mt-1 text-sm text-slate-500 font-medium">
-          Revisa las materias que te han sido asignadas para el ciclo escolar y confirma tu disponibilidad.
-        </p>
+      
+      {/* Encabezado Navy Estandarizado */}
+      <div className="flex flex-col gap-4 bg-[#0B1828] p-6 md:p-8 rounded-3xl shadow-md relative overflow-hidden z-10">
+        <div>
+          <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
+            <Calendar className="w-7 h-7 mr-3 text-white/90" />
+            Mis asignaciones
+          </h1>
+          <p className="mt-1.5 text-sm text-white/70 font-medium">
+            Revisa las materias que te han sido asignadas para el ciclo escolar y confirma tu disponibilidad.
+          </p>
+        </div>
       </div>
 
+      {/* Contenido Principal */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
-          <p className="text-slate-500 font-medium">Cargando tus horarios...</p>
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
+          <Loader2 className="h-10 w-10 text-[#0B1828] animate-spin mb-4" />
+          <p className="text-sm text-slate-500 font-medium">Consultando tus asignaciones...</p>
         </div>
       ) : asignacionesAgrupadas.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
-          <div className="bg-slate-50 p-4 rounded-full mb-4">
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
+          <div className="bg-slate-50 p-5 rounded-full mb-4 border border-slate-100">
             <AlertCircle className="h-8 w-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-1">Sin asignaciones pendientes</h3>
-          <p className="text-sm text-slate-500 max-w-md text-center">
-            Actualmente no tienes ninguna carga académica asignada. La coordinación te notificará cuando haya nuevos horarios disponibles.
+          <h3 className="text-lg font-black text-[#0B1828] mb-1">Sin asignaciones activas</h3>
+          <p className="text-sm text-slate-500 font-medium max-w-md text-center">
+            No cuentas con asignaciones pendientes o activas en este momento. La coordinación académica te notificará cuando se te asigne una nueva asignación.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {asignacionesAgrupadas.map((asignacion, index) => {
             const isEnviada = asignacion.estatus_confirmacion === 'ENVIADA';
             const isAceptada = asignacion.estatus_confirmacion === 'ACEPTADA';
             const isRechazada = asignacion.estatus_confirmacion === 'RECHAZADA';
             const nivelStr = (asignacion.nivel_academico || 'LICENCIATURA').toUpperCase();
-
-            // ✨ REGLA DE VISUALIZACIÓN: ¿Es tronco común global?
             const esGrupoGlobal = !asignacion.grupo_id || asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL';
 
             return (
-              <div key={index} className={`flex flex-col bg-white rounded-2xl shadow-sm border transition-all duration-200 ${
-                isEnviada ? 'border-blue-200 shadow-blue-50/50 hover:shadow-md' : 'border-slate-200'
+              <div key={index} className={`flex flex-col bg-white rounded-3xl shadow-sm border transition-all duration-200 ${
+                isEnviada ? 'border-blue-200 shadow-blue-100/50 hover:shadow-md' : 'border-slate-100 hover:border-slate-200 hover:shadow-md'
               }`}>
-                <div className={`p-5 border-b ${isEnviada ? 'bg-blue-50/30 border-blue-100' : 'bg-slate-50/50 border-slate-100'} rounded-t-2xl`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-white border border-slate-200 text-slate-600 shadow-sm">
-                      <CalendarDays className="w-3.5 h-3.5 mr-1.5" /> {asignacion.nombre_periodo}
+                
+                {/* Cabecera de la Tarjeta (NAVY) */}
+                <div className="bg-[#0B1828] p-6 rounded-t-3xl border-b border-slate-800 flex flex-col gap-4">
+                  {/* Fila de Badges Anclados firmemente a los Extremos */}
+                  <div className="flex justify-between items-start gap-3 w-full">
+                    <span className="inline-flex items-center px-3.5 py-1.5 rounded-xl text-xs font-black bg-white/10 text-white border border-white/10 shadow-sm uppercase tracking-wider shrink-0">
+                      <CalendarDays className="w-4 h-4 mr-2 text-white/70" /> {asignacion.nombre_periodo}
                     </span>
                     
-                    {isAceptada && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Aceptada
-                      </span>
-                    )}
-                    {isRechazada && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                        <XCircle className="w-3.5 h-3.5 mr-1" /> Rechazada
-                      </span>
-                    )}
-                    {isEnviada && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 animate-pulse">
-                        <Info className="w-3.5 h-3.5 mr-1" /> Requiere acción
-                      </span>
-                    )}
+                    <div className="flex justify-end text-right ml-auto shrink-0">
+                      {isAceptada && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm">
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Aceptada
+                        </span>
+                      )}
+                      {isRechazada && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 shadow-sm">
+                          <XCircle className="w-3.5 h-3.5 mr-1.5" /> Rechazada
+                        </span>
+                      )}
+                      {isEnviada && (
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-blue-500/30 text-blue-300 border border-blue-500/40 shadow-sm animate-pulse">
+                          <Info className="w-3.5 h-3.5 mr-1.5" /> Acción Requerida
+                        </span>
+                      )}
+                    </div>
                   </div>
                   
-                  <h3 className="text-lg font-black text-slate-800 leading-tight mt-1">
+                  {/* Título de la materia */}
+                  <h3 className="text-xl font-black text-white leading-tight mt-1">
                     {asignacion.nombre_materia}
                   </h3>
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="flex items-center text-xs font-bold text-slate-500">
+                {/* Cuerpo de la Tarjeta */}
+                <div className="p-6 flex-1 flex flex-col gap-5">
+                  
+                  {/* Fila de Insignias Técnicas */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="flex items-center text-xs font-black text-slate-500 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-sm uppercase tracking-wider">
                       {asignacion.codigo_unico || 'SIN CÓDIGO'}
                     </span>
                     
-                    {/* Insignia Nivel Académico */}
-                    <span className={`px-2 py-0.5 rounded-md border font-bold text-[10px] uppercase tracking-wider ${
-                      nivelStr === 'DOCTORADO' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                      nivelStr === 'MAESTRIA' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
-                      'bg-blue-100 text-blue-700 border-blue-200'
+                    <span className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black text-[10px] uppercase tracking-wider ${
+                      nivelStr === 'DOCTORADO' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                      nivelStr === 'MAESTRIA' ? 'bg-amber-100 text-amber-800 border-amber-200' : 
+                      'bg-blue-100 text-blue-800 border-blue-200'
                     }`}>
                       {nivelStr}
                     </span>
 
-                    {/* ✨ NUEVO: Insignia Tipo de Asignatura */}
-                    <span className={`px-2 py-0.5 rounded-md border font-bold text-[10px] uppercase tracking-wider ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
+                    <span className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black text-[10px] uppercase tracking-wider ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
                       {(asignacion.tipo_asignatura || 'DESCONOCIDO').replace(/_/g, ' ')}
                     </span>
                   </div>
 
-                  <p className="text-sm font-medium text-slate-500 mt-2.5">
-                    {/* ✨ Condicional para ocultar el grupo si es TRONCO COMÚN GLOBAL */}
-                    {esGrupoGlobal ? (
-                      <span className="text-slate-700 font-bold">Tronco Común (Multidisciplinar)</span>
-                    ) : (
-                      <>Grupo: <span className="text-slate-700 font-bold">{asignacion.nombre_grupo}</span></>
-                    )}
-                  </p>
-                </div>
+                  {/* Fila de Información de Grupo */}
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex items-center shadow-sm">
+                    <Users className="w-6 h-6 text-slate-400 mr-4 shrink-0" />
+                    <p className="text-sm font-medium text-slate-600">
+                      {esGrupoGlobal ? (
+                        <>Modalidad: <span className="text-[#0B1828] font-black text-base block mt-0.5">Tronco Común (Multidisciplinar)</span></>
+                      ) : (
+                        <>Grupo asignado: <span className="text-[#0B1828] font-black text-base block mt-0.5">{asignacion.nombre_grupo}</span></>
+                      )}
+                    </p>
+                  </div>
 
-                <div className="p-5 flex-1">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Bloques de Horario</h4>
-                  <div className="space-y-2.5">
-                    {asignacion.horarios.map((horario, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                        <div className="flex items-center text-sm font-bold text-slate-700">
-                          <div className="w-8 h-8 rounded-lg bg-white shadow-sm border border-slate-200 flex items-center justify-center mr-3 text-blue-600">
-                            {diasSemanaMapa[horario.dia_semana]?.substring(0, 2)}
+                  {/* Horarios con AM/PM */}
+                  <div>
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Bloques de Horario</h4>
+                    <div className="space-y-3">
+                      {asignacion.horarios.map((horario, idx) => (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-white border border-slate-200 shadow-sm gap-3">
+                          <div className="flex items-center text-sm font-black text-[#0B1828]">
+                            <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center mr-3 text-[#0B1828] shrink-0">
+                              {diasSemanaMapa[horario.dia_semana]?.substring(0, 2)}
+                            </div>
+                            <div className="flex flex-col">
+                              <span>{diasSemanaMapa[horario.dia_semana]}</span>
+                              <span className="text-xs font-bold text-slate-500 flex items-center mt-0.5">
+                                <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> 
+                                {/* Uso del formato AM/PM */}
+                                {formatAMPM(horario.hora_inicio)} - {formatAMPM(horario.hora_fin)}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex flex-col">
-                            <span>{diasSemanaMapa[horario.dia_semana]}</span>
-                            <span className="text-xs font-medium text-slate-500 flex items-center mt-0.5">
-                              <Clock className="w-3 h-3 mr-1" /> 
-                              {horario.hora_inicio?.substring(0,5)} - {horario.hora_fin?.substring(0,5)}
-                            </span>
+                          <div className="text-xs font-black text-[#0B1828] flex items-center bg-slate-50 px-3.5 py-2.5 rounded-xl border border-slate-100 w-fit sm:w-auto">
+                            <MapPin className="w-4 h-4 mr-2 text-blue-600" />
+                            {horario.nombre_aula}
                           </div>
                         </div>
-                        <div className="text-xs font-bold text-slate-600 flex items-center bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                          <MapPin className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                          {horario.nombre_aula}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
 
+                {/* Acciones (Si está enviada) */}
                 {isEnviada && (
-                  <div className="p-5 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl flex gap-3">
+                  <div className="p-6 border-t border-slate-100 bg-slate-50/80 rounded-b-3xl flex gap-3">
                     <button
                       onClick={() => handleAceptar(asignacion)}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl transition-colors shadow-sm flex items-center justify-center text-sm"
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center text-sm"
                     >
-                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> Aceptar
+                      <CheckCircle2 className="w-5 h-5 mr-2" /> Aceptar asignación
                     </button>
                     <button
                       onClick={() => handleRechazarIntento(asignacion)}
-                      className="flex-1 bg-white hover:bg-red-50 text-red-600 font-bold py-2.5 px-4 rounded-xl border border-red-200 transition-colors shadow-sm flex items-center justify-center text-sm"
+                      className="flex-1 bg-white hover:bg-red-50 hover:border-red-300 text-red-600 font-black py-3.5 px-4 rounded-xl border border-red-200 transition-all shadow-sm active:scale-95 flex items-center justify-center text-sm"
                     >
-                      <XCircle className="w-4 h-4 mr-1.5" /> Rechazar
+                      <XCircle className="w-5 h-5 mr-2" /> Rechazar asignación
                     </button>
                   </div>
                 )}
@@ -278,49 +304,66 @@ export const TeacherAssignments = () => {
         </div>
       )}
 
-      {/* Modal de confirmación de rechazo */}
+      {/* Modal de Confirmación de Rechazo Estandarizado */}
       {rechazoModal.isOpen && rechazoModal.asignacion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-800 flex items-center">
-                <AlertTriangle className="w-5 h-5 mr-2 text-red-500" /> Confirmar rechazo
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md mx-auto overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+              <div className="flex items-center text-white">
+                <AlertTriangle className="w-6 h-6 mr-3 text-white" />
+                <h3 className="text-xl font-black tracking-tight">Rechazar asignación</h3>
+              </div>
               <button 
                 onClick={() => setRechazoModal({ isOpen: false, asignacion: null })} 
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+                className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95"
+                title="Cerrar modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="p-6">
-              <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                Estás a punto de declinar impartir la materia <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_materia}</span>
-                {(!rechazoModal.asignacion.grupo_id || rechazoModal.asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL') ? '' : <span> para el grupo <span className="font-bold text-slate-900">{rechazoModal.asignacion.nombre_grupo}</span></span>}.
+            <div className="p-8 overflow-y-auto flex-1">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed mb-6">
+                A continuación, se presenta la información de la asignatura que estás declinando impartir para el periodo actual:
               </p>
-              <p className="text-xs text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100">
-                La coordinación será notificada inmediatamente y esta carga académica será reasignada. Esta acción no se puede deshacer.
-              </p>
+
+              <div className="flex flex-col bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm mb-6">
+                <span className="font-black text-[#0B1828] text-lg leading-tight mb-2">
+                  {rechazoModal.asignacion.nombre_materia}
+                </span>
+                {(!rechazoModal.asignacion.grupo_id || rechazoModal.asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL') ? (
+                  <span className="text-sm font-bold text-slate-500">
+                    Modalidad: <span className="text-slate-700">Tronco Común (Multidisciplinar)</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-slate-500">
+                    Grupo asignado: <span className="text-slate-700">{rechazoModal.asignacion.nombre_grupo}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm">
+                <p className="text-sm text-red-800 font-medium">
+                  <strong className="font-black">Aviso institucional:</strong> Al confirmar esta acción, notificarás formalmente a la coordinación académica sobre tu indisponibilidad. La carga horaria será liberada y reasignada a otro docente. Esta decisión es definitiva.
+                </p>
+              </div>
             </div>
 
-            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button 
-                onClick={() => setRechazoModal({ isOpen: false, asignacion: null })}
-                className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
+            {/* Solo botón de acción principal */}
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
               <button 
                 onClick={() => procesarPeticion(rechazoModal.asignacion, 'RECHAZADA')}
-                className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-sm"
+                className="flex items-center justify-center px-6 py-3.5 text-sm font-black text-white bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-200 rounded-xl transition-all shadow-md active:scale-95 w-full sm:w-auto"
               >
-                Sí, rechazar clase
+                <XCircle className="w-5 h-5 mr-2" /> Sí, Rechazar Asignación
               </button>
             </div>
+            
           </div>
         </div>
       )}
+
     </div>
   );
 };

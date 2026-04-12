@@ -3,8 +3,6 @@ import { X, Mail, Calendar, Shield, User } from 'lucide-react';
 export const UserModal = ({ user, onClose }) => {
   if (!user) return null;
 
-  // Construcción robusta de la URL apuntando al servidor backend
-  // Si VITE_API_URL falla o no está disponible, usamos localhost:3000 por defecto
   const API_BASE = import.meta.env.VITE_API_URL 
     ? import.meta.env.VITE_API_URL.replace('/api', '') 
     : 'http://localhost:3000';
@@ -14,32 +12,38 @@ export const UserModal = ({ user, onClose }) => {
     : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200">
+      {/* Contenedor principal con esquinas más redondas */}
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg mx-auto overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         
-        {/* Cabecera del modal */}
-        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-lg font-black text-slate-900 tracking-tight">Expediente de usuario</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg">
+        {/* Cabecera del modal (Navy Estandarizado) */}
+        <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+          <h3 className="text-xl font-black text-white tracking-tight">Expediente de usuario</h3>
+          <button 
+            onClick={onClose} 
+            className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95"
+            title="Cerrar modal"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
         
         {/* Cuerpo del modal */}
-        <div className="p-6">
-          <div className="flex items-center space-x-6 mb-8">
-            <div className="h-24 w-24 rounded-full bg-slate-100 border-4 border-white shadow-md overflow-hidden flex items-center justify-center shrink-0">
+        <div className="p-8 overflow-y-auto flex-1">
+          
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6 mb-8">
+            <div className="h-28 w-28 rounded-full bg-slate-100 border-4 border-white shadow-md overflow-hidden flex items-center justify-center shrink-0">
               {profileImageUrl ? (
                 <img src={profileImageUrl} alt="Perfil" className="h-full w-full object-cover" />
               ) : (
-                <User className="h-10 w-10 text-slate-400" />
+                <User className="h-12 w-12 text-slate-300" />
               )}
             </div>
-            <div>
-              <h4 className="text-xl font-bold text-slate-900">
-                {user.nombres} {user.apellido_paterno} {user.apellido_materno}
+            <div className="pt-2">
+              <h4 className="text-2xl font-black text-[#0B1828] leading-tight">
+                {user.nombres} <br className="hidden sm:block" /> {user.apellido_paterno} {user.apellido_materno}
               </h4>
-              <span className={`mt-2 inline-flex px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-lg border ${
+              <span className={`mt-3 inline-flex px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg border shadow-sm ${
                 user.estatus === 'ACTIVO' 
                   ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
                   : 'bg-red-100 text-red-800 border-red-200'
@@ -50,47 +54,62 @@ export const UserModal = ({ user, onClose }) => {
           </div>
 
           {/* Lista de detalles */}
-          <div className="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-100">
-            <div className="flex items-center text-sm text-slate-700">
-              <Shield className="w-5 h-5 mr-3 text-blue-500" />
-              <span className="font-bold mr-2 min-w-[120px]">Rol del sistema:</span> 
-              <span className="text-slate-600">{user.nombre_rol}</span>
+          <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center text-sm">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mr-4 shrink-0 shadow-sm">
+                <Shield className="w-5 h-5 text-[#0B1828]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#0B1828] mb-0.5">Rol del sistema</span> 
+                <span className="text-slate-600 font-medium">{user.nombre_rol}</span>
+              </div>
             </div>
-            <div className="flex items-center text-sm text-slate-700">
-              <Mail className="w-5 h-5 mr-3 text-blue-500" />
-              <span className="font-bold mr-2 min-w-[120px]">Institucional:</span> 
-              <span className="text-slate-600">{user.institutional_email}</span>
+            
+            {/* Correo personal */}
+            <div className="flex items-center text-sm">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mr-4 shrink-0 shadow-sm">
+                <Mail className="w-5 h-5 text-[#0B1828]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#0B1828] mb-0.5">Correo personal</span> 
+                <span className="text-slate-600 font-medium">{user.personal_email || 'No registrado'}</span>
+              </div>
             </div>
-            <div className="flex items-center text-sm text-slate-700">
-              <Mail className="w-5 h-5 mr-3 text-slate-400" />
-              <span className="font-bold mr-2 min-w-[120px]">Personal:</span> 
-              <span className="text-slate-600">{user.personal_email || 'No registrado'}</span>
+
+            {/* Correo institucional */}
+            <div className="flex items-center text-sm">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mr-4 shrink-0 shadow-sm">
+                <Mail className="w-5 h-5 text-[#0B1828]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#0B1828] mb-0.5">Correo institucional</span> 
+                <span className="text-slate-600 font-medium">{user.institutional_email}</span>
+              </div>
             </div>
-            <div className="flex items-center text-sm text-slate-700">
-              <Calendar className="w-5 h-5 mr-3 text-blue-500" />
-              <span className="font-bold mr-2 min-w-[120px]">Fecha de alta:</span> 
-              <span className="text-slate-600">
-                {user.fecha_creacion 
-                  ? new Date(user.fecha_creacion).toLocaleString('es-MX', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: true
-                    }) 
-                  : 'N/D'}
-              </span>
+            
+            {/* Fecha de alta */}
+            <div className="flex items-center text-sm">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mr-4 shrink-0 shadow-sm">
+                <Calendar className="w-5 h-5 text-[#0B1828]" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#0B1828] mb-0.5">Fecha de alta en el sistema</span> 
+                <span className="text-slate-600 font-medium">
+                  {user.fecha_creacion 
+                    ? new Date(user.fecha_creacion).toLocaleString('es-MX', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      }) 
+                    : 'Fecha no disponible'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-        
-        {/* Pie del modal */}
-        <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex justify-end">
-          <button onClick={onClose} className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm">
-            Cerrar detalles
-          </button>
         </div>
       </div>
     </div>
