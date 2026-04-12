@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, User, RefreshCw, Copy, CheckCircle, Mail, KeyRound, Shield, ImagePlus, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, User, RefreshCw, Copy, CheckCircle, Mail, KeyRound, Shield, ImagePlus, Loader2, CheckCircle2 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { TOAST_USUARIOS, TOAST_COMMON } from "../../../constants/toastMessages";
@@ -10,12 +10,17 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [errores, setErrores] = useState({});
+  const [isFormDirty, setIsFormDirty] = useState(false);
   
   const [generatedPassword, setGeneratedPassword] = useState(null);
   const [copied, setCopied] = useState(false);
   
   const isEditing = !!userToEdit;
-  const defaultRole = user?.rol_id === 1 ? 1 : 3;
+  // Bloqueo de rol para Docentes (3) y Administradores (2) en modo edición
+  const isRoleLocked = isEditing && (userToEdit?.rol_id === 2 || userToEdit?.rol_id === 3);
+  const lockedRoleLabel = userToEdit?.rol_id === 3 
+    ? "Docente (Rol No Modificable)" 
+    : "Administrador (Rol No Modificable)";
 
   const [formData, setFormData] = useState({
     nombres: "",
@@ -24,7 +29,7 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
     personal_email: "",
     institutional_email: "",
     password_raw: "", 
-    rol_id: defaultRole, 
+    rol_id: "", 
     foto_perfil_url: null,
   });
 
@@ -37,7 +42,7 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
         personal_email: userToEdit.personal_email || "",
         institutional_email: userToEdit.institutional_email || "",
         password_raw: "", 
-        rol_id: userToEdit.rol_id || defaultRole,
+        rol_id: userToEdit.rol_id || "",
         foto_perfil_url: null, 
       });
 
@@ -48,7 +53,26 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
         setPreviewUrl(`${API_BASE}${userToEdit.foto_perfil_url}`);
       }
     }
-  }, [userToEdit, defaultRole]);
+  }, [userToEdit]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setIsFormDirty(true);
+      return;
+    }
+
+    const hasChanged = 
+      formData.nombres !== userToEdit.nombres ||
+      formData.apellido_paterno !== userToEdit.apellido_paterno ||
+      formData.apellido_materno !== userToEdit.apellido_materno ||
+      formData.personal_email !== userToEdit.personal_email ||
+      formData.institutional_email !== userToEdit.institutional_email ||
+      Number(formData.rol_id) !== Number(userToEdit.rol_id) ||
+      formData.password_raw.trim() !== "" ||
+      formData.foto_perfil_url !== null;
+
+    setIsFormDirty(hasChanged);
+  }, [formData, userToEdit, isEditing]);
 
   useEffect(() => {
     return () => {
@@ -67,7 +91,7 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   };
 
   const handleKeyDownStrict = (e) => {
-    if (e.key === ' ') e.preventDefault();
+    if (e.key === ' ') e.preventDefault(); 
   };
 
   const handleChange = (e) => {
@@ -76,25 +100,49 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
       sanitizedValue = sanitizedValue
-        .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]/g, '') 
-        .replace(/\t/g, '') 
+        .replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d1\s]/g, '') 
+        .replace(/^\s+/g, '') 
         .replace(/\s{2,}/g, ' '); 
     } else if (['personal_email', 'institutional_email'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._-]/g, ''); 
+      sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._%-+]/g, '');
+      const parts = sanitizedValue.split('@');
+      if (parts.length > 2) {
+        sanitizedValue = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
+      }
     } else if (name === 'password_raw') {
       sanitizedValue = sanitizedValue.replace(/\s/g, '');
     }
 
     setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
-    if (errores[name]) setErrores({ ...errores, [name]: null });
+    
+    if (errores[name]) {
+      const newErrors = { ...errores };
+      delete newErrors[name];
+      setErrores(newErrors);
+    }
   };
 
-  const handleBlur = (e) => {
+  const handleBlur = async (e) => {
     const { name, value } = e.target;
     let finalValue = value.trim();
 
     if (['personal_email', 'institutional_email'].includes(name)) {
       finalValue = finalValue.toLowerCase();
+      
+      if (finalValue && (!isEditing || finalValue !== userToEdit[name])) {
+        try {
+          const response = await api.get(`/users/check-email?email=${finalValue}`);
+          if (response.data.exists) {
+            const fieldMatch = response.data.field === 'personal_email' ? 'Personal' : 'Institucional';
+            setErrores(prev => ({
+              ...prev,
+              [name]: `Este correo ya se encuentra registrado como correo ${fieldMatch.toLowerCase()}.`
+            }));
+          }
+        } catch (error) {
+          console.error("Error al validar el correo", error);
+        }
+      }
     }
 
     setFormData((prev) => ({ ...prev, [name]: finalValue }));
@@ -102,26 +150,33 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const nameRegex = /^[a-zA-ZÀ-ÿ\u00f1\u00d1]+(\s[a-zA-ZÀ-ÿ\u00f1\u00d1]+)*$/;
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
     
-    if (!formData.nombres.trim()) newErrors.nombres = "El nombre es obligatorio";
-    else if (formData.nombres.length < 2) newErrors.nombres = "Debe tener al menos 2 caracteres";
+    if (!formData.nombres) newErrors.nombres = "El nombre es un campo obligatorio.";
+    else if (!nameRegex.test(formData.nombres)) newErrors.nombres = "Solo se permiten letras y un espacio simple entre palabras.";
 
-    if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "El apellido paterno es obligatorio";
-    else if (formData.apellido_paterno.length < 2) newErrors.apellido_paterno = "Debe tener al menos 2 caracteres";
+    if (!formData.apellido_paterno) newErrors.apellido_paterno = "El apellido paterno es un campo obligatorio.";
+    else if (!nameRegex.test(formData.apellido_paterno)) newErrors.apellido_paterno = "Solo se permiten letras y un espacio simple entre palabras.";
 
-    if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "El apellido materno es obligatorio";
-    else if (formData.apellido_materno.length < 2) newErrors.apellido_materno = "Debe tener al menos 2 caracteres";
+    if (!formData.apellido_materno) newErrors.apellido_materno = "El apellido materno es un campo obligatorio.";
+    else if (!nameRegex.test(formData.apellido_materno)) newErrors.apellido_materno = "Solo se permiten letras y un espacio simple entre palabras.";
 
-    if (!formData.personal_email.trim()) newErrors.personal_email = "El correo personal es obligatorio";
-    else if (!emailRegex.test(formData.personal_email)) newErrors.personal_email = "Formato de correo inválido";
+    if (!formData.personal_email) newErrors.personal_email = "El correo personal es un campo obligatorio.";
+    else if (!emailRegex.test(formData.personal_email)) newErrors.personal_email = "El formato del correo ingresado no es válido.";
 
-    if (!formData.institutional_email.trim()) newErrors.institutional_email = "El correo institucional es obligatorio";
-    else if (!emailRegex.test(formData.institutional_email)) newErrors.institutional_email = "Formato de correo inválido";
+    if (!formData.institutional_email) newErrors.institutional_email = "El correo institucional es un campo obligatorio.";
+    else if (!emailRegex.test(formData.institutional_email)) newErrors.institutional_email = "El formato del correo ingresado no es válido.";
 
-    if (isEditing && formData.password_raw && formData.password_raw.length < 8) {
-      newErrors.password_raw = "La nueva contraseña debe tener al menos 8 caracteres";
+    if (!formData.rol_id) newErrors.rol_id = "Debe seleccionar un rol para el usuario.";
+
+    if (isEditing && formData.password_raw && !passwordRegex.test(formData.password_raw)) {
+      newErrors.password_raw = "La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula y un número.";
     }
+
+    if (errores.personal_email?.includes('registrado')) newErrors.personal_email = errores.personal_email;
+    if (errores.institutional_email?.includes('registrado')) newErrors.institutional_email = errores.institutional_email;
 
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -167,16 +222,10 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
         }
       }
     } catch (error) {
-      if (error.response?.data?.errores) {
-        const backendErrors = {};
-        error.response.data.errores.forEach(err => {
-          backendErrors[err.path || err.param] = err.msg;
-        });
-        setErrores(backendErrors);
-        toast.error(TOAST_USUARIOS.errorCamposBackend, { id: toastId });
+      if (error.response?.data?.error) {
+        toast.error(error.response.data.error, { id: toastId });
       } else {
-        const errorMsg = error.response?.data?.error || TOAST_COMMON.errorServidor;
-        toast.error(errorMsg, { id: toastId });
+        toast.error(TOAST_COMMON.errorServidor, { id: toastId });
       }
     } finally {
       setIsSubmitting(false);
@@ -192,33 +241,35 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
 
   if (generatedPassword) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-        <div className="p-8 text-center max-w-lg mx-auto">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-6">
-            <CheckCircle className="h-8 w-8 text-emerald-600" />
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
+        <div className="bg-[#0B1828] h-16 w-full absolute top-0 left-0 z-0"></div>
+        
+        <div className="p-8 text-center max-w-lg mx-auto relative z-10 pt-12">
+          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 border-4 border-white shadow-md mb-6">
+            <CheckCircle2 className="h-10 w-10 text-green-600" />
           </div>
-          <h2 className="text-2xl font-black text-slate-900 mb-2">¡Usuario registrado!</h2>
+          <h2 className="text-2xl font-black text-[#0B1828] mb-2">¡Usuario registrado!</h2>
           <p className="text-slate-600 font-medium mb-8">
             El sistema ha generado una contraseña temporal segura para este usuario. Cópiala y entrégala; el sistema le exigirá cambiarla en su primer inicio de sesión.
           </p>
           
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8 relative group">
-            <span className="block text-sm text-slate-500 font-bold mb-2">Contraseña temporal:</span>
-            <code className="text-3xl font-mono font-black text-slate-900 tracking-wider">
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-8 relative group shadow-inner">
+            <span className="block text-sm text-[#0B1828] font-bold mb-2">Contraseña temporal:</span>
+            <code className="text-3xl font-mono font-black text-[#0B1828] tracking-wider">
               {generatedPassword}
             </code>
             <button 
               onClick={handleCopyPassword}
-              className="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all focus:ring-2 focus:ring-blue-100"
+              className="absolute top-4 right-4 p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 text-[#0B1828] hover:bg-slate-50 transition-all active:scale-95 focus:ring-2 focus:ring-slate-400"
               title="Copiar contraseña"
             >
-              {copied ? <CheckCircle className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+              {copied ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
             </button>
           </div>
 
           <button
             onClick={() => onSuccess()}
-            className="w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-bold shadow-md hover:bg-emerald-700 hover:shadow-lg transition-all focus:ring-2 focus:ring-offset-2 focus:ring-emerald-200"
+            className="w-full py-4 px-4 bg-[#0B1828] text-white rounded-2xl font-black text-lg shadow-xl hover:shadow-[#0B1828]/30 hover:bg-[#162840] transition-all active:scale-[0.98]"
           >
             Entendido, volver al listado
           </button>
@@ -227,227 +278,258 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
     );
   }
 
+  const isSubmitDisabled = isSubmitting || !isFormDirty || Object.keys(errores).length > 0;
+
+  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none [&:autofill]:shadow-[inset_0_0_0px_1000px_#fff] [&:autofill]:[-webkit-text-fill-color:#0B1828]";
+  const getValidationClass = (hasError) => 
+    hasError 
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+      : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden relative">
       
-      <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center">
-          <button onClick={onBack} className="mr-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h2 className="text-xl font-black text-slate-800">
-              {isEditing ? "Modificar expediente de usuario" : "Registrar nuevo usuario"}
-            </h2>
-            <p className="text-sm text-slate-500 font-medium">Define los datos personales, correos y rol de acceso.</p>
-          </div>
+      <div className="bg-[#0B1828] px-6 py-5 flex items-center shadow-md relative z-10">
+        <button
+          onClick={onBack}
+          className="mr-4 p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
+        >
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+        <div>
+          <h2 className="text-xl font-black text-white">
+            {isEditing ? "Modificar usuario" : "Nuevo usuario"}
+          </h2>
+          <p className="text-sm text-white/60 font-medium">
+            Define los datos personales, correos y rol de acceso.
+          </p>
         </div>
       </div>
 
-      <div className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} noValidate className="space-y-8">
+      <div className="p-6 md:p-10">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto">
           
-          {/* Nombres y Apellidos */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <User className="w-4 h-4 mr-2 text-blue-500" /> Nombres *
-              </label>
-              <input 
-                type="text" 
-                name="nombres" 
-                maxLength="50"
-                value={formData.nombres} 
-                onChange={handleChange} 
-                onBlur={handleBlur}
-                placeholder="Ej. Juan Carlos"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.nombres ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.nombres && <p className="text-xs font-bold text-red-500 mt-1">{errores.nombres}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno *
-              </label>
-              <input 
-                type="text" 
-                name="apellido_paterno" 
-                maxLength="50"
-                value={formData.apellido_paterno} 
-                onChange={handleChange} 
-                onBlur={handleBlur}
-                placeholder="Ej. Pérez"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.apellido_paterno ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.apellido_paterno && <p className="text-xs font-bold text-red-500 mt-1">{errores.apellido_paterno}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno *
-              </label>
-              <input 
-                type="text" 
-                name="apellido_materno" 
-                maxLength="50"
-                value={formData.apellido_materno} 
-                onChange={handleChange} 
-                onBlur={handleBlur}
-                placeholder="Ej. López"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.apellido_materno ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.apellido_materno && <p className="text-xs font-bold text-red-500 mt-1">{errores.apellido_materno}</p>}
-            </div>
+          <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl mb-8 w-fit">
+            <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
+            Indica un campo obligatorio para el sistema
           </div>
 
-          {/* Correos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo personal *
-              </label>
-              <input 
-                type="email" 
-                name="personal_email" 
-                maxLength="254"
-                value={formData.personal_email} 
-                onChange={handleChange} 
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDownStrict}
-                placeholder="juan@gmail.com"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.personal_email ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.personal_email && <p className="text-xs font-bold text-red-500 mt-1">{errores.personal_email}</p>}
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo institucional *
-              </label>
-              <input 
-                type="email" 
-                name="institutional_email" 
-                maxLength="254"
-                value={formData.institutional_email} 
-                onChange={handleChange}
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDownStrict}
-                placeholder="j.perez@unid.edu.mx"
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                  errores.institutional_email ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              />
-              {errores.institutional_email && <p className="text-xs font-bold text-red-500 mt-1">{errores.institutional_email}</p>}
-            </div>
-          </div>
-
-          {/* Roles y Contraseña */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Shield className="w-4 h-4 mr-2 text-blue-500" /> Rol del sistema *
-              </label>
-              <select 
-                name="rol_id" 
-                value={formData.rol_id} 
-                onChange={handleChange} 
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-100 text-sm transition-all appearance-none cursor-pointer"
-              >
-                {user?.rol_id === 1 && <option value="1">Superadministrador</option>}
-                {user?.rol_id === 1 && <option value="2">Administrador</option>}
-                <option value="3">Docente</option>
-              </select>
-            </div>
-
-            {isEditing && (
-              <div className="space-y-2">
-                <label className={`flex items-center text-sm font-bold ${errores.password_raw ? 'text-red-600' : 'text-amber-600'}`}>
-                  <KeyRound className="w-4 h-4 mr-2" /> Forzar nueva contraseña (Opcional)
-                </label>
-                <input 
-                  type="text" 
-                  name="password_raw" 
-                  maxLength="50"
-                  value={formData.password_raw} 
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  onKeyDown={handleKeyDownStrict}
-                  placeholder="Dejar en blanco para conservar la actual" 
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${
-                    errores.password_raw ? "border-red-300 focus:ring-red-100" : "border-amber-200 focus:border-amber-300 focus:ring-amber-100"
-                  }`}
-                />
-                {errores.password_raw 
-                  ? <p className="text-xs font-bold text-red-500 mt-1">{errores.password_raw}</p>
-                  : <p className="text-xs font-medium text-amber-600/80 mt-1">Nota: El usuario será obligado a cambiarla al iniciar sesión.</p>
-                }
+          <div className="space-y-10">
+            {/* Sección 1: Nombres y Apellidos */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Datos Personales</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <User className="w-4 h-4 mr-2" /> Nombres <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="nombres" 
+                    maxLength="50"
+                    value={formData.nombres} 
+                    onChange={handleChange} 
+                    onBlur={handleBlur}
+                    placeholder="Ej. Juan Carlos"
+                    className={`${inputBaseClass} ${getValidationClass(errores.nombres)}`}
+                  />
+                  {errores.nombres && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.nombres}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="apellido_paterno" 
+                    maxLength="50"
+                    value={formData.apellido_paterno} 
+                    onChange={handleChange} 
+                    onBlur={handleBlur}
+                    placeholder="Ej. Pérez"
+                    className={`${inputBaseClass} ${getValidationClass(errores.apellido_paterno)}`}
+                  />
+                  {errores.apellido_paterno && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.apellido_paterno}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="apellido_materno" 
+                    maxLength="50"
+                    value={formData.apellido_materno} 
+                    onChange={handleChange} 
+                    onBlur={handleBlur}
+                    placeholder="Ej. López"
+                    className={`${inputBaseClass} ${getValidationClass(errores.apellido_materno)}`}
+                  />
+                  {errores.apellido_materno && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.apellido_materno}</p>}
+                </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Foto de perfil */}
-          <div className="pt-4 border-t border-slate-100">
-            <label className="flex items-center text-sm font-bold text-slate-700 mb-4">
-              <ImagePlus className="w-4 h-4 mr-2 text-blue-500" /> Fotografía de perfil (Opcional)
-            </label>
-            <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <div className="h-28 w-28 rounded-full bg-white overflow-hidden border-4 border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
-                {previewUrl ? (
-                  <img src={previewUrl} alt="Previsualización" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="h-12 w-12 text-slate-300" />
+            {/* Sección 2 Correos */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Información de Contacto</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Mail className="w-4 h-4 mr-2" /> Correo personal <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input 
+                    type="email" 
+                    name="personal_email" 
+                    maxLength="100"
+                    value={formData.personal_email} 
+                    onChange={handleChange} 
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDownStrict}
+                    placeholder="juan@gmail.com"
+                    className={`${inputBaseClass} ${getValidationClass(errores.personal_email)}`}
+                  />
+                  {errores.personal_email && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.personal_email}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Mail className="w-4 h-4 mr-2" /> Correo institucional <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input 
+                    type="email" 
+                    name="institutional_email" 
+                    maxLength="100"
+                    value={formData.institutional_email} 
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    onKeyDown={handleKeyDownStrict}
+                    placeholder="j.perez@red.unid.mx"
+                    className={`${inputBaseClass} ${getValidationClass(errores.institutional_email)}`}
+                  />
+                  {errores.institutional_email && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.institutional_email}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Sección 3 Roles y Contraseña */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Seguridad y Acceso</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Shield className="w-4 h-4 mr-2" /> Rol del sistema <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  {isRoleLocked ? (
+                    <input 
+                      type="text" 
+                      value={lockedRoleLabel}
+                      disabled 
+                      className={`${inputBaseClass} bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed`}
+                    />
+                  ) : (
+                    <>
+                      <select 
+                        name="rol_id" 
+                        value={formData.rol_id} 
+                        onChange={handleChange} 
+                        className={`${inputBaseClass} ${getValidationClass(errores.rol_id)} appearance-none cursor-pointer`}
+                      >
+                        <option value="" disabled>Seleccione un rol</option>
+                        {user?.rol_id === 1 && <option value="1">Superadministrador</option>}
+                        {(user?.rol_id === 1 || user?.rol_id === 2) && <option value="2">Administrador</option>}
+                      </select>
+                      {errores.rol_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.rol_id}</p>}
+                    </>
+                  )}
+                </div>
+
+                {isEditing && (
+                  <div className="space-y-2">
+                    <label className="flex items-center text-sm font-bold mb-2 text-[#0B1828]">
+                      <KeyRound className="w-4 h-4 mr-2" /> Forzar nueva contraseña (Opcional)
+                    </label>
+                    <input 
+                      type="text" 
+                      name="password_raw" 
+                      maxLength="64"
+                      value={formData.password_raw} 
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      onKeyDown={handleKeyDownStrict}
+                      placeholder="Dejar en blanco para conservar la actual" 
+                      className={`${inputBaseClass} ${getValidationClass(errores.password_raw)}`}
+                    />
+                    {errores.password_raw 
+                      ? <p className="text-xs font-bold text-red-500 mt-1.5">{errores.password_raw}</p>
+                      : <p className="text-xs font-medium text-slate-500 mt-1.5">
+                          Longitud recomendada: 8 a 15 caracteres. El usuario deberá cambiarla al iniciar sesión.
+                        </p>
+                    }
+                  </div>
                 )}
               </div>
-              
-              <div className="w-full">
-                <input 
-                  type="file" 
-                  accept="image/jpeg, image/png, image/webp" 
-                  onChange={handleFileChange} 
-                  className="block w-full text-slate-600 text-sm
-                    file:mr-4 file:py-2.5 file:px-5
-                    file:rounded-xl file:border-0
-                    file:text-sm file:font-bold
-                    file:bg-blue-600 file:text-white
-                    hover:file:bg-blue-700 cursor-pointer transition-colors"
-                />
-                <p className="mt-2 text-xs font-medium text-slate-500">Formatos soportados: JPG, PNG, WEBP (Max: 10MB)</p>
+            </div>
+
+            {/* Sección 4 Foto de Perfil */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Fotografía (Opcional)</h3>
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl border border-slate-100 bg-slate-50/50 shadow-sm">
+                <div className="h-28 w-28 rounded-full bg-white overflow-hidden border-4 border-white shadow-md flex items-center justify-center shrink-0">
+                  {previewUrl ? (
+                    <img src={previewUrl} alt="Previsualización" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-10 w-10 text-slate-300" />
+                  )}
+                </div>
+                
+                <div className="w-full">
+                  <input 
+                    type="file" 
+                    accept="image/jpeg, image/png, image/webp" 
+                    onChange={handleFileChange} 
+                    className="block w-full text-[#0B1828] text-sm
+                      file:mr-4 file:py-3 file:px-5
+                      file:rounded-xl file:border-0
+                      file:text-sm file:font-bold
+                      file:bg-[#0B1828] file:text-white
+                      hover:file:bg-[#162840] hover:file:shadow-md
+                      cursor-pointer transition-all file:transition-all"
+                  />
+                  <p className="mt-3 text-xs font-medium text-slate-500 flex items-center">
+                    <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Formatos soportados: JPG, PNG, WEBP (Max: 10MB)
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Footer Submit */}
-          <div className="flex justify-end pt-6 border-t border-slate-100">
-            {isEditing ? (
+            {/* Footer Submit */}
+            <div className="pt-8 border-t border-dashed border-slate-200 mt-2">
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
+                disabled={isSubmitDisabled}
+                className={`w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg ${
+                  isSubmitDisabled
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300"
+                    : "bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
+                }`}
               >
-                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <RefreshCw className="w-5 h-5 mr-2" />}
-                Actualizar usuario
+                {isSubmitting
+                  ? <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                  : isEditing 
+                    ? <RefreshCw className="w-6 h-6 mr-2 text-white" />
+                    : <Save className="w-6 h-6 mr-2 text-white" />
+                }
+                {isSubmitting
+                  ? "Guardando cambios..."
+                  : isEditing ? "Modificar Usuario" : "Nuevo Usuario"
+                }
               </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md"
-              >
-                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-                Guardar usuario
-              </button>
-            )}
+            </div>
+            
           </div>
-          
         </form>
       </div>
     </div>
