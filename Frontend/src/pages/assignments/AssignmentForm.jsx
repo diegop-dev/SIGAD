@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import api from "../../services/api";
 
-// --- Helpers ---
+// Helpers
 const formatTimeForInput = (timeString) => {
   if (!timeString) return "00:00";
   return timeString.substring(0, 5);
@@ -27,7 +27,7 @@ const generateTimeSlots = () => {
 };
 const TIME_SLOTS = generateTimeSlots();
 
-// --- Badge: nivel_academico ---
+// Badges de nivel_academico
 const NivelBadge = ({ nivel }) => {
   const map = {
     LICENCIATURA: "bg-blue-100 text-blue-800",
@@ -42,7 +42,7 @@ const NivelBadge = ({ nivel }) => {
   );
 };
 
-// --- Badge: tipo_asignatura ---
+// Badges de tipo_asignatura
 const TipoBadge = ({ tipo }) => {
   const raw = (tipo || "").toUpperCase();
   const map = {
@@ -58,11 +58,11 @@ const TipoBadge = ({ tipo }) => {
   );
 };
 
-// --- Modal Wrapper ---
+// Modal Wrapper
 const ModalWrapper = ({ title, icon: Icon, onClose, children, showSearch = true, onSearch, searchValue }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 animate-in fade-in">
     <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
-      {/* Header navy */}
+      {/* Header Navy */}
       <div className="px-6 py-5 flex justify-between items-center bg-[#0B1828] shrink-0">
         <h3 className="text-xl font-black text-white flex items-center gap-2">
           {Icon && <Icon className="w-6 h-6 text-white" />} {title}
@@ -199,9 +199,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     fetchCatalogs();
   }, [isEditing, initialData]);
 
-  // ==========================================
-  // FILTROS BASE Y SELECCIONES ACTUALES
-  // ==========================================
+  // Filtros bases en selecciones previas
   const carreraSeleccionada = useMemo(() =>
     carreras.find(c => Number(c.id_carrera) === Number(formData.carrera_id)),
   [carreras, formData.carrera_id]);
@@ -245,18 +243,14 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     docentes.find(d => Number(d.id_docente) === Number(formData.docente_id)), 
   [docentes, formData.docente_id]);
 
-  // ==========================================
-  // FILTROS DE BÚSQUEDA EN MODALES
-  // ==========================================
+  // Filtros en base al término de búsqueda
   const searchLower = searchTerm.toLowerCase().trim();
   const searchedCarreras = useMemo(() => carreras.filter(c => c.nombre_carrera?.toLowerCase().includes(searchLower)), [carreras, searchLower]);
   const searchedGrupos   = useMemo(() => gruposFiltrados.filter(g => g.identificador?.toLowerCase().includes(searchLower)), [gruposFiltrados, searchLower]);
   const searchedMaterias = useMemo(() => materiasFiltradas.filter(m => m.nombre?.toLowerCase().includes(searchLower) || m.codigo_unico?.toLowerCase().includes(searchLower)), [materiasFiltradas, searchLower]);
   const searchedDocentes = useMemo(() => docentesFiltrados.filter(d => d.nombres?.toLowerCase().includes(searchLower) || d.apellido_paterno?.toLowerCase().includes(searchLower) || d.apellido_materno?.toLowerCase().includes(searchLower)), [docentesFiltrados, searchLower]);
 
-  // ==========================================
-  // MANEJADORES
-  // ==========================================
+  // Manejadores de selección
   const openModal  = (type) => { setSearchTerm(""); setActiveModal(type); };
   const closeModal = ()     => { setSearchTerm(""); setActiveModal(null); };
 
@@ -326,9 +320,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     return false;
   }, [formData.horarios, originalHorarios, isEditing]);
 
-  // ==========================================
-  // VALIDACIÓN Y ENVÍO
-  // ==========================================
+  // Validaciones antes de enviar a backend
   const validateBasics = () => {
     const newErrors = {};
     if (!formData.periodo_id) {
@@ -381,9 +373,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
     }
   };
 
-  // ==========================================
-  // STEPPER Y BLOQUEOS (Reajustados sin Periodo)
-  // ==========================================
+  // Stepper y bloqueo de pasos
   const step1Unblocked   = true; // Carrera siempre disponible
   const step2Unblocked   = !!formData.carrera_id || isTroncoComunFlow; // Grupo
   const step3Unblocked   = isTroncoComunFlow ? step2Unblocked : (step2Unblocked && !!formData.grupo_id); // Materia
@@ -413,7 +403,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden relative">
 
-      {/* ── HEADER navy ── */}
+      {/* Header Navy */}
       <div className="bg-[#0B1828] px-6 py-5 flex items-center shadow-md relative z-10">
         <button
           onClick={onBack}
@@ -423,7 +413,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         </button>
         <div>
           <h2 className="text-xl font-black text-white">
-            {isEditing ? "Modificar asignación docente" : "Nueva asignación"}
+            {isEditing ? "Modificar asignación" : "Nueva asignación"}
           </h2>
           <p className="text-sm text-white/60 font-medium">
             {isEditing ? "Edición de bloques de horario." : "Completa la configuración en orden."}
@@ -434,10 +424,10 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
       <div className="p-6 md:p-10">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
 
-          {/* ── EMBUDO DE PASOS ── */}
+          {/* Embudo de pasos */}
           <div className="relative border-l border-slate-200 ml-4 md:ml-6 space-y-10 pb-8 mt-2">
 
-            {/* STEP 1: CARRERA */}
+            {/* Paso 1: Carrera (Oculto en Tronco Común) */}
             <div className={`relative pl-8 md:pl-10 transition-all duration-300 ${step1Unblocked ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
               <StepIndicator isActive={step1Unblocked} isCompleted={!!(formData.carrera_id || isTroncoComunFlow)} num={1} />
               <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
@@ -465,7 +455,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.carrera_id && <p className="text-red-500 text-xs mt-2 font-medium">{errores.carrera_id}</p>}
             </div>
 
-            {/* STEP 2: GRUPO (Oculto en Tronco Común) */}
+            {/* Paso 2: Grupo (Oculto en Tronco Común) */}
             {!isTroncoComunFlow && (
               <div className={`relative pl-8 md:pl-10 transition-all duration-300 ${step2Unblocked ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
                 <StepIndicator isActive={step2Unblocked} isCompleted={!!formData.grupo_id} num={2} />
@@ -489,7 +479,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
               </div>
             )}
 
-            {/* STEP 3: MATERIA */}
+            {/* Paso 3: Materia */}
             <div className={`relative pl-8 md:pl-10 transition-all duration-300 ${step3Unblocked ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
               <StepIndicator isActive={step3Unblocked} isCompleted={!!formData.materia_id} num={isTroncoComunFlow ? 2 : 3} />
               <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
@@ -518,7 +508,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
               {errores.materia_id && <p className="text-red-500 text-xs mt-2 font-medium">{errores.materia_id}</p>}
             </div>
 
-            {/* STEP 4: DOCENTE */}
+            {/* Paso 4: Docente */}
             <div className={`relative pl-8 md:pl-10 transition-all duration-300 ${step4Unblocked ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none'}`}>
               <StepIndicator isActive={step4Unblocked} isCompleted={!!formData.docente_id} num={isTroncoComunFlow ? 3 : 4} />
               <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
@@ -544,7 +534,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
 
           </div>
 
-          {/* ── PASO FINAL: HORARIOS Y GUARDADO ── */}
+          {/* Paso final: Horarios y Guardado */}
           {allStepsCompleted && (
             <div className="pt-8 animate-in fade-in slide-in-from-bottom-4 border-t border-dashed border-slate-200 mt-2">
 
@@ -613,7 +603,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                         </select>
                       </div>
                       
-                      {/* --- Selección de Hora Inicio Modal --- */}
+                      {/* Selección de hora inicio modal */}
                       <div>
                         <label className="block text-[11px] font-bold text-[#0B1828]/60 mb-1.5 uppercase tracking-wider">Inicio</label>
                         <button
@@ -626,7 +616,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                         </button>
                       </div>
                       
-                      {/* --- Selección de Hora Fin Modal --- */}
+                      {/* Selección de hora fin modal */}
                       <div>
                         <label className="block text-[11px] font-bold text-[#0B1828]/60 mb-1.5 uppercase tracking-wider">Fin</label>
                         <button
@@ -681,18 +671,15 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                   ? "Verifica los empalmes para continuar"
                   : isSubmitting
                     ? "Guardando cambios..."
-                    : isEditing ? "Actualizar Asignación" : "Crear Asignación"}
+                    : isEditing ? "Modificar Asignación" : "Nueva Asignación"}
               </button>
             </div>
           )}
         </form>
       </div>
 
-      {/* =========================================
-          MODALES
-          ========================================= */}
-
-      {/* MODAL CARRERA */}
+      {/* Modales */}
+      {/* Carrera */}
       {activeModal === 'carrera' && (
         <ModalWrapper title="Seleccionar Carrera" icon={GraduationCap} onClose={closeModal} searchValue={searchTerm} onSearch={setSearchTerm}>
           <label className="flex items-center justify-between p-5 bg-white shadow-sm rounded-2xl cursor-pointer transition-all active:scale-[0.99] border border-slate-100 hover:border-[#0B1828]/20 hover:shadow-md mb-2">
@@ -743,7 +730,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         </ModalWrapper>
       )}
 
-      {/* MODAL GRUPO */}
+      {/* Grupo */}
       {activeModal === 'grupo' && (
         <ModalWrapper title="Seleccionar Grupo" icon={Users} onClose={closeModal} searchValue={searchTerm} onSearch={setSearchTerm}>
           {searchedGrupos.length === 0 ? (
@@ -771,7 +758,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         </ModalWrapper>
       )}
 
-      {/* MODAL MATERIA */}
+      {/* Materia */}
       {activeModal === 'materia' && (
         <ModalWrapper title="Seleccionar Materia" icon={BookOpen} onClose={closeModal} searchValue={searchTerm} onSearch={setSearchTerm}>
           {searchedMaterias.length === 0 ? (
@@ -800,7 +787,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         </ModalWrapper>
       )}
 
-      {/* MODAL DOCENTE */}
+      {/* Docente */}
       {activeModal === 'docente' && (
         <ModalWrapper title="Seleccionar Docente" icon={User} onClose={closeModal} searchValue={searchTerm} onSearch={setSearchTerm}>
           {searchedDocentes.length === 0 ? (
@@ -830,7 +817,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         </ModalWrapper>
       )}
 
-      {/* MODAL DE HORAS (NUEVO) */}
+      {/* Horas */}
       {timeModalConfig && (
         <ModalWrapper 
           title={`Seleccionar Hora de ${timeModalConfig.field === 'hora_inicio' ? 'Inicio' : 'Fin'}`} 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../context/NotificationContext';
-import { Menu, X, Home, Users, Calendar, CalendarDays, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon, ShieldCheck } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, CalendarDays, LogOut, Bell, User, School, BookOpen, GraduationCap, HomeIcon, ShieldCheck, Activity } from 'lucide-react';
 import { ForceChangePasswordModal } from '../pages/auth/ForceChangePasswordModal';
 import { NotificationDropdown } from './NotificationDropdown';
 
@@ -34,16 +34,16 @@ export const MainLayout = () => {
 
   const menuItems = [
     { name: 'Inicio', path: '/dashboard', icon: Home, roles: [1, 2, 3] },
-    { name: 'Gestión de usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
-    { name: 'Gestión de docentes', path: '/docentes', icon: Users, roles: [1, 2] },
-    { name: 'Gestión de academias', path:'/academias', icon: School, roles:[1,2]},
-    { name: 'Gestión de materias', path:'/materias', icon: BookOpen, roles:[1,2]},
-    { name: 'Gestion de aulas y laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
-    { name: 'Gestión de carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
-    { name: 'Gestión de grupos', path: '/grupos', icon: Users, roles: [1, 2]},
+    { name: 'Usuarios', path: '/usuarios', icon: Users, roles: [1, 2] },
+    { name: 'Docentes', path: '/docentes', icon: Users, roles: [1, 2] },
+    { name: 'Academias', path:'/academias', icon: School, roles:[1,2]},
+    { name: 'Materias', path:'/materias', icon: BookOpen, roles:[1,2]},
+    { name: 'Aulas y laboratorios', path: '/aulas', icon: HomeIcon, roles: [1,2]},
+    { name: 'Carreras', path: '/carreras', icon: GraduationCap, roles: [1, 2] },
+    { name: 'Grupos', path: '/grupos', icon: Users, roles: [1, 2]},
     { name: 'Periodos', path: '/periodos', icon: Calendar, roles: [1, 2]},
-    { name: 'Gestión de asignaciones', path: '/asignaciones', icon: Calendar, roles: [1, 2]},
-    { name: 'Métricas institucionales', path: '/metricas', icon: GraduationCap, roles: [1]},
+    { name: 'Asignaciones', path: '/asignaciones', icon: CalendarDays, roles: [1, 2]},
+    { name: 'Métricas institucionales', path: '/metricas', icon: Activity, roles: [1]},
     { name: 'Registro de auditoría', path: '/audit-logs', icon: ShieldCheck, roles: [1]},
     { name: 'Mis asignaciones', path: '/mis-asignaciones', icon: Calendar, roles: [3]},
     { name: 'Mi horario', path: '/horarios', icon: CalendarDays, roles: [3]},

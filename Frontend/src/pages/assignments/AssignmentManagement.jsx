@@ -1,9 +1,9 @@
-// AssignmentManagement.jsx
 import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, CalendarDays, Loader2, Calendar, MapPin,
-  ChevronLeft, ChevronRight, Edit2, Ban, RotateCcw, AlertTriangle,
-  X, RefreshCcw, Users, FileText, BarChart2, CheckCircle2, ClipboardList
+  ChevronLeft, ChevronRight, Edit, Trash2, AlertTriangle,
+  X, RefreshCcw, Users, FileText, BarChart2, CheckCircle2, 
+  ClipboardList, Filter, UserCheck, ChevronDown
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -24,6 +24,8 @@ export const AssignmentManagement = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSyncingPromedios, setIsSyncingPromedios] = useState(false);
 
+  // Estados de Búsqueda y Debounce
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [periodoFilter, setPeriodoFilter] = useState('');
   const [operativoFilter, setOperativoFilter] = useState('');
@@ -45,16 +47,13 @@ export const AssignmentManagement = () => {
     isOpen: false, grupo_id: ''
   });
 
-  // ─── Modal de resultados compartido para HU-38 y HU-39 ───────────────────────
   const [resultadosModal, setResultadosModal] = useState({
     isOpen: false,
-    tipo: null,          // 'incumplimientos' | 'promedios'
-    asignaciones: [],    // filas deduplicadas a mostrar
-    resumen: {}          // datos del response original para el header
+    tipo: null,          
+    asignaciones: [],    
+    resumen: {}          
   });
-  // ─────────────────────────────────────────────────────────────────────────────
 
-  // Retorna el array crudo para poder filtrarlo inmediatamente después del refresh
   const fetchAsignaciones = async () => {
     setIsLoading(true);
     try {
@@ -65,7 +64,7 @@ export const AssignmentManagement = () => {
       return arr;
     } catch (error) {
       console.error("Error al cargar asignaciones:", error);
-      toast.error('Error al cargar el listado de asignaciones');
+      toast.error('Ocurrió un error al cargar el listado de asignaciones en el sistema.');
       setAsignacionesRaw([]);
       return [];
     } finally {
@@ -93,7 +92,28 @@ export const AssignmentManagement = () => {
     fetchCatalogosFiltrosYSync();
   }, []);
 
-  // ─── Helper: deduplica filas crudas por materia+docente ──────────────────────
+  // Validación y debounce de búsqueda
+  const handleSearchInput = (e) => {
+    let val = e.target.value;
+    val = val.replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d10-9@._\-\s]/g, '');
+    val = val.replace(/^\s+/g, '').replace(/\s{2,}/g, ' ');
+    const parts = val.split('@');
+    if (parts.length > 2) {
+      val = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
+    }
+    setSearchInput(val);
+  };
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      const cleanTerm = searchInput.trim();
+      if (cleanTerm.length >= 3 || cleanTerm.length === 0) {
+        setSearchTerm(cleanTerm);
+      }
+    }, 400);
+    return () => clearTimeout(timerId);
+  }, [searchInput]);
+
   const deduplicarPorMateriaDocente = (items) => {
     const seen = new Set();
     return items.filter(item => {
@@ -103,27 +123,24 @@ export const AssignmentManagement = () => {
       return true;
     });
   };
-  // ─────────────────────────────────────────────────────────────────────────────
 
-  // ─── HU-39: Sincronizar incumplimientos ──────────────────────────────────────
   const handleSincronizarReportes = async () => {
     if (!syncModal.periodo_id || !syncModal.grupo_id) {
-      toast.error("Por favor, selecciona un Periodo y un Grupo.");
+      toast.error("Por favor, selecciona un Periodo y un Grupo de la lista.");
       return;
     }
 
     const { grupo_id, periodo_id } = syncModal;
     setIsSyncing(true);
-    const toastId = toast.loading('Conectando vía VPN con el sistema externo...');
+    const toastId = toast.loading('Estableciendo conexión con el sistema externo...');
 
     try {
       const response = await api.get(
         `/asignaciones/recepcion?grupo_id=${grupo_id}&periodo_id=${periodo_id}`
       );
-      toast.success(response.data.message || 'Sincronización exitosa', { id: toastId, duration: 3000 });
+      toast.success(response.data.message || 'Sincronización completada exitosamente.', { id: toastId, duration: 3000 });
       setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' });
 
-      // Refrescamos y filtramos inmediatamente sobre los datos actualizados
       const rawActualizado = await fetchAsignaciones();
 
       const conReporte = deduplicarPorMateriaDocente(
@@ -146,23 +163,21 @@ export const AssignmentManagement = () => {
       });
 
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Error al sincronizar reportes', { id: toastId });
+      toast.error(error.response?.data?.error || 'Se produjo un error al sincronizar los reportes.', { id: toastId });
     } finally {
       setIsSyncing(false);
     }
   };
-  // ─────────────────────────────────────────────────────────────────────────────
 
-  // ─── HU-38: Sincronizar promedios consolidados ───────────────────────────────
   const handleSincronizarPromedios = async () => {
     if (!promediosModal.grupo_id) {
-      toast.error("Por favor, selecciona un grupo.");
+      toast.error("Por favor, selecciona un grupo de la lista.");
       return;
     }
 
     const { grupo_id } = promediosModal;
     setIsSyncingPromedios(true);
-    const toastId = toast.loading('Consultando promedios en el sistema externo...');
+    const toastId = toast.loading('Consultando promedios en el sistema central externo...');
 
     try {
       const response = await api.post(
@@ -183,7 +198,6 @@ export const AssignmentManagement = () => {
 
       setPromediosModal({ isOpen: false, grupo_id: '' });
 
-      // Refrescamos y filtramos inmediatamente sobre los datos actualizados
       const rawActualizado = await fetchAsignaciones();
 
       const conPromedio = deduplicarPorMateriaDocente(
@@ -208,14 +222,13 @@ export const AssignmentManagement = () => {
     } catch (error) {
       console.error("Error al sincronizar promedios:", error);
       toast.error(
-        error.response?.data?.error || 'Error al conectar con el sistema externo de promedios.',
+        error.response?.data?.error || 'No fue posible conectar con el sistema externo de promedios.',
         { id: toastId }
       );
     } finally {
       setIsSyncingPromedios(false);
     }
   };
-  // ─────────────────────────────────────────────────────────────────────────────
 
   const asignacionesAgrupadas = useMemo(() => {
     const agrupadasActivas = {};
@@ -281,14 +294,14 @@ export const AssignmentManagement = () => {
     const endpoint = isCanceling ? "/asignaciones" : "/asignaciones/reactivar";
     const httpMethod = isCanceling ? api.delete : api.patch;
     closeConfirmModal();
-    const toastId = toast.loading('Procesando petición en el servidor...');
+    const toastId = toast.loading('Procesando solicitud de actualización...');
     try {
       const payload = { data: { periodo_id: asignacion.periodo_id, materia_id: asignacion.materia_id, docente_id: asignacion.docente_id, grupo_id: asignacion.grupo_id } };
       isCanceling ? await httpMethod(endpoint, payload) : await httpMethod(endpoint, payload.data);
-      toast.success(`Asignación ${isCanceling ? 'cancelada' : 'reactivada'} exitosamente`, { id: toastId });
+      toast.success(`Asignación ${isCanceling ? 'cancelada' : 'reactivada'} exitosamente.`, { id: toastId });
       fetchAsignaciones();
     } catch (error) {
-      toast.error(error.response?.data?.error || `Error al procesar la asignación`, { id: toastId });
+      toast.error(error.response?.data?.error || `Ocurrió un error al procesar el estatus de la asignación.`, { id: toastId });
     }
   };
 
@@ -299,7 +312,7 @@ export const AssignmentManagement = () => {
       'RECHAZADA': 'bg-red-100 text-red-800 border-red-200',
     };
     return (
-      <span className={`px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border ${statusMap[estatus] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+      <span className={`px-3 py-1.5 inline-flex text-xs font-black uppercase tracking-wider rounded-lg border shadow-sm ${statusMap[estatus] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
         {estatus || 'DESCONOCIDO'}
       </span>
     );
@@ -318,120 +331,161 @@ export const AssignmentManagement = () => {
     return <AssignmentForm onBack={() => { setShowForm(false); setAsignacionToEdit(null); }} onSuccess={handleSuccessAction} initialData={asignacionToEdit} />;
   }
 
+  const filterInputClass = "block w-full px-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0B1828] focus:ring-1 focus:ring-[#0B1828] text-sm py-3.5 transition-all duration-200 text-[#0B1828] font-medium shadow-sm outline-none [&:autofill]:shadow-[inset_0_0_0px_1000px_#fff] [&:autofill]:[-webkit-text-fill-color:#0B1828] appearance-none cursor-pointer";
+
   return (
     <div className="space-y-6 relative">
 
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
-            <CalendarDays className="w-8 h-8 mr-3 text-blue-600" />
-            Gestión de asignaciones
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 font-medium">Administra la distribución de horarios, docentes y aulas.</p>
-        </div>
-        {(user?.rol_id === 1 || user?.rol_id === 2) && (
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setSyncModal({ ...syncModal, isOpen: true })}
-              className="flex items-center px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all duration-200 shadow-sm font-bold"
-            >
-              <RefreshCcw className="w-4 h-4 mr-2 text-slate-500" />
-              Sincronizar Incumplimientos
-            </button>
-            <button
-              onClick={() => setPromediosModal({ isOpen: true, grupo_id: '' })}
-              className="flex items-center px-4 py-2.5 bg-white border border-violet-200 text-violet-700 rounded-xl hover:bg-violet-50 transition-all duration-200 shadow-sm font-bold"
-            >
-              <BarChart2 className="w-4 h-4 mr-2 text-violet-500" />
-              Obtener Promedios
-            </button>
+      {/* Header Navy Estandarizado */}
+      <div className="flex flex-col gap-4 bg-[#0B1828] p-6 md:p-8 rounded-3xl shadow-md relative overflow-hidden z-10">
+        {/* Fila Superior Título y Botón Principal */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
+          <div>
+            <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
+              <CalendarDays className="w-7 h-7 mr-3 text-white/90" />
+              Asignaciones
+            </h1>
+            <p className="mt-1.5 text-sm text-white/70 font-medium">
+              Administra la distribución de horarios, carga docente y asignación de aulas.
+            </p>
+          </div>
+          
+          {(user?.rol_id === 1 || user?.rol_id === 2) && (
             <button
               onClick={() => { setAsignacionToEdit(null); setShowForm(true); }}
-              className="flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md font-bold"
+              className="flex items-center justify-center px-6 py-3 bg-white text-[#0B1828] rounded-xl hover:bg-slate-50 transition-all duration-200 shadow-sm active:scale-95 font-black text-sm shrink-0 w-full sm:w-auto"
             >
-              <Plus className="w-5 h-5 mr-2" /> Nueva asignación
+              <Plus className="w-4 h-4 mr-2" /> Nueva asignación
             </button>
-          </div>
-        )}
+          )}
+        </div>
+        
+        {/* Fila Inferior Botones Secundarios Alineados a la Izquierda */}
+        <div className="flex flex-wrap justify-start gap-3 w-full border-t border-white/10 pt-4 mt-2">
+          <button
+            onClick={() => setModalReporte(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center px-5 py-3 bg-white/10 text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-200 shadow-sm active:scale-95 font-bold text-sm"
+          >
+            <FileText className="w-4 h-4 mr-2" /> Informe de asignaciones
+          </button>
+          
+          {(user?.rol_id === 1 || user?.rol_id === 2) && (
+            <>
+              <button
+                onClick={() => setSyncModal({ ...syncModal, isOpen: true })}
+                className="flex-1 sm:flex-none flex items-center justify-center px-5 py-3 bg-white/10 text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-200 shadow-sm active:scale-95 font-bold text-sm"
+              >
+                <RefreshCcw className="w-4 h-4 mr-2" /> Incumplimientos docente
+              </button>
+              <button
+                onClick={() => setPromediosModal({ isOpen: true, grupo_id: '' })}
+                className="flex-1 sm:flex-none flex items-center justify-center px-5 py-3 bg-white/10 text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-200 shadow-sm active:scale-95 font-bold text-sm"
+              >
+                <BarChart2 className="w-4 h-4 mr-2" /> Promedios consolidados
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <button
-        onClick={() => setModalReporte(true)}
-        className="flex items-center gap-2 bg-slate-800 text-white px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-all shadow-md active:scale-95"
-      >
-        <FileText className="w-5 h-5" /> Generar Reporte
-      </button>
-
-      {/* ── Filtros ── */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
-        <div className="flex-1 relative">
+      {/* Filtros Estandarizados */}
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-4">
+        {/* Fila de búsqueda principal */}
+        <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Search className="h-5 w-5 text-slate-400" />
           </div>
           <input
             type="text"
-            placeholder="Buscar por docente, materia o grupo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
+            maxLength="100"
+            placeholder="Buscar por nombre del docente, materia o identificador de grupo (Mínimo 3 caracteres)..."
+            value={searchInput}
+            onChange={handleSearchInput}
+            className={`pl-11 cursor-text ${filterInputClass}`}
           />
         </div>
-        <div className="flex flex-wrap sm:flex-nowrap gap-4">
-          <select value={nivelFilter} onChange={(e) => setNivelFilter(e.target.value)} className="block w-full sm:w-auto min-w-[140px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer">
-            <option value="">Nivel: Todos</option>
-            <option value="LICENCIATURA">Licenciatura</option>
-            <option value="MAESTRIA">Maestría</option>
-          </select>
-          <div className="relative flex items-center w-full sm:w-auto min-w-[160px]">
-            <select value={periodoFilter} onChange={(e) => setPeriodoFilter(e.target.value)} className="pl-4 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200 appearance-none cursor-pointer">
+        
+        {/* Fila de Selectores en Grid (Mejor Distribución Visual) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative flex items-center w-full">
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10 pointer-events-none" />
+            <select value={nivelFilter} onChange={(e) => setNivelFilter(e.target.value)} className={`pl-11 ${filterInputClass}`}>
+              <option value="">Todos los niveles</option>
+              <option value="LICENCIATURA">Licenciatura</option>
+              <option value="MAESTRIA">Maestría</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </div>
+          </div>
+          
+          <div className="relative flex items-center w-full">
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10 pointer-events-none" />
+            <select value={periodoFilter} onChange={(e) => setPeriodoFilter(e.target.value)} className={`pl-11 ${filterInputClass}`}>
               <option value="">Todos los periodos</option>
               {periodosLista.map(p => <option key={p.id_periodo} value={p.codigo}>{p.codigo}</option>)}
             </select>
+            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </div>
           </div>
-          <select value={operativoFilter} onChange={(e) => setOperativoFilter(e.target.value)} className="block w-full sm:w-auto min-w-[160px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer">
-            <option value="">Acta: Todos</option>
-            <option value="ABIERTA">Abierta</option>
-            <option value="CERRADA">Cerrada</option>
-          </select>
-          <select value={confirmacionFilter} onChange={(e) => setConfirmacionFilter(e.target.value)} className="block w-full sm:w-auto min-w-[180px] rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 px-4 transition-all duration-200 appearance-none cursor-pointer">
-            <option value="">Confirmación: Todos</option>
-            <option value="ENVIADA">Enviada</option>
-            <option value="ACEPTADA">Aceptada</option>
-            <option value="RECHAZADA">Rechazada</option>
-          </select>
+          
+          <div className="relative flex items-center w-full">
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10 pointer-events-none" />
+            <select value={operativoFilter} onChange={(e) => setOperativoFilter(e.target.value)} className={`pl-11 ${filterInputClass}`}>
+              <option value="">Todas las actas</option>
+              <option value="ABIERTA">Abierta</option>
+              <option value="CERRADA">Cerrada</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </div>
+          </div>
+          
+          <div className="relative flex items-center w-full">
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10 pointer-events-none" />
+            <select value={confirmacionFilter} onChange={(e) => setConfirmacionFilter(e.target.value)} className={`pl-11 ${filterInputClass}`}>
+              <option value="">Todos los estatus</option>
+              <option value="ENVIADA">Enviada</option>
+              <option value="ACEPTADA">Aceptada</option>
+              <option value="RECHAZADA">Rechazada</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Tabla ── */}
-      <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
+      {/* Tabla Estandarizada Navy */}
+      <div className="bg-white shadow-sm rounded-3xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50/50">
+          <table className="min-w-full divide-y divide-slate-100">
+            <thead className="bg-[#0B1828]">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Docente titular</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Materia y grupo</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Horarios agrupados</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estatus</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Docente Titular</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Materia y Grupo</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Horarios Agrupados</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Estatus Académico</th>
                 {(user?.rol_id === 1 || user?.rol_id === 2) && (
-                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
+                  <th className="px-6 py-5 text-center text-xs font-black text-white uppercase tracking-wider">Acciones</th>
                 )}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-slate-100">
+            <tbody className="bg-white divide-y divide-slate-50">
               {isLoading ? (
-                <tr><td colSpan={(user?.rol_id === 1 || user?.rol_id === 2) ? "5" : "4"} className="px-6 py-12 text-center">
+                <tr><td colSpan={(user?.rol_id === 1 || user?.rol_id === 2) ? "5" : "4"} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center justify-center">
-                    <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
-                    <p className="text-sm text-slate-500 font-medium">Cargando asignaciones...</p>
+                    <Loader2 className="h-8 w-8 text-[#0B1828] animate-spin mb-4" />
+                    <p className="text-sm text-slate-500 font-medium">Consultando la base de datos de asignaciones...</p>
                   </div>
                 </td></tr>
               ) : paginatedAsignaciones.length === 0 ? (
-                <tr><td colSpan={(user?.rol_id === 1 || user?.rol_id === 2) ? "5" : "4"} className="px-6 py-16 text-center">
+                <tr><td colSpan={(user?.rol_id === 1 || user?.rol_id === 2) ? "5" : "4"} className="px-6 py-20 text-center">
                   <div className="flex flex-col items-center justify-center">
-                    <div className="bg-slate-100 p-4 rounded-full mb-4"><CalendarDays className="h-8 w-8 text-slate-400" /></div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-1">Sin resultados</h3>
-                    <p className="text-sm text-slate-500">No se encontraron asignaciones con los filtros actuales.</p>
+                    <div className="bg-slate-50 p-5 rounded-full mb-4 border border-slate-100"><CalendarDays className="h-8 w-8 text-slate-400" /></div>
+                    <h3 className="text-lg font-black text-[#0B1828] mb-1">No se encontraron resultados</h3>
+                    <p className="text-sm text-slate-500 font-medium">No hay asignaciones registradas que coincidan con los filtros actuales.</p>
                   </div>
                 </td></tr>
               ) : (
@@ -442,31 +496,31 @@ export const AssignmentManagement = () => {
                   const esGrupoGlobal = !asignacion.grupo_id || asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL';
 
                   return (
-                    <tr key={compositeKey} className={`transition-colors duration-150 group ${isCancelada ? 'bg-slate-50 opacity-75' : 'hover:bg-blue-50/50'}`}>
+                    <tr key={compositeKey} className={`transition-colors duration-150 group ${isCancelada ? 'bg-slate-50 opacity-80' : 'hover:bg-slate-50/80'}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-bold ${isCancelada ? 'text-slate-500' : 'text-slate-900'}`}>
+                        <span className={`text-sm font-black ${isCancelada ? 'text-slate-500' : 'text-[#0B1828]'}`}>
                           {`${asignacion.docente_nombres} ${asignacion.docente_apellido_paterno} ${asignacion.docente_apellido_materno || ''}`.trim()}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className={`text-sm font-bold flex items-start break-words max-w-[250px] ${isCancelada ? 'text-slate-500' : 'text-slate-800'}`}>
+                        <div className={`text-sm font-black flex items-start break-words max-w-[250px] ${isCancelada ? 'text-slate-500' : 'text-[#0B1828]'}`}>
                           <div>
                             {asignacion.nombre_materia}
-                            <div className={`flex items-center text-xs font-medium mt-1 ${isCancelada ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <div className={`flex items-center text-xs font-bold mt-1 ${isCancelada ? 'text-slate-400' : 'text-slate-500'}`}>
                               {asignacion.codigo_unico || 'SIN CÓDIGO'}
                             </div>
                           </div>
                         </div>
-                        <div className="text-xs text-slate-500 font-medium mt-2 flex flex-wrap items-center gap-2">
+                        <div className="text-xs text-slate-500 font-bold mt-2 flex flex-wrap items-center gap-2">
                           <span>{esGrupoGlobal ? asignacion.nombre_periodo : `Grupo: ${asignacion.nombre_grupo} • ${asignacion.nombre_periodo}`}</span>
-                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${asignacion.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
+                          <span className={`px-2 py-0.5 rounded-md font-black text-[10px] border shadow-sm ${asignacion.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>
                             {asignacion.nivel_academico || 'LICENCIATURA'}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
+                          <span className={`px-2 py-0.5 rounded-md font-black text-[10px] border shadow-sm ${getTipoAsignaturaStyles(asignacion.tipo_asignatura)}`}>
                             {(asignacion.tipo_asignatura || 'DESCONOCIDO').replace(/_/g, ' ')}
                           </span>
                           {asignacion.promedio_consolidado !== null && asignacion.promedio_consolidado !== undefined && (
-                            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] border bg-violet-100 text-violet-700 border-violet-200 flex items-center gap-1">
+                            <span className="px-2 py-0.5 rounded-md font-black text-[10px] border bg-violet-100 text-violet-700 border-violet-200 shadow-sm flex items-center gap-1">
                               <BarChart2 className="w-3 h-3" />
                               Prom: {Number(asignacion.promedio_consolidado).toFixed(2)}
                             </span>
@@ -474,13 +528,13 @@ export const AssignmentManagement = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-2">
                           {asignacion.horarios.map((horario, idx) => (
-                            <div key={idx} className={`flex items-center text-sm font-medium inline-flex px-3 py-1 rounded-lg border w-max ${isCancelada ? 'bg-slate-100/50 text-slate-500 border-slate-200' : 'bg-slate-100/80 text-slate-700 border-slate-200'}`}>
-                              <Calendar className={`w-3.5 h-3.5 mr-2 ${isCancelada ? 'text-slate-400' : 'text-amber-500'}`} />
+                            <div key={idx} className={`flex items-center text-sm font-bold inline-flex px-3.5 py-1.5 rounded-lg border w-max shadow-sm ${isCancelada ? 'bg-white text-slate-500 border-slate-200' : 'bg-slate-50 text-[#0B1828] border-slate-200'}`}>
+                              <Calendar className={`w-3.5 h-3.5 mr-2 ${isCancelada ? 'text-slate-400' : 'text-[#0B1828]'}`} />
                               {diasSemanaMapa[horario.dia_semana] || horario.dia_semana}: {horario.hora_inicio?.substring(0, 5)} - {horario.hora_fin?.substring(0, 5)}
-                              <MapPin className={`w-3.5 h-3.5 ml-3 mr-1.5 ${isCancelada ? 'text-slate-400' : 'text-emerald-500'}`} />
-                              <span className="text-xs">{horario.nombre_aula}</span>
+                              <MapPin className={`w-3.5 h-3.5 ml-3 mr-1.5 ${isCancelada ? 'text-slate-400' : 'text-blue-600'}`} />
+                              <span className="text-xs font-medium">{horario.nombre_aula}</span>
                             </div>
                           ))}
                         </div>
@@ -488,32 +542,32 @@ export const AssignmentManagement = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col items-start gap-2">
                           {isCancelada ? (
-                            <span className="px-3 py-1 inline-flex text-xs font-bold uppercase tracking-wider rounded-lg border bg-slate-100 text-slate-600 border-slate-300">CERRADA</span>
+                            <span className="px-3 py-1.5 inline-flex text-xs font-black uppercase tracking-wider rounded-lg border bg-slate-100 text-slate-600 border-slate-300 shadow-sm">CERRADA</span>
                           ) : (
                             getStatusBadge(asignacion.estatus_confirmacion)
                           )}
                           {tieneReporteExterno && (
-                            <span className="px-2 py-0.5 inline-flex items-center text-[10px] font-bold uppercase tracking-wider rounded border bg-red-50 text-red-700 border-red-200 shadow-sm animate-pulse">
-                              <AlertTriangle className="w-3 h-3 mr-1" /> Reporte Externo
+                            <span className="px-2 py-1 inline-flex items-center text-[10px] font-black uppercase tracking-wider rounded-lg border bg-red-50 text-red-700 border-red-200 shadow-sm animate-pulse">
+                              <AlertTriangle className="w-3 h-3 mr-1.5" /> Reporte Externo
                             </span>
                           )}
                         </div>
                       </td>
                       {(user?.rol_id === 1 || user?.rol_id === 2) && (
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                          <div className="flex items-center justify-center gap-2">
                             {!isCancelada && (
-                              <button onClick={() => handleEdit(asignacion)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modificar asignación">
-                                <Edit2 className="w-5 h-5" />
+                              <button onClick={() => handleEdit(asignacion)} className="p-2.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95" title="Modificar asignación">
+                                <Edit className="w-5 h-5" />
                               </button>
                             )}
                             {isCancelada ? (
-                              <button onClick={() => openConfirmModal(asignacion, false)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Reactivar asignación">
-                                <RotateCcw className="w-5 h-5" />
+                              <button onClick={() => openConfirmModal(asignacion, false)} className="p-2.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-95" title="Reactivar asignación">
+                                <UserCheck className="w-5 h-5" />
                               </button>
                             ) : (
-                              <button onClick={() => openConfirmModal(asignacion, true)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Cancelar asignación">
-                                <Ban className="w-5 h-5" />
+                              <button onClick={() => openConfirmModal(asignacion, true)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-95" title="Cancelar asignación">
+                                <Trash2 className="w-5 h-5" />
                               </button>
                             )}
                           </div>
@@ -528,20 +582,20 @@ export const AssignmentManagement = () => {
         </div>
 
         {!isLoading && filteredAsignaciones.length > 0 && (
-          <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm font-medium text-slate-500">
-              Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}
-              <span className="font-bold text-slate-900">{Math.min(currentPage * itemsPerPage, filteredAsignaciones.length)}</span> de{' '}
-              <span className="font-bold text-slate-900">{filteredAsignaciones.length}</span> asignaciones
+              Mostrando <span className="font-bold text-[#0B1828]">{(currentPage - 1) * itemsPerPage + 1}</span> al{' '}
+              <span className="font-bold text-[#0B1828]">{Math.min(currentPage * itemsPerPage, filteredAsignaciones.length)}</span> de{' '}
+              <span className="font-bold text-[#0B1828]">{filteredAsignaciones.length}</span> asignaciones
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
+              <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-[#0B1828] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95">
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <div className="flex items-center justify-center px-4 rounded-lg bg-white border border-slate-200 text-sm font-bold text-slate-700 shadow-sm">
+              <div className="flex items-center justify-center px-4 rounded-xl bg-white border border-slate-200 text-sm font-black text-[#0B1828] shadow-sm">
                 {currentPage} / {totalPages}
               </div>
-              <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="flex items-center justify-center p-2 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm">
+              <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-[#0B1828] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95">
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
@@ -549,222 +603,224 @@ export const AssignmentManagement = () => {
         )}
       </div>
 
-      {/* ── Modal Sincronizar Incumplimientos (HU-39) ── */}
+      {/* Modales Estandarizados (rounded-[2.5rem]) */}
+
+      {/* Modal Sincronizar Incumplimientos (HU-39) */}
       {syncModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-800 flex items-center">
-                <RefreshCcw className="w-5 h-5 mr-2 text-blue-600" /> Sincronización externa
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+              <h3 className="text-lg font-black text-white flex items-center">
+                <RefreshCcw className="w-5 h-5 mr-3 text-white/90" /> Incumplimientos docente
               </h3>
-              <button onClick={() => setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' })} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors">
+              <button onClick={() => setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' })} className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-slate-600 text-sm leading-relaxed">Selecciona el grupo y el periodo para consultar los estatus de incumplimiento en el sistema externo.</p>
+            <div className="p-8 space-y-6">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">Selecciona el periodo académico y el grupo para consultar los incumplimientos docente en el sistema externo SESA.</p>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700"><Calendar className="w-4 h-4 mr-2 text-blue-500" /> Periodo académico</label>
-                <select value={syncModal.periodo_id} onChange={(e) => setSyncModal({ ...syncModal, periodo_id: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 bg-white">
-                  <option value="">-- Seleccione un periodo --</option>
-                  {periodosLista.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>)}
-                </select>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]"><Calendar className="w-4 h-4 mr-2" /> Periodo académico</label>
+                <div className="relative">
+                  <select value={syncModal.periodo_id} onChange={(e) => setSyncModal({ ...syncModal, periodo_id: e.target.value })} className={filterInputClass}>
+                    <option value="" disabled>Seleccione un periodo</option>
+                    {periodosLista.map(p => <option key={p.id_periodo} value={p.id_periodo}>{p.codigo}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700"><Users className="w-4 h-4 mr-2 text-blue-500" /> Grupo asignado</label>
-                <select value={syncModal.grupo_id} onChange={(e) => setSyncModal({ ...syncModal, grupo_id: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 bg-white">
-                  <option value="">-- Seleccione un grupo --</option>
-                  {gruposLista.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
-                </select>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]"><Users className="w-4 h-4 mr-2" /> Grupo</label>
+                <div className="relative">
+                  <select value={syncModal.grupo_id} onChange={(e) => setSyncModal({ ...syncModal, grupo_id: e.target.value })} className={filterInputClass}>
+                    <option value="" disabled>Seleccione un grupo</option>
+                    {gruposLista.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' })} className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-              <button onClick={handleSincronizarReportes} disabled={isSyncing || !syncModal.periodo_id || !syncModal.grupo_id} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl transition-colors shadow-sm flex items-center">
-                {isSyncing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {isSyncing ? 'Conectando...' : 'Iniciar sincronización'}
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
+              <button onClick={handleSincronizarReportes} disabled={isSyncing || !syncModal.periodo_id || !syncModal.grupo_id} className="px-6 py-3 w-full sm:w-auto text-sm font-black text-white bg-[#0B1828] hover:bg-[#162840] disabled:opacity-50 rounded-xl transition-all shadow-md active:scale-[0.98] flex items-center justify-center">
+                {isSyncing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                {isSyncing ? 'Conectando...' : 'Iniciar Sincronización'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Modal Obtener Promedios (HU-38) ── */}
+      {/* Modal Obtener Promedios (HU-38) */}
       {promediosModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-800 flex items-center">
-                <BarChart2 className="w-5 h-5 mr-2 text-violet-600" /> Obtener promedios consolidados
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+              <h3 className="text-lg font-black text-white flex items-center">
+                <BarChart2 className="w-5 h-5 mr-3 text-white/90" /> Promedios consolidados
               </h3>
-              <button onClick={() => setPromediosModal({ isOpen: false, grupo_id: '' })} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors">
+              <button onClick={() => setPromediosModal({ isOpen: false, grupo_id: '' })} className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <p className="text-slate-600 text-sm leading-relaxed">
-                Selecciona el grupo para consultar los promedios finales en el sistema externo. Las asignaciones con promedio disponible serán marcadas como <strong>CERRADA</strong> automáticamente.
+            <div className="p-8 space-y-6">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                Selecciona el grupo para consultar los promedios consolidados en el sistema externo SESA. Las asignaciones con promedio disponible serán marcadas como <strong className="font-black text-[#0B1828]">CERRADA</strong> automáticamente.
               </p>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <Users className="w-4 h-4 mr-2 text-violet-500" /> Grupo
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <Users className="w-4 h-4 mr-2" /> Grupo
                 </label>
-                <select
-                  value={promediosModal.grupo_id}
-                  onChange={(e) => setPromediosModal({ ...promediosModal, grupo_id: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-violet-100 bg-white"
-                >
-                  <option value="">-- Seleccione un grupo --</option>
-                  {gruposLista.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
-                </select>
+                <div className="relative">
+                  <select
+                    value={promediosModal.grupo_id}
+                    onChange={(e) => setPromediosModal({ ...promediosModal, grupo_id: e.target.value })}
+                    className={filterInputClass}
+                  >
+                    <option value="" disabled>Seleccione un grupo</option>
+                    {gruposLista.map(g => <option key={g.id_grupo} value={g.id_grupo}>{g.identificador}</option>)}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
               </div>
-              <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
-                <p className="text-xs text-violet-700 font-medium leading-relaxed">
+              <div className="bg-slate-50 border border-slate-100 shadow-sm rounded-xl p-4">
+                <p className="text-xs text-slate-600 font-bold leading-relaxed">
                   El sistema consultará automáticamente las materias y grupos en SESA para hacer el match de IDs antes de obtener los promedios.
                 </p>
               </div>
             </div>
-            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setPromediosModal({ isOpen: false, grupo_id: '' })} className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
-                Cancelar
-              </button>
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
               <button
                 onClick={handleSincronizarPromedios}
                 disabled={isSyncingPromedios || !promediosModal.grupo_id}
-                className="px-5 py-2.5 text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-xl transition-colors shadow-sm flex items-center"
+                className="px-6 py-3 w-full sm:w-auto text-sm font-black text-white bg-[#0B1828] hover:bg-[#162840] disabled:opacity-50 rounded-xl transition-all shadow-md active:scale-[0.98] flex items-center justify-center"
               >
-                {isSyncingPromedios ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BarChart2 className="w-4 h-4 mr-2" />}
-                {isSyncingPromedios ? 'Consultando SESA...' : 'Obtener promedios'}
+                {isSyncingPromedios ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                {isSyncingPromedios ? 'Conectando...' : 'Iniciar Sincronización'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ─── Modal de Resultados SESA (compartido HU-38 y HU-39) ──────────────── */}
+      {/* Modal Resultados SESA */}
       {resultadosModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
 
-            {/* Header */}
-            <div className={`flex justify-between items-center p-5 border-b ${resultadosModal.tipo === 'incumplimientos' ? 'border-red-100 bg-red-50/40' : 'border-violet-100 bg-violet-50/40'}`}>
+            <div className={`flex justify-between items-center px-6 py-5 shrink-0 ${resultadosModal.tipo === 'incumplimientos' ? 'bg-red-500' : 'bg-violet-600'}`}>
               <div className="flex items-center gap-3">
                 {resultadosModal.tipo === 'incumplimientos' ? (
-                  <div className="p-2 bg-red-100 rounded-xl">
-                    <AlertTriangle className="w-5 h-5 text-red-600" />
-                  </div>
+                  <AlertTriangle className="w-6 h-6 text-white" />
                 ) : (
-                  <div className="p-2 bg-violet-100 rounded-xl">
-                    <BarChart2 className="w-5 h-5 text-violet-600" />
-                  </div>
+                  <BarChart2 className="w-6 h-6 text-white" />
                 )}
                 <div>
-                  <h3 className="text-base font-black text-slate-800">
+                  <h3 className="text-lg font-black text-white tracking-tight">
                     {resultadosModal.tipo === 'incumplimientos'
-                      ? 'Resultados de sincronización — Incumplimientos'
-                      : 'Resultados de sincronización — Promedios'}
+                      ? 'Resultados — Incumplimientos'
+                      : 'Resultados — Promedios Consolidados'}
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Datos recibidos desde SESA y cruzados con registros locales
+                  <p className="text-xs text-white/80 font-bold mt-0.5">
+                    Datos recibidos desde SESA cruzados con registros locales
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
-                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"
+                className="p-2.5 bg-white/10 text-white hover:bg-black/20 rounded-full transition-all active:scale-95"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Tarjetas de resumen */}
-            <div className={`px-5 pt-4 pb-3 grid gap-3 ${resultadosModal.tipo === 'incumplimientos' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <div className={`px-8 pt-6 pb-4 grid gap-4 shrink-0 ${resultadosModal.tipo === 'incumplimientos' ? 'grid-cols-3' : 'grid-cols-2'}`}>
               {resultadosModal.tipo === 'incumplimientos' ? (
                 <>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-black text-slate-800">{resultadosModal.resumen.paginas_consumidas ?? '—'}</p>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Páginas SESA</p>
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.paginas_consumidas ?? '—'}</p>
+                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Páginas SESA</p>
                   </div>
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-black text-red-700">{resultadosModal.resumen.reportes_recibidos ?? '—'}</p>
-                    <p className="text-xs text-red-600 font-medium mt-0.5">Reportes recibidos</p>
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-3xl font-black text-red-700">{resultadosModal.resumen.reportes_recibidos ?? '—'}</p>
+                    <p className="text-xs text-red-600 font-bold mt-1 uppercase tracking-wider">Reportes recibidos</p>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-black text-amber-700">{resultadosModal.resumen.asignaciones_afectadas ?? '—'}</p>
-                    <p className="text-xs text-amber-600 font-medium mt-0.5">Registros actualizados</p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-3xl font-black text-amber-700">{resultadosModal.resumen.asignaciones_afectadas ?? '—'}</p>
+                    <p className="text-xs text-amber-600 font-bold mt-1 uppercase tracking-wider">Actualizaciones</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-black text-violet-700">{resultadosModal.resumen.actualizadas ?? '—'}</p>
-                    <p className="text-xs text-violet-600 font-medium mt-0.5">Actas cerradas</p>
+                  <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-3xl font-black text-violet-700">{resultadosModal.resumen.actualizadas ?? '—'}</p>
+                    <p className="text-xs text-violet-600 font-bold mt-1 uppercase tracking-wider">Actas Cerradas</p>
                   </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-black text-slate-600">{resultadosModal.resumen.sin_promedio ?? '—'}</p>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">Sin promedio aún</p>
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
+                    <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.sin_promedio ?? '—'}</p>
+                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Sin promedio aún</p>
                   </div>
                 </>
               )}
             </div>
 
-            {/* Listado de asignaciones afectadas */}
-            <div className="px-5 pb-2">
+            <div className="px-8 pb-3 shrink-0">
               <div className="flex items-center gap-2 mb-2">
-                <ClipboardList className="w-4 h-4 text-slate-400" />
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <ClipboardList className="w-5 h-5 text-slate-400" />
+                <p className="text-sm font-black text-[#0B1828] uppercase tracking-wider">
                   {resultadosModal.tipo === 'incumplimientos'
-                    ? `Asignaciones con reporte externo (${resultadosModal.asignaciones.length})`
-                    : `Asignaciones con promedio consolidado (${resultadosModal.asignaciones.length})`}
+                    ? `Asignaciones Afectadas (${resultadosModal.asignaciones.length})`
+                    : `Asignaciones Cerradas (${resultadosModal.asignaciones.length})`}
                 </p>
               </div>
             </div>
 
-            <div className="overflow-y-auto flex-1 px-5 pb-5">
+            <div className="overflow-y-auto flex-1 px-8 pb-8">
               {resultadosModal.asignaciones.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mb-3" />
-                  <p className="text-sm font-bold text-slate-600">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-4" />
+                  <p className="text-base font-black text-[#0B1828]">
                     {resultadosModal.tipo === 'incumplimientos'
-                      ? 'No se detectaron docentes con reporte de incumplimiento en este grupo y periodo.'
-                      : 'No se encontraron asignaciones cerradas con promedio para este grupo.'}
+                      ? 'No se detectaron docentes con reporte de incumplimiento en este grupo.'
+                      : 'No se encontraron asignaciones listas para cerrar con promedio en este grupo.'}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">Los datos locales están al día con SESA.</p>
+                  <p className="text-sm font-medium text-slate-500 mt-2">Los datos locales están completamente sincronizados con SESA.</p>
                 </div>
               ) : (
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                   <table className="min-w-full divide-y divide-slate-100 text-sm">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-[#0B1828]">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Docente</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Materia</th>
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Grupo</th>
-                        <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
-                          {resultadosModal.tipo === 'incumplimientos' ? 'Estatus' : 'Promedio'}
+                        <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Docente Titular</th>
+                        <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Materia</th>
+                        <th className="px-5 py-4 text-center text-xs font-black text-white uppercase tracking-wider">
+                          {resultadosModal.tipo === 'incumplimientos' ? 'Estatus' : 'Promedio Final'}
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-50">
                       {resultadosModal.asignaciones.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-5 py-4 font-black text-[#0B1828] whitespace-nowrap">
                             {`${item.docente_nombres ?? ''} ${item.docente_apellido_paterno ?? ''} ${item.docente_apellido_materno ?? ''}`.trim()}
                           </td>
-                          <td className="px-4 py-3 text-slate-700">
-                            <span className="font-semibold">{item.nombre_materia}</span>
-                            <span className="block text-[11px] text-slate-400 font-mono">{item.codigo_unico}</span>
+                          <td className="px-5 py-4 text-slate-700">
+                            <span className="font-black text-[#0B1828] block">{item.nombre_materia}</span>
+                            <span className="text-[11px] text-slate-500 font-bold block mt-0.5">{item.codigo_unico} • Grupo {item.nombre_grupo}</span>
                           </td>
-                          <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                            {item.nombre_grupo || '—'}
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <td className="px-5 py-4 text-center whitespace-nowrap">
                             {resultadosModal.tipo === 'incumplimientos' ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
-                                <AlertTriangle className="w-3 h-3" /> Reporte externo
+                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-red-50 text-red-700 border border-red-200 shadow-sm">
+                                <AlertTriangle className="w-3.5 h-3.5" /> Reporte externo
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
-                                <BarChart2 className="w-3 h-3" />
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black bg-violet-50 text-violet-700 border border-violet-200 shadow-sm">
+                                <BarChart2 className="w-3.5 h-3.5" />
                                 {Number(item.promedio_consolidado).toFixed(2)}
                               </span>
                             )}
@@ -777,44 +833,67 @@ export const AssignmentManagement = () => {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
               <button
                 onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
-                className="px-5 py-2.5 text-sm font-bold text-white bg-slate-700 hover:bg-slate-800 rounded-xl transition-colors shadow-sm"
+                className="px-8 py-3.5 text-sm font-black text-white bg-[#0B1828] hover:bg-[#162840] rounded-xl transition-all shadow-md active:scale-[0.98]"
               >
-                Cerrar
+                Cerrar y Actualizar Tabla
               </button>
             </div>
           </div>
         </div>
       )}
-      {/* ──────────────────────────────────────────────────────────────────────── */}
 
-      {/* Modal confirmación cancelar/reactivar */}
+      {/* Modal confirmación Cancelar/Reactivar */}
       {confirmModal.isOpen && confirmModal.asignacion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-slate-100">
-              <h3 className="text-lg font-black text-slate-800 flex items-center">
-                {confirmModal.isCanceling
-                  ? <><AlertTriangle className="w-5 h-5 mr-2 text-red-500" /> Confirmar cancelación</>
-                  : <><RotateCcw className="w-5 h-5 mr-2 text-emerald-500" /> Confirmar reactivación</>}
-              </h3>
-              <button onClick={closeConfirmModal} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+              <div className="flex items-center text-white">
+                {confirmModal.isCanceling ? (
+                  <AlertTriangle className="w-6 h-6 mr-3 text-white" />
+                ) : (
+                  <UserCheck className="w-6 h-6 mr-3 text-white" />
+                )}
+                <h3 className="text-xl font-black tracking-tight">
+                  {confirmModal.isCanceling ? 'Desactivar asignación' : 'Reactivar asignación'}
+                </h3>
+              </div>
+              <button onClick={closeConfirmModal} className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6">
-              <p className="text-slate-600 text-sm mb-4 leading-relaxed">
-                Estás a punto de {confirmModal.isCanceling ? <strong className="text-red-600">cancelar (borrado lógico)</strong> : <strong className="text-emerald-600">reactivar</strong>} la asignación de <span className="font-bold text-slate-900">{confirmModal.asignacion.nombre_materia}</span> impartida por <span className="font-bold text-slate-900">{confirmModal.asignacion.docente_nombres} {confirmModal.asignacion.docente_apellido_paterno}</span>.
+            <div className="p-8">
+              <p className="text-slate-600 text-sm mb-6 font-medium leading-relaxed">
+                A continuación, se detalla la asignación docente que estás a punto de {confirmModal.isCanceling ? <strong className="text-red-600 font-black">cancelar</strong> : <strong className="text-emerald-600 font-black">reactivar</strong>}:
               </p>
-              {confirmModal.isCanceling
-                ? <p className="text-xs text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-100">Esta acción liberará los horarios del aula y el docente asignado.</p>
-                : <p className="text-xs text-emerald-600 font-medium bg-emerald-50 p-3 rounded-lg border border-emerald-100">El sistema verificará disponibilidad antes de reactivar.</p>}
+
+              <div className="flex flex-col bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm mb-6">
+                <span className="font-black text-[#0B1828] text-lg leading-tight mb-2">
+                  {confirmModal.asignacion.nombre_materia}
+                </span>
+                <span className="text-sm font-bold text-slate-500">
+                  Docente: {`${confirmModal.asignacion.docente_nombres} ${confirmModal.asignacion.docente_apellido_paterno} ${confirmModal.asignacion.docente_apellido_materno || ''}`.trim()}
+                </span>
+              </div>
+
+              {confirmModal.isCanceling ? (
+                <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm">
+                  <p className="text-sm text-red-800 font-medium">
+                    <strong className="font-black">Aviso del sistema:</strong> Al confirmar, esta acción liberará inmediatamente los horarios físicos del aula y desvinculará al docente asignado.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm">
+                  <p className="text-sm text-emerald-800 font-medium">
+                    <strong className="font-black">Aviso del sistema:</strong> El sistema verificará automáticamente la disponibilidad de los bloques de horario para prevenir empalmes antes de aplicar la reactivación.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={closeConfirmModal} className="px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Mantener sin cambios</button>
-              <button onClick={executeToggleStatus} className={`px-5 py-2.5 text-sm font-bold text-white rounded-xl transition-colors shadow-sm ${confirmModal.isCanceling ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
-                Sí, {confirmModal.isCanceling ? 'cancelar' : 'reactivar'} asignación
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
+              <button onClick={executeToggleStatus} className={`px-6 py-3 text-sm font-black text-white rounded-xl transition-all shadow-md active:scale-[0.98] w-full sm:w-auto flex justify-center items-center ${confirmModal.isCanceling ? 'bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-200 hover:shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 hover:shadow-emerald-200'}`}>
+                {confirmModal.isCanceling ? <Trash2 className="w-5 h-5 mr-2" /> : <UserCheck className="w-5 h-5 mr-2" />}
+                {confirmModal.isCanceling ? 'Desactivar Asignación' : 'Reactivar Asignación'}
               </button>
             </div>
           </div>
