@@ -8,15 +8,15 @@ const DIAS_SEMANA = {
 };
 
 const ReporteAsignaciones = ({ alCerrar }) => {
-  const [asignaciones, setAsignaciones] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  const [listaAsignaciones, setListaAsignaciones] = useState([]);
+  const [estaCargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
 
   useEffect(() => {
     const cargarDatos = async () => {
       try {
-        const response = await api.get('/reportes/asignaciones');
-        setAsignaciones(response.data);
+        const respuesta = await api.get('/reportes/asignaciones');
+        setListaAsignaciones(respuesta.data);
       } catch (error) {
         toast.error('Error al cargar el reporte de asignaciones');
       } finally {
@@ -26,16 +26,16 @@ const ReporteAsignaciones = ({ alCerrar }) => {
     cargarDatos();
   }, []);
 
-  const handleImprimir = () => {
+  const manejarImpresion = () => {
     window.print();
   };
-
-  const datosFiltrados = asignaciones.filter(item => 
+ const busquedaLimpia = terminoBusqueda.trim().toLowerCase();
+  const datosFiltrados = listaAsignaciones.filter(item => 
     item.docente.toLowerCase().includes(busqueda.toLowerCase()) ||
     item.materia.toLowerCase().includes(busqueda.toLowerCase())
   );
-
-  const formatHora = (hora) => hora ? hora.substring(0, 5) : '';
+const sinDatos = datosFiltrados.length === 0;
+  const formatearHora = (hora) => hora ? hora.substring(0, 5) : '';
 
   return (
     // Fondo oscuro que desaparece al imprimir
@@ -54,6 +54,7 @@ const ReporteAsignaciones = ({ alCerrar }) => {
           </div>
 
           <div className="flex gap-3 w-full md:w-auto items-center">
+            {/* BUSCADOR */}
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input 
@@ -62,13 +63,21 @@ const ReporteAsignaciones = ({ alCerrar }) => {
                 value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
               />
             </div>
-            <button 
-              onClick={handleImprimir}
-              className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors text-sm font-medium"
+            {/* BOTÓN DE IMPRIMIR BLINDADO */}
+        <button 
+              onClick={manejarImpresion}
+              disabled={sinDatos || estaCargando}
+              title={sinDatos ? "No hay registros disponibles para imprimir" : "Imprimir o exportar a PDF"}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+                sinDatos || estaCargando
+                  ? 'bg-gray-300 text-gray-600' 
+                  : 'bg-slate-800 text-white hover:bg-slate-700' 
+              }`}
             >
               <Printer className="w-4 h-4" /> Imprimir
             </button>
-            <button onClick={alCerrar} className="ml-2 p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all">
+            
+            <button onClick={alCerrar} className="ml-2 p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all" title="Cerrar reporte">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -96,7 +105,7 @@ const ReporteAsignaciones = ({ alCerrar }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {cargando ? (
+                {estaCargando ? (
                   <tr><td colSpan="5" className="text-center py-10 text-gray-400 animate-pulse">Generando informe...</td></tr>
                 ) : datosFiltrados.length === 0 ? (
                   <tr><td colSpan="5" className="text-center py-10 text-gray-400">No se encontraron asignaciones.</td></tr>
@@ -119,7 +128,7 @@ const ReporteAsignaciones = ({ alCerrar }) => {
                         <div className="flex items-center gap-1.5 text-gray-700">
                           <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
                           <span className="font-medium">{DIAS_SEMANA[item.dia_semana]}</span>
-                          <span className="text-gray-500">({formatHora(item.hora_inicio)} - {formatHora(item.hora_fin)})</span>
+                          <span className="text-gray-500">({formatearHora(item.hora_inicio)} - {formatearHora(item.hora_fin)})</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">📍 {item.aula}</p>
                       </td>
