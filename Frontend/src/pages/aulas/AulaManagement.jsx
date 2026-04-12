@@ -212,14 +212,14 @@ const aulasFiltradas = listaAulas.filter(aula => {
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
-                          disabled={aula.estatus === 'INACTIVO'}
-                          title={aula.estatus === 'INACTIVO' ? 'Espacio ya desactivado' : 'Desactivar espacio'}
+
+                          title={aula.estatus === 'INACTIVO' ? 'Reactivar espacio' : 'Desactivar espacio'}
                           onClick={() => { setAulaSeleccionada(aula); setEstadoModal({ ...estadoModal, eliminar: true }); }}
                           className={`p-2 rounded-lg transition-all ${
                             aula.estatus === 'INACTIVO'
-                              ? 'text-slate-200 cursor-not-allowed'
-                              : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
-                          }`}
+                            ? 'text-emerald-500 hover:bg-emerald-50' // Si está apagada, el botón se ve verde al pasar el ratón
+                            : 'text-slate-400 hover:text-red-600 hover:bg-red-50' // Si está encendida, se ve rojo al pasar el ratón
+                        }`}
                         >
                           {aula.estatus === 'INACTIVO'
                             ? <ToggleLeft className="w-6 h-6" />

@@ -146,7 +146,33 @@ const desactivarAula = async (req, res) => {
     res.status(500).json({ message: "Error interno al procesar la baja del espacio." });
   }
 };
+const reactivarAula = async (req, res) => {
+  const { id } = req.params;
+  const { modificado_por } = req.body; 
+  
+  try {
+    // Al reactivar, cambiamos el estatus a ACTIVO y limpiamos los datos de eliminación
+    const resultado = await pool.query(
+      `UPDATE Aulas 
+       SET estatus = 'ACTIVO', 
+           modificado_por = ?, 
+           fecha_modificacion = NOW(),
+           eliminado_por = NULL,
+           fecha_eliminacion = NULL
+       WHERE id_aula = ?`,
+      [modificado_por, id]
+    );
 
+    if (resultado.affectedRows === 0) {
+      return res.status(404).json({ message: "Aula o laboratorio no encontrado." });
+    }
+    
+    res.status(200).json({ message: "Espacio académico reactivado con éxito." });
+  } catch (error) {
+    console.error("Error al reactivar aula:", error);
+    res.status(500).json({ message: "Error interno al procesar la reactivación del espacio." });
+  }
+};
 // ─── EP-09 SESA: GET /aulas/catalogo ───────────────────────────────────────────────────
 // Devuelve aulas activas con los 4 campos que SESA necesita.
 const ObtenerAulas = async (req, res) => {
@@ -169,4 +195,4 @@ const ObtenerAulas = async (req, res) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-module.exports = { registrarAula, consultarAulas, actualizarAula, desactivarAula, ObtenerAulas };
+module.exports = { registrarAula, consultarAulas, actualizarAula, desactivarAula,reactivarAula, ObtenerAulas };
