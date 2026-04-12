@@ -13,7 +13,7 @@ export const DocenteManagement = () => {
   const { user: currentUser } = useAuth(); 
   
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState('create'); // 'create', 'view' o 'edit'
+  const [formMode, setFormMode] = useState('create'); 
   const [selectedDocente, setSelectedDocente] = useState(null);
   const [docenteToDeactivate, setDocenteToDeactivate] = useState(null);
   const [docenteToReactivate, setDocenteToReactivate] = useState(null);
@@ -23,11 +23,11 @@ export const DocenteManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [nivelFilter, setNivelFilter] = useState(''); // <-- NUEVO FILTRO DE NIVEL ACADÉMICO
+  const [nivelFilter, setNivelFilter] = useState(''); 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [modalHistorial, setModalHistorial] = useState(false);
-const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
+  const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
 
   const fetchDocentes = async () => {
     setIsLoading(true);
@@ -44,18 +44,33 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
   useEffect(() => {
     fetchDocentes();
   }, []);
+const handleSearchChange = (e) => {
+    let value = e.target.value;
+    value = value.replace(/[^a-zA-Z0-9\s@._-áéíóúÁÉÍÓÚñÑüÜ]/g, '');
+    value = value.trimStart().replace(/\s{2,}/g, ' ');
+    const atCount = (value.match(/@/g) || []).length;
+    if (atCount > 1) {
+      const parts = value.split('@');
+      value = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
+    }
+    setSearchTerm(value);
+  };
 
   const filteredDocentes = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+
     return docentes.filter(docente => {
       const fullName = `${docente.nombres} ${docente.apellido_paterno} ${docente.apellido_materno}`.toLowerCase();
       const email = docente.institutional_email?.toLowerCase() || '';
       const matricula = docente.matricula_empleado?.toLowerCase() || '';
-      const searchLower = searchTerm.toLowerCase();
 
-      const matchesSearch = fullName.includes(searchLower) || email.includes(searchLower) || matricula.includes(searchLower);
-      const matchesStatus = statusFilter ? docente.estatus === statusFilter : true;
+      let matchesSearch = true;
       
-      // Ajustamos para que coincida con el nivel del docente (o asuma licenciatura por defecto si estuviera vacío)
+      if (cleanSearch.length >= 3) {
+        matchesSearch = fullName.includes(cleanSearch) || email.includes(cleanSearch) || matricula.includes(cleanSearch);
+      }
+
+      const matchesStatus = statusFilter ? docente.estatus === statusFilter : true;
       const matchesNivel = nivelFilter ? (docente.nivel_academico || 'LICENCIATURA').toUpperCase() === nivelFilter : true;
 
       return matchesSearch && matchesStatus && matchesNivel;
@@ -110,7 +125,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
     setDocenteToDeactivate(docente);
   };
 
-  // Vista de formulario (Crear y Editar)
   if (showForm && (formMode === 'create' || formMode === 'edit')) {
     return (
       <AltaDocente 
@@ -121,11 +135,8 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
     );
   }
 
-  // Vista principal: Tabla de Gestión
   return (
     <div className="space-y-6">
-
-      {/* Encabezado */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -142,7 +153,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
         </button>
       </div>
 
-      {/* Buscador y Filtros */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -152,13 +162,12 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
             type="text"
             placeholder="Buscar por nombre, correo o matrícula..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange} // <-- Usamos la nueva función sanitizadora
             className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
           />
         </div>
         
         <div className="flex flex-wrap sm:flex-nowrap gap-4">
-          {/* NUEVO FILTRO: NIVEL ACADÉMICO DEL DOCENTE */}
           <div className="relative flex items-center min-w-[180px]">
             <GraduationCap className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
@@ -188,7 +197,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
         </div>
       </div>
 
-      {/* Tabla */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -234,7 +242,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
                           {d.nombres} {d.apellido_paterno} {d.apellido_materno}
                         </div>
                         <div className="text-xs text-slate-500 mb-1">{d.institutional_email}</div>
-                        {/* INSIGNIA DE NIVEL ACADÉMICO */}
                         <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
                           nivelStr === 'DOCTORADO' ? 'bg-purple-100 text-purple-700' :
                           nivelStr === 'MAESTRIA' ? 'bg-amber-100 text-amber-700' :
@@ -285,7 +292,7 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
                             {d.estatus === 'ACTIVO' ? (
                               <button
                                 title="Dar de baja docente"
-                                onClick={() => setDocenteToDeactivate(d)}
+                                onClick={() => handleDeactivateClick(d)}
                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                               >
                                 <Trash2 className="w-5 h-5" />
@@ -309,7 +316,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
           </table>
         </div>
 
-        {/* Paginación */}
         {!isLoading && filteredDocentes.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
@@ -342,7 +348,6 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
         )}
       </div>
 
-      {/* Modales */}
       {formMode === 'view' && selectedDocente && (
         <DocenteModal 
           docente={selectedDocente} 
@@ -361,12 +366,13 @@ const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
         onClose={() => setDocenteToReactivate(null)}
         onSuccess={handleSuccessAction}
       />
+      
       {modalHistorial && (
-  <HistorialDocente 
-    docenteId={docenteSeleccionado.id_docente} 
-    alCerrar={() => setModalHistorial(false)} 
-  />
-)}
+        <HistorialDocente 
+          docenteId={docenteSeleccionado.id_docente} 
+          alCerrar={() => setModalHistorial(false)} 
+        />
+      )}
     </div>
   );
 };
