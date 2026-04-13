@@ -464,9 +464,9 @@ export const AssignmentManagement = () => {
             <thead className="bg-[#0B1828]">
               <tr>
                 <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Docente Titular</th>
-                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Materia y Grupo</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Materia, Grupo y Periodo</th>
                 <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Horarios Agrupados</th>
-                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Estatus Académico</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Estatus</th>
                 {(user?.rol_id === 1 || user?.rol_id === 2) && (
                   <th className="px-6 py-5 text-center text-xs font-black text-white uppercase tracking-wider">Acciones</th>
                 )}

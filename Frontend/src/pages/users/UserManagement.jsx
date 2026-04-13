@@ -266,7 +266,7 @@ export const UserManagement = () => {
             <thead className="bg-[#0B1828]">
               <tr>
                 <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Identidad Institucional</th>
-                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Rol de Acceso</th>
+                <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Rol del Sistema</th>
                 <th className="px-6 py-5 text-left text-xs font-black text-white uppercase tracking-wider">Estatus</th>
                 <th className="px-6 py-5 text-center text-xs font-black text-white uppercase tracking-wider">Acciones</th>
               </tr>
