@@ -262,7 +262,7 @@ const createAsignaciones = async (asignacionesData) => {
   }
 };
 
-const getAllAsignaciones = async (filters = {}) => {
+const obtenerTodasLasAsignaciones = async (filters = {}) => {
   let query = `
     SELECT 
       a.id_asignacion, a.periodo_id, a.materia_id, a.grupo_id, a.aula_id,
@@ -495,7 +495,7 @@ const cerrarAsignacionConPromedio = async (grupo_id, materia_id, promedio, usuar
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
   checkMateriaDuplicadaGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
-  createAsignaciones, getTotalHorasDocente, getAllAsignaciones, updateAsignacionesAgrupadas, 
+  createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
   actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo,
   ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo

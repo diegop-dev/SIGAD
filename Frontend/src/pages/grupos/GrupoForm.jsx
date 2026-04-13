@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban, GraduationCap } from "lucide-react";
+import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban, GraduationCap, RefreshCw } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -11,13 +11,11 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
   const [carreras, setCarreras] = useState([]); 
   const [cargandoCarreras, setCargandoCarreras] = useState(true);
 
-  // --- PASO 1: MEMORIA DEL SEMÁFORO ---
   const [serverAction, setServerAction] = useState(null); 
   const [serverMessage, setServerMessage] = useState('');
 
   const isEditing = !!initialData;
 
-  // NUEVO ESTADO: Nivel académico como filtro primario
   const [nivelSeleccionado, setNivelSeleccionado] = useState(initialData?.nivel_academico || "LICENCIATURA");
   const [modalidadSeleccionada, setModalidadSeleccionada] = useState("");
   const [carreraId, setCarreraId] = useState(initialData?.carrera_id || "");
@@ -47,7 +45,6 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     fetchCarreras();
   }, [initialData]);
 
-  // Doble filtro: Nivel Académico + Modalidad
   const carrerasFiltradas = useMemo(() => {
     if (!modalidadSeleccionada || !nivelSeleccionado) return [];
     return carreras.filter(c => 
@@ -56,11 +53,10 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     );
   }, [carreras, modalidadSeleccionada, nivelSeleccionado]);
 
-  // Manejador del Nuevo Nivel Académico (Filtro Padre)
   const handleNivelChange = (e) => {
     setNivelSeleccionado(e.target.value);
-    setModalidadSeleccionada(""); // Limpiar cascada
-    setCarreraId(""); // Limpiar cascada
+    setModalidadSeleccionada(""); 
+    setCarreraId(""); 
     setServerAction(null); 
     if (errores.nivel_academico) setErrores({ ...errores, nivel_academico: null });
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
@@ -127,7 +123,6 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       
       toast.dismiss(toastId);
       
-      // Intercepción exacta de la acción definida en el controlador (BLOCK o WARN)
       if (status === 409 && (errorData.action === 'BLOCK' || errorData.action === 'WARN')) {
         const detalles = errorData.detalles || errorData.error || "Conflicto de integridad referencial.";
         setServerAction(errorData.action); 
@@ -153,151 +148,174 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     ? initialData.identificador 
     : `${anioActual}${codigoUnico}[###]`;
 
+  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none appearance-none cursor-pointer disabled:bg-slate-50 disabled:text-slate-400";
+  const getValidationClass = (hasError) => 
+    hasError 
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+      : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center">
-          <button onClick={onBack} className="mr-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h2 className="text-xl font-black text-slate-800">{isEditing ? "Gestionar grupo" : "Nuevo grupo"}</h2>
-            <p className="text-sm text-slate-500 font-medium">
-              {isEditing ? "Modifica la asignación de carrera." : "Filtra por nivel, modalidad y elige la carrera."}
-            </p>
-          </div>
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden relative">
+      <div className="bg-[#0B1828] px-6 py-5 flex items-center shadow-md relative z-10">
+        <button
+          onClick={onBack}
+          className="mr-4 p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
+        >
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+        <div>
+          <h2 className="text-xl font-black text-white">
+            {isEditing ? "Modificar grupo" : "Nuevo grupo"}
+          </h2>
+          <p className="text-sm text-white/60 font-medium">
+            {isEditing ? "Modifica la asignación de carrera." : "Filtra por nivel, modalidad y elige la carrera."}
+          </p>
         </div>
       </div>
 
-      <div className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* NUEVO CAMPO: Nivel Académico */}
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <GraduationCap className="w-4 h-4 mr-2 text-blue-500" /> Nivel Académico
-              </label>
-              <select
-                value={nivelSeleccionado}
-                onChange={handleNivelChange}
-                disabled={cargandoCarreras || serverAction === 'BLOCK'}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.nivel_academico ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              >
-                <option value="LICENCIATURA">Licenciatura</option>
-                <option value="MAESTRIA">Maestría</option>
-              </select>
-              {errores.nivel_academico && <p className="text-xs font-bold text-red-500">{errores.nivel_academico}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Layers className="w-4 h-4 mr-2 text-blue-500" /> Modalidad
-              </label>
-              <select
-                value={modalidadSeleccionada}
-                onChange={handleModalidadChange}
-                disabled={!nivelSeleccionado || cargandoCarreras || serverAction === 'BLOCK'}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.modalidad ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100"
-                }`}
-              >
-                <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione modalidad --"}</option>
-                <option value="ESCOLARIZADA">ESCOLARIZADA</option>
-                <option value="EJECUTIVA">EJECUTIVA</option>
-                <option value="HÍBRIDA">HÍBRIDA</option>
-              </select>
-              {errores.modalidad && <p className="text-xs font-bold text-red-500">{errores.modalidad}</p>}
-            </div>
-
-            <div className="md:col-span-2 space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Programa académico asignado
-              </label>
-              <select
-                value={carreraId}
-                onChange={handleCarreraChange}
-                disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
-                className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all bg-white ${
-                  errores.carrera_id ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
-                }`}
-              >
-                <option value="">-- Seleccione una carrera/maestría --</option>
-                {/* ✨ AQUÍ MOSTRAMOS EL CÓDIGO ÚNICO DE LA CARRERA ✨ */}
-                {carrerasFiltradas.map(c => (
-                  <option key={c.id_carrera} value={c.id_carrera}>{c.codigo_unico}</option>
-                ))}
-              </select>
-              {errores.carrera_id && <p className="text-xs font-bold text-red-500">{errores.carrera_id}</p>}
-            </div>
-
-            <div className="md:col-span-2 space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Hash className="w-4 h-4 mr-2 text-blue-500" /> Identificador {isEditing ? "actual" : "generado"}
-              </label>
-              <div className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm flex items-center justify-between">
-                <span className="font-bold">
-                  {carreraId || isEditing ? previewIdentificador : "Esperando selección de programa..."}
-                </span>
-                {!isEditing && carreraId && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md font-bold uppercase tracking-wider">
-                    Vista previa
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                {isEditing 
-                  ? "El identificador original no se puede modificar." 
-                  : "El fragmento [###] será reemplazado por el ID automático de la base de datos."}
-              </p>
-            </div>
-
-            {/* --- PASO 4: INTERFAZ VISUAL DEL SEMÁFORO --- */}
-            {serverAction === 'BLOCK' && (
-              <div className="md:col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start mt-2">
-                <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
-                  <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
-                </div>
-              </div>
-            )}
-
-            {serverAction === 'WARN' && (
-              <div className="md:col-span-2 bg-red-50 p-4 rounded-xl border border-red-200 flex items-start mt-2">
-                <AlertTriangle className="w-5 h-5 text-red-600 mr-3 mt-0.5 shrink-0" />
-                <div>
-                  <h4 className="text-sm font-bold text-red-900 mb-1">Advertencia de seguridad</h4>
-                  <p className="text-sm text-red-800 font-medium leading-relaxed">{serverMessage}</p>
-                </div>
-              </div>
-            )}
-            {/* ------------------------------------------------ */}
-
+      <div className="p-6 md:p-10">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-10">
+          <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl w-fit">
+            <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
+            Indica un campo obligatorio para el sistema
           </div>
 
-          <div className="flex justify-end pt-6 border-t border-slate-100">
+          <div className="space-y-6">
+            <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Asignación Académica</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                  <GraduationCap className="w-4 h-4 mr-2" /> Nivel Académico <span className="text-[#0B1828] ml-1">*</span>
+                </label>
+                <select
+                  value={nivelSeleccionado}
+                  onChange={handleNivelChange}
+                  disabled={cargandoCarreras || serverAction === 'BLOCK'}
+                  className={`${inputBaseClass} ${getValidationClass(errores.nivel_academico)}`}
+                >
+                  <option value="LICENCIATURA">Licenciatura</option>
+                  <option value="MAESTRIA">Maestría</option>
+                </select>
+                {errores.nivel_academico && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.nivel_academico}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                  <Layers className="w-4 h-4 mr-2" /> Modalidad <span className="text-[#0B1828] ml-1">*</span>
+                </label>
+                <select
+                  value={modalidadSeleccionada}
+                  onChange={handleModalidadChange}
+                  disabled={!nivelSeleccionado || cargandoCarreras || serverAction === 'BLOCK'}
+                  className={`${inputBaseClass} ${getValidationClass(errores.modalidad)}`}
+                >
+                  <option value="">{cargandoCarreras ? "Cargando..." : "-- Seleccione modalidad --"}</option>
+                  <option value="ESCOLARIZADA">ESCOLARIZADA</option>
+                  <option value="EJECUTIVA">EJECUTIVA</option>
+                  <option value="HÍBRIDA">HÍBRIDA</option>
+                </select>
+                {errores.modalidad && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.modalidad}</p>}
+              </div>
+
+      <div className="md:col-span-2 space-y-2">
+        <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+          <BookOpen className="w-4 h-4 mr-2" /> Programa académico asignado <span className="text-[#0B1828] ml-1">*</span>
+        </label>
+        <select
+          value={carreraId}
+          onChange={handleCarreraChange}
+          disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
+          className={`${inputBaseClass} ${getValidationClass(errores.carrera_id)}`}
+        >
+          <option value="">-- Seleccione una carrera/maestría --</option>
+          {carrerasFiltradas.map(c => (
+            <option key={c.id_carrera} value={c.id_carrera}>
+              {c.nombre_carrera || "Programa sin nombre"}
+            </option>
+          ))}
+        </select>
+        {errores.carrera_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.carrera_id}</p>}
+      </div>
+              <div className="md:col-span-2 space-y-2 mt-2">
+                <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                  <Hash className="w-4 h-4 mr-2" /> Identificador {isEditing ? "actual" : "generado"}
+                </label>
+                <div className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-sm flex items-center justify-between shadow-sm">
+                  <span className="font-bold text-[#0B1828] font-mono text-base">
+                    {carreraId || isEditing ? previewIdentificador : "Esperando programa..."}
+                  </span>
+                  {!isEditing && carreraId && (
+                    <span className="text-[10px] bg-[#0B1828]/10 text-[#0B1828] px-2 py-1 rounded-md font-black uppercase tracking-wider">
+                      Vista previa
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-slate-500 mt-1.5">
+                  {isEditing 
+                    ? "El identificador original no se puede modificar por integridad de datos." 
+                    : "El fragmento [###] será reemplazado por el ID automático de la base de datos."}
+                </p>
+              </div>
+
+              {serverAction === 'BLOCK' && (
+                <div className="md:col-span-2 bg-amber-50 p-5 rounded-2xl border border-amber-200 flex items-start mt-4 shadow-sm">
+                  <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
+                    <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {serverAction === 'WARN' && (
+                <div className="md:col-span-2 bg-red-50 p-5 rounded-2xl border border-red-200 flex items-start mt-4 shadow-sm">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mr-3 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-bold text-red-900 mb-1">Advertencia de seguridad</h4>
+                    <p className="text-sm text-red-800 font-medium leading-relaxed">{serverMessage}</p>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-dashed border-slate-200">
             {serverAction === 'BLOCK' ? (
-              <button type="button" onClick={onBack} className="px-8 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all">
-                Cerrar y volver
+              <button 
+                type="button" 
+                onClick={onBack} 
+                className="w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 shadow-sm"
+              >
+                Cerrar y volver al listado
               </button>
             ) : (
               <button 
                 type="submit" 
                 disabled={isSubmitting || cargandoCarreras} 
-                className={`flex items-center px-8 py-3 rounded-xl font-bold text-white transition-all shadow-md disabled:opacity-50 ${
-                  serverAction === 'WARN' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                className={`w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg shadow-xl active:scale-[0.98] ${
+                  serverAction === 'WARN' 
+                    ? 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-600/30' 
+                    : isSubmitting || cargandoCarreras
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300 shadow-none"
+                      : "bg-[#0B1828] text-white hover:bg-[#162840] hover:shadow-[#0B1828]/30"
                 }`}
               >
                 {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" /> 
+                  <Loader2 className="w-6 h-6 mr-2 animate-spin" /> 
                 ) : (
-                  serverAction === 'WARN' ? <AlertTriangle className="w-5 h-5 mr-2" /> : <Save className="w-5 h-5 mr-2" />
+                  serverAction === 'WARN' 
+                    ? <AlertTriangle className="w-6 h-6 mr-2 text-white" /> 
+                    : isEditing 
+                      ? <RefreshCw className="w-6 h-6 mr-2 text-white" /> 
+                      : <Save className="w-6 h-6 mr-2 text-white" />
                 )}
                 
-                {serverAction === 'WARN' ? "Confirmar cambio y rechazar clases" : (isEditing ? "Actualizar grupo" : "Generar grupo")}
+                {isSubmitting
+                  ? "Procesando cambios..."
+                  : serverAction === 'WARN' ? "Confirmar cambio y rechazar clases" : (isEditing ? "Modificar Grupo" : "Nuevo Grupo")
+                }
               </button>
             )}
           </div>

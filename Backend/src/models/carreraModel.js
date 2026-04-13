@@ -1,7 +1,7 @@
 const pool = require("../config/database");
 
 const carreraModel = {
-  getCarreraById: async (id_carrera) => {
+  obtenerCarreraPorId: async (id_carrera) => {
     let conn;
     try {
       conn = await pool.getConnection();
