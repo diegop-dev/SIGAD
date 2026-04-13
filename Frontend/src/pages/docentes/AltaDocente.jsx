@@ -371,7 +371,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         </button>
         <div>
           <h2 className="text-xl font-black text-white">
-            {isEditing ? "Editar expediente de docente" : "Nuevo expediente de docente"}
+            {isEditing ? "Modificar docente" : "Nuevo docente"}
           </h2>
           {!isEditing && (
             <p className="text-sm text-white/60 font-medium mt-0.5">Paso {paso} de 2</p>
@@ -439,7 +439,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
               </div>
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828]">
-                  <Mail className="w-4 h-4 mr-2" /> Correo inst. (Opcional)
+                  <Mail className="w-4 h-4 mr-2" /> Correo institucional <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="email" name="institutional_email" value={formData.institutional_email} onChange={handleChange}
@@ -452,7 +452,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
             <div className="pt-4 border-t border-slate-100">
               <label className="flex items-center text-sm font-bold text-[#0B1828] mb-4">
-                <ImagePlus className="w-4 h-4 mr-2" /> Fotografía de perfil (Opcional)
+                <ImagePlus className="w-4 h-4 mr-2" /> Fotografía (Opcional)
               </label>
               <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
                 <div className="h-28 w-28 rounded-full bg-white overflow-hidden border-4 border-white shadow-md flex items-center justify-center shrink-0">
@@ -475,7 +475,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 type="button" onClick={validarPaso1}
                 className="w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
               >
-                Siguiente paso <ChevronRight className="w-6 h-6 ml-2" />
+                Siguiente Paso <ChevronRight className="w-6 h-6 ml-2" />
               </button>
             </div>
           </div>
@@ -569,7 +569,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   <label className="flex items-center text-sm font-bold text-[#0B1828]">Calle <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
                     type="text" name="calle" required value={formData.calle} onChange={handleChange}
-                    placeholder="Av. Reforma"
+                    placeholder="Av. Ejemplo"
                     className={`${inputBaseClass} ${getValidationClass()}`}
                   />
                 </div>
@@ -596,12 +596,12 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">Grado máximo <span className="text-[#0B1828] ml-1">*</span></label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">Nivel académico <span className="text-[#0B1828] ml-1">*</span></label>
                 <select
                   name="nivel_academico" required value={formData.nivel_academico} onChange={handleChange}
                   className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
                 >
-                  <option value="">-- Seleccione --</option>
+                  <option value="">Seleccione un nivel</option>
                   <option value="LICENCIATURA">Licenciatura</option>
                   <option value="MAESTRIA">Maestría</option>
                   <option value="DOCTORADO">Doctorado</option>
@@ -613,14 +613,14 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   name="academia_id" required value={formData.academia_id} onChange={handleChange}
                   className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
                 >
-                  <option value="">-- Seleccione una academia --</option>
+                  <option value="">Seleccione una academia</option>
                   {academiasDisponibles.map(a => <option key={a.id_academia} value={a.id_academia}>{a.nombre}</option>)}
                 </select>
               </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-lg font-black text-[#0B1828] mb-4">Archivos digitales del expediente</h3>
+              <h3 className="text-lg font-black text-[#0B1828] mb-4">Archivos Digitales</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {documentosRequeridos.map((doc) => {
                   const urlActual = getDocumentoUrl(doc.tipoBackend);
@@ -678,7 +678,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                     ? <RefreshCw className="w-6 h-6 mr-2" />
                     : <Save className="w-6 h-6 mr-2" />
                 }
-                {isSubmitting ? "Guardando..." : (isEditing ? "Actualizar expediente" : "Finalizar y guardar")}
+                {isSubmitting ? "Guardando..." : (isEditing ? "Modificar Docente" : "Nuevo Docente")}
               </button>
             </div>
           </div>

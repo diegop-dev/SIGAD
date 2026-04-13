@@ -143,9 +143,9 @@ export const DocenteManagement = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
             <Users className="w-7 h-7 mr-3 text-white/90" />
-            Gestión de docentes
+            Docentes
           </h1>
-          <p className="mt-1.5 text-sm text-white/70 font-medium">Administra los expedientes y asignaciones académicas.</p>
+          <p className="mt-1.5 text-sm text-white/70 font-medium">Administra los expedientes docente y el historial académico.</p>
         </div>
         <button 
           onClick={handleCreateNew} 
@@ -171,13 +171,13 @@ export const DocenteManagement = () => {
         
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex items-center min-w-[200px]">
-            <GraduationCap className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
+            <Filter className="h-4 w-4 text-slate-400 absolute left-4 z-10" />
             <select
               value={nivelFilter}
               onChange={(e) => setNivelFilter(e.target.value)}
               className={`pl-11 appearance-none cursor-pointer ${filterInputClass}`}
             >
-              <option value="">Niveles: Todos</option>
+              <option value="">Todos los niveles</option>
               <option value="LICENCIATURA">Licenciatura</option>
               <option value="MAESTRIA">Maestría</option>
               <option value="DOCTORADO">Doctorado</option>
