@@ -38,9 +38,9 @@ const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENC
 
 const carreraController = {
 
-  getAcademiasDisponibles: async (req, res) => {
+  obtenerAcademiasDisponibles: async (req, res) => {
     try {
-      const academias = await carreraModel.getAcademiasActivas();
+      const academias = await carreraModel.obtenerAcademiasActivas();
       return res.status(200).json({ success: true, data: academias });
     } catch (error) {
       console.error('Error al obtener academias:', error);
@@ -51,10 +51,10 @@ const carreraController = {
     }
   },
 
-  getCarreras: async (req, res) => {
+  obtenerCarreras: async (req, res) => {
     try {
       const { periodo_id } = req.query;
-      const carreras = await carreraModel.getAllCarreras(periodo_id);
+      const carreras = await carreraModel.obtenerTodasLasCarreras(periodo_id);
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error al obtener carreras:', error);
@@ -62,9 +62,9 @@ const carreraController = {
     }
   },
 
-  getCarrerasParaSincronizacion: async (req, res) => {
+  obtenerCarrerasParaSincronizacion: async (req, res) => {
     try {
-      const carreras = await carreraModel.getCarrerasParaSincronizacion();
+      const carreras = await carreraModel.obtenerCarrerasParaSincronizacion();
       return res.status(200).json(carreras);
     } catch (error) {
       console.error('Error en API de sincronización de carreras:', error);
@@ -78,7 +78,7 @@ const carreraController = {
       const creado_por = req.usuario ? req.usuario.id_usuario : req.body.creado_por;
       const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
+      const carreraExistente = await carreraModel.encontrarCarreraExistente(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente) {
         return res.status(409).json({
           success: false,
@@ -128,7 +128,7 @@ const carreraController = {
       const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
       // 1. Recuperar el estado actual para validación referencial
-      const carreraActual = await carreraModel.getCarreraById(id);
+      const carreraActual = await carreraModel.obtenerCarreraPorId(id);
       if (!carreraActual) {
         return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
       }
@@ -140,7 +140,7 @@ const carreraController = {
         (Number(academia_id) !== Number(carreraActual.academia_id));
 
       if (intentoCambioEstructural) {
-        const tieneAsignaciones = await carreraModel.checkDependenciasActivas(id);
+        const tieneAsignaciones = await carreraModel.verificarDependenciasActivas(id);
         if (tieneAsignaciones) {
           return res.status(409).json({
             success: false,
@@ -152,7 +152,7 @@ const carreraController = {
       }
 
       // 3. Validación de duplicidad
-      const carreraExistente = await carreraModel.findExistingCarrera(nombre_carrera, modalidad, nivelSeguro);
+      const carreraExistente = await carreraModel.encontrarCarreraExistente(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
         return res.status(409).json({
           success: false,
@@ -161,7 +161,7 @@ const carreraController = {
       }
 
       const codigo_unico = await generarSiglas(nombre_carrera, modalidad, nivelSeguro, id);
-      const datosUpdate = {
+      const datosActualizar = {
         codigo_unico,
         nombre_carrera: nombre_carrera.toUpperCase().trim(),
         modalidad,
@@ -170,10 +170,10 @@ const carreraController = {
         modificado_por: idUsuario
       };
 
-      await carreraModel.actualizarCarrera(id, datosUpdate);
+      await carreraModel.actualizarCarrera(id, datosActualizar);
 
       // 4. Actualización en cascada de identificadores de grupo
-      const grupos = await grupoModel.getGruposByCarrera(id);
+      const grupos = await grupoModel.obtenerGruposPorCarrera(id);
       if (grupos && grupos.length > 0) {
         for (const grupo of grupos) {
           const anio = grupo.identificador.substring(0, 4);
@@ -199,7 +199,8 @@ const carreraController = {
     }
   },
 
-deactivateCarrera: async (req, res) => {
+
+desactivarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
       const { eliminado_por, motivo_baja } = req.body;
@@ -210,7 +211,7 @@ deactivateCarrera: async (req, res) => {
       }
 
       // Verificacion de dependencias
-      const tieneAsignaciones = await carreraModel.checkDependenciasActivas(id);
+      const tieneAsignaciones = await carreraModel.verificarDependenciasActivas(id);
       if (tieneAsignaciones) {
         return res.status(409).json({
           success: false,
@@ -221,7 +222,7 @@ deactivateCarrera: async (req, res) => {
       }
 
       // Ejecucion de baja 
-      const result = await carreraModel.deactivateCarrera(id, eliminado_por);
+      const result = await carreraModel.desactivarCarrera(id, eliminado_por);
       if (result.affectedRows === 0) {
         return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
       }
@@ -233,12 +234,12 @@ deactivateCarrera: async (req, res) => {
     }
   },
 
-  activateCarrera: async (req, res) => {
+  activarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
       const { modificado_por } = req.body;
       
-      const result = await carreraModel.activateCarrera(id, modificado_por);
+      const result = await carreraModel.activarCarrera(id, modificado_por);
 
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
       return res.status(200).json({ success: true, message: 'Carrera reactivada exitosamente.' });
@@ -249,9 +250,9 @@ deactivateCarrera: async (req, res) => {
   },
 
   // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
-  ObtenerProgramasAcademicos: async (req, res) => {
+  obtenerProgramasAcademicos: async (req, res) => {
     try {
-      const programas = await carreraModel.ObtenerProgramasAcademicos();
+      const programas = await carreraModel.obtenerProgramasAcademicos();
       res.status(200).json(programas);
     } catch (error) {
       console.error("[Error ObtenerProgramasAcademicos]:", error);
