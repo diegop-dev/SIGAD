@@ -20,7 +20,7 @@ const grupoController = {
     }
   },
 
-  obtenerGrupos: async (req, res) => {
+  obtenerTodosLosGrupos: async (req, res) => {
     try {
       const grupos = await grupoModel.obtenerTodosLosGrupos();
       return res.status(200).json(grupos);
@@ -199,18 +199,18 @@ const grupoController = {
 
   // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
   // Filtros opcionales: ?id_programa_academico=X&cuatrimestre_id=Y
-  obtenerGrupos: async (req, res) => {
+  obtenerCatalogoGrupos: async (req, res) => {
     try {
       const { id_programa_academico, cuatrimestre_id } = req.query;
 
-      const grupos = await grupoModel.obtenerGrupos({
+      const grupos = await grupoModel.obtenerCatalogoGrupos({
         id_programa_academico: id_programa_academico || null,
         cuatrimestre_id:       cuatrimestre_id       || null,
       });
 
       res.status(200).json(grupos);
     } catch (error) {
-      console.error("[Error ObtenerGrupos]:", error);
+      console.error("[Error obtenerCatalogoGrupos]:", error);
       res.status(500).json({ error: "Error al consultar los grupos" });
     }
   },

@@ -246,7 +246,7 @@ const grupoModel = {
   // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
   // Filtro implícito: estatus = ACTIVO.
   // Filtros opcionales: id_programa_academico (carrera_id), cuatrimestre_id.
-  obtenerGrupos: async ({ id_programa_academico, cuatrimestre_id } = {}) => {
+  obtenerCatalogoGrupos: async ({ id_programa_academico, cuatrimestre_id } = {}) => {
     let conn;
     try {
       conn = await pool.getConnection();

@@ -6,14 +6,14 @@ const { validarCreacionGrupo } = require('../middlewares/grupoValidator');
 
 // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
 // Soporta query params opcionales: ?id_programa_academico=X&cuatrimestre_id=Y
-router.get('/catalogo', grupoController.obtenerGrupos);
+router.get('/catalogo', grupoController.obtenerCatalogoGrupos);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-04)
 router.get('/sincronizacion', verifyToken, grupoController.obtenerGruposParaSincronizacion);
 
 // Rutas principales
-router.get('/', verifyToken, grupoController.obtenerGrupos);
+router.get('/', verifyToken, grupoController.obtenerTodosLosGrupos);
 router.post('/', validarCreacionGrupo, grupoController.crearGrupo);
 router.put('/:id', validarCreacionGrupo, grupoController.actualizarGrupo);
 
