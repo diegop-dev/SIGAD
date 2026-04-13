@@ -14,22 +14,22 @@ export const NotificationDropdown = () => {
   };
 
   return (
-    <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
       
-      {/* Cabecera del Dropdown */}
-      <div className="bg-slate-50 border-b border-slate-100 px-4 py-3 flex justify-between items-center">
-        <h3 className="font-black text-slate-800 flex items-center text-sm">
-          <BellRing className="w-4 h-4 mr-2 text-blue-600" />
-          Tus Alertas
+      {/* Cabecera del Dropdown en Azul Navy */}
+      <div className="bg-[#0B1828] px-4 py-3 flex justify-between items-center">
+        <h3 className="font-black text-white flex items-center text-sm tracking-wide">
+          <BellRing className="w-4 h-4 mr-2 text-white" />
+          Notificaciones
           {notifications.length > 0 && (
-            <span className="ml-2 bg-red-100 text-red-600 py-0.5 px-2 rounded-full text-xs">
+            <span className="ml-2 bg-red-500 text-white py-0.5 px-2 rounded-full text-xs shadow-sm">
               {notifications.length}
             </span>
           )}
         </h3>
         {notifications.length > 0 && (
           <button
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded-md transition-colors flex items-center"
+            className="text-xs font-bold text-slate-300 hover:text-white hover:bg-white/10 px-2 py-1 rounded-md transition-colors flex items-center"
             onClick={() => clearNotifications()}
           >
             <Check className="w-3 h-3 mr-1" /> Marcar todas
@@ -43,14 +43,14 @@ export const NotificationDropdown = () => {
           <div className="bg-slate-100 p-3 rounded-full mb-3">
             <AlertCircle className="h-6 w-6 text-slate-400" />
           </div>
-          <span className="text-sm font-medium">No tienes alertas nuevas</span>
+          <span className="text-sm font-medium">No tienes notificaciones nuevas.</span>
         </div>
       ) : (
         <ul className="max-h-[350px] overflow-y-auto divide-y divide-slate-100">
           {notifications.map(n => (
             <li 
               key={n.id} 
-              className="flex items-start px-4 py-3 hover:bg-blue-50/50 cursor-pointer transition-colors group" 
+              className="flex items-start px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors group" 
               onClick={() => removeNotification(n.id)}
             >
               <span
@@ -58,12 +58,12 @@ export const NotificationDropdown = () => {
                   n.severidad === 'ALTA'
                     ? 'bg-red-500 shadow-red-200'
                     : n.severidad === 'MEDIA'
-                    ? 'bg-amber-400 shadow-amber-200'
+                    ? 'bg-slate-600 shadow-slate-300'
                     : 'bg-emerald-500 shadow-emerald-200'
                 }`}
               />
               <div className="flex flex-col flex-1">
-                <span className="text-sm text-slate-700 font-medium leading-snug group-hover:text-slate-900">
+                <span className="text-sm text-[#0B1828] font-medium leading-snug group-hover:text-black">
                   {n.mensaje}
                 </span>
                 {n.fecha_creacion && (

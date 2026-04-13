@@ -1,10 +1,41 @@
 const pool = require("../config/database");
 
-const userModel = {
-  // ==========================================
-  // CONSULTAS DE LECTURA
-  // ==========================================
+// Funciones de validación interna
+const validateUserData = (data) => {
+  const nameRegex = /^[a-zA-ZÀ-ÿ\u00f1\u00d1]+(\s[a-zA-ZÀ-ÿ\u00f1\u00d1]+)*$/;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
+  const cleanData = { ...data };
+
+  // Validación de nombres y apellidos (Req 5, 6 y 7)
+  const nameFields = ['nombres', 'apellido_paterno', 'apellido_materno'];
+  nameFields.forEach(field => {
+    if (cleanData[field]) {
+      cleanData[field] = cleanData[field].trim();
+      if (!nameRegex.test(cleanData[field])) {
+        throw new Error(`El campo ${field} contiene caracteres inválidos o espacios extra.`);
+      }
+    }
+  });
+
+  // Validación de correos (Req 3, 5 y 8)
+  const emailFields = ['personal_email', 'institutional_email'];
+  emailFields.forEach(field => {
+    if (cleanData[field]) {
+      cleanData[field] = cleanData[field].trim();
+      if (!emailRegex.test(cleanData[field]) || (cleanData[field].match(/@/g) || []).length !== 1) {
+        throw new Error(`El campo ${field} no tiene un formato de correo válido o contiene múltiples @.`);
+      }
+    }
+  });
+
+  return cleanData;
+};
+
+
+const userModel = {
+  
+  // Consultas de lectura
   findExistingEmails: async (personal_email, institutional_email) => {
     let conn;
     try {
@@ -69,6 +100,7 @@ const userModel = {
     }
   },
 
+<<<<<<< HEAD
   // ─── VALIDACIÓN DE INTEGRIDAD PARA BAJA DE USUARIOS ────────────────────────
   // Regla de negocio: un usuario con rol docente no puede ser desactivado si
   // tiene un expediente ligado a una asignación docente existente.
@@ -83,6 +115,9 @@ const userModel = {
   // Ese MIN actúa como ID estable y representativo. validamos cruzando la
   // tabla Usuarios con Docentes y verificamos si existen bloques de asignación
   // vigentes (acta abierta y periodo activo).
+=======
+  // Validación de integridad para baja de usuarios docente
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
   checkDependenciasDocente: async (id_usuario) => {
     let conn;
     try {
@@ -116,29 +151,37 @@ const userModel = {
       if (conn) conn.release();
     }
   },
+<<<<<<< HEAD
 
   // ==========================================
   // CONSULTAS DE ESCRITURA (MUTACIONES)
   // ==========================================
+=======
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
 
+  
+  // Consultas de escritura
   createUser: async (userData) => {
     let conn;
     try {
+      // Aplicamos limpieza y validación antes de procesar en BD
+      const cleanData = validateUserData(userData);
+      
       conn = await pool.getConnection();
       const result = await conn.query(
         `INSERT INTO Usuarios 
         (nombres, apellido_paterno, apellido_materno, personal_email, institutional_email, password_hash, foto_perfil_url, rol_id, creado_por) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          userData.nombres,
-          userData.apellido_paterno,
-          userData.apellido_materno,
-          userData.personal_email,
-          userData.institutional_email,
-          userData.password_hash,
-          userData.foto_perfil_url,
-          userData.rol_id,
-          userData.creado_por,
+          cleanData.nombres,
+          cleanData.apellido_paterno,
+          cleanData.apellido_materno,
+          cleanData.personal_email,
+          cleanData.institutional_email,
+          cleanData.password_hash, // Nota: La complejidad de la contraseña debe validarse en el controlador ANTES del hash
+          cleanData.foto_perfil_url,
+          cleanData.rol_id,
+          cleanData.creado_por,
         ]
       );
       return result.insertId;
@@ -150,13 +193,15 @@ const userModel = {
   updateUser: async (id_usuario, updateData) => {
     let conn;
     try {
-      conn = await pool.getConnection();
-      
-      const fields = Object.keys(updateData);
-      const values = Object.values(updateData);
+      // Aplicamos limpieza y validación a los datos a actualizar
+      const cleanData = validateUserData(updateData);
+
+      const fields = Object.keys(cleanData);
+      const values = Object.values(cleanData);
       
       if (fields.length === 0) return 0;
 
+      conn = await pool.getConnection();
       const setClause = fields.map(field => `${field} = ?`).join(', ');
       values.push(id_usuario); 
 
@@ -171,7 +216,7 @@ const userModel = {
     }
   },
 
-  // HU-04 DESACTIVAR USUARIO (Soft Delete)
+  // Desactivar usuario
   deactivateUser: async (id_usuario, eliminado_por) => {
     let conn;
     try {
@@ -190,7 +235,7 @@ const userModel = {
     }
   },
 
-  // NUEVO: REACTIVAR USUARIO
+  // Reactivar usuario
   activateUser: async (id_usuario, modificado_por) => {
     let conn;
     try {

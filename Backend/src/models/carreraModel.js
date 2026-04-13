@@ -202,27 +202,51 @@ const carreraModel = {
       queryParams.push(id_carrera);
 
       const result = await conn.query(query, queryParams);
+<<<<<<< HEAD
+=======
       return result;
     } finally {
       if (conn) conn.release();
     }
   },
 
-  deactivateCarrera: async (id_carrera, eliminado_por, motivo_baja) => {
+// Baja logica
+  deactivateCarrera: async (id_carrera, modificado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET estatus = 'INACTIVO', eliminado_por = ?, motivo_baja = ?, fecha_eliminacion = NOW()
+         SET estatus = 'INACTIVO', modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [eliminado_por, motivo_baja, id_carrera]
+        [modificado_por, id_carrera]
+      );
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
+      return result;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  // Reactivacion de carrera
+  activateCarrera: async (id_carrera, modificado_por) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const result = await conn.query(
+        `UPDATE carreras 
+         SET estatus = 'ACTIVO', modificado_por = ?, fecha_modificacion = NOW()
+         WHERE id_carrera = ?`,
+        [modificado_por, id_carrera]
       );
       return result;
     } finally {
       if (conn) conn.release();
     }
   },
+
+  // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+  // ... (lo que sigue del SESA queda igual)
 
   // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
   // Devuelve carreras activas con los nombres de campo que espera SESA.

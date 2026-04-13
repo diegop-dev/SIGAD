@@ -199,16 +199,21 @@ const carreraController = {
     }
   },
 
-  deactivateCarrera: async (req, res) => {
+deactivateCarrera: async (req, res) => {
     try {
       const { id } = req.params;
       const { eliminado_por, motivo_baja } = req.body;
 
+      // Validacion estricta del motivo aunque no se persista
       if (!motivo_baja || motivo_baja.trim() === '') {
         return res.status(400).json({ success: false, message: 'Debe especificar un motivo para la baja.' });
       }
 
+<<<<<<< HEAD
       // Validación de integridad referencial antes del borrado lógico
+=======
+      // Verificacion de dependencias
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
       const tieneAsignaciones = await carreraModel.checkDependenciasActivas(id);
       if (tieneAsignaciones) {
         return res.status(409).json({
@@ -217,17 +222,41 @@ const carreraController = {
           error: "Conflicto de integridad relacional",
           detalles: "No es posible desactivar este programa académico porque cuenta con materias impartiéndose actualmente. Debe cancelar o reasignar estas clases antes de proceder."
         });
+<<<<<<< HEAD
       }
 
       const result = await carreraModel.deactivateCarrera(id, eliminado_por, motivo_baja);
       if (result.affectedRows === 0) {
         return res.status(404).json({ success: false, message: 'Carrera no encontrada. No se pudo cambiar el estatus.' });
+=======
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
       }
 
-      return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente del sistema.' });
+      // Ejecucion de baja 
+      const result = await carreraModel.deactivateCarrera(id, eliminado_por);
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      }
+
+      return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente.' });
     } catch (error) {
       console.error("Error al dar de baja la carrera:", error);
-      return res.status(500).json({ success: false, message: "Error interno del servidor al procesar la baja de la carrera." });
+      return res.status(500).json({ success: false, message: "Error interno al procesar la baja." });
+    }
+  },
+
+  activateCarrera: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { modificado_por } = req.body;
+      
+      const result = await carreraModel.activateCarrera(id, modificado_por);
+
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      return res.status(200).json({ success: true, message: 'Carrera reactivada exitosamente.' });
+    } catch (error) {
+      console.error("Error al reactivar:", error);
+      return res.status(500).json({ success: false, message: "Error interno al reactivar." });
     }
   },
 

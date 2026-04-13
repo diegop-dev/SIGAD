@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2, Lock } from "lucide-react";
+import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2, Lock, CheckCircle2 } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth"; 
 import { TOAST_DOCENTES, TOAST_COMMON } from "../../../constants/toastMessages";
@@ -47,7 +47,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const { user } = useAuth();
   const isEditing = !!docenteToEdit;
   
-// --- REGLA DE ROLES (RBAC) EXPLICITA Y SEGURA ---
   const rolId = Number(user?.rol_id);
   const tienePrivilegiosAdmin = rolId === 1 || rolId === 2 || user?.rol === 'Superadministrador' || user?.rol === 'Administrador';
   
@@ -101,8 +100,8 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   };
 
   const regexRFC  = /^([A-ZÑ&]{4})\d{6}([A-Z0-9]{3})$/;
-  const regexCURP = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
-  const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const regexCURP = /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d$/;
+  const regexEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   useEffect(() => {
     const fetchCatalogos = async () => {
@@ -154,15 +153,31 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
             setEstadoRepublica(data.places[0].state);
             const colonias = data.places.map(place => place["place name"]);
             setColoniasDisponibles(colonias);
+            setErrores(prev => ({ ...prev, cp: null }));
             if (colonias.length === 1 && !formData.colonia) {
               setFormData(prev => ({ ...prev, colonia: colonias[0] }));
             }
+          } else {
+            setColoniasDisponibles([]);
+            setEstadoRepublica("");
+            setFormData(prev => ({ ...prev, colonia: "" }));
+            setErrores(prev => ({ ...prev, cp: "Código postal no encontrado" }));
           }
         } catch (error) {
           console.error("Error al buscar CP", error);
+          setColoniasDisponibles([]);
+          setEstadoRepublica("");
+          setErrores(prev => ({ ...prev, cp: "Error de conexión al validar C.P." }));
         }
       };
       fetchCP();
+    } else if (formData.cp && formData.cp.length < 5) {
+      if (coloniasDisponibles.length > 0 || estadoRepublica !== "") {
+        setColoniasDisponibles([]);
+        setEstadoRepublica("");
+        setFormData(prev => ({ ...prev, colonia: "" }));
+      }
+      if (errores.cp) setErrores(prev => ({ ...prev, cp: null }));
     }
   }, [formData.cp]);
 
@@ -177,9 +192,15 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     let sanitizedValue = value;
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]/g, '').replace(/\s{2,}/g, ' '); 
+      sanitizedValue = sanitizedValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').replace(/\s{2,}/g, ' '); 
     } else if (['personal_email', 'institutional_email'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._-]/g, '').toLowerCase(); 
+      sanitizedValue = sanitizedValue.replace(/\s/g, '').toLowerCase(); 
+      const atCount = (sanitizedValue.match(/@/g) || []).length;
+      if (atCount > 1) {
+        const parts = sanitizedValue.split('@');
+        sanitizedValue = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
+      }
+      sanitizedValue = sanitizedValue.replace(/\.{2,}/g, '.');
     } else if (name === "rfc" || name === "curp" || name === "clave_ine") {
       sanitizedValue = sanitizedValue.toUpperCase().replace(/[^A-Z0-9Ñ]/g, "");
       
@@ -223,8 +244,16 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     if (!formData.nombres.trim()) newErrors.nombres = "Requerido";
     if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "Requerido";
     if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "Requerido";
-    if (!regexEmail.test(formData.personal_email)) newErrors.personal_email = "Correo inválido";
-    if (!regexEmail.test(formData.institutional_email)) newErrors.institutional_email = "Correo inválido";
+    
+    if (!formData.personal_email) {
+      newErrors.personal_email = "Requerido";
+    } else if (!regexEmail.test(formData.personal_email)) {
+      newErrors.personal_email = "Correo inválido";
+    }
+
+    if (formData.institutional_email && !regexEmail.test(formData.institutional_email)) {
+      newErrors.institutional_email = "Correo inválido";
+    }
     
     setErrores(newErrors);
     if (Object.keys(newErrors).length === 0) setPaso(2);
@@ -273,7 +302,10 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         setRegistroExitoso(true);
       }
     } catch (error) {
+<<<<<<< HEAD
       // intercepción del error 409 para proteger la integridad relacional de la HU-58
+=======
+>>>>>>> f077882590116f3213427c490c599d2888b309b2
       if (error.response?.status === 409 && error.response.data?.detalles) {
         toast.error(`Operación denegada: ${error.response.data.detalles}`, { id: toastId, duration: 8000 });
       } else {
@@ -294,32 +326,33 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
   if (registroExitoso) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-        <div className="p-8 text-center max-w-lg mx-auto">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-6">
-            <CheckCircle className="h-8 w-8 text-emerald-600" />
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-300 relative">
+        <div className="bg-[#0B1828] h-16 w-full absolute top-0 left-0 z-0"></div>
+        <div className="p-8 text-center max-w-lg mx-auto relative z-10 pt-12">
+          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 border-4 border-white shadow-md mb-6">
+            <CheckCircle2 className="h-10 w-10 text-green-600" />
           </div>
-          <h2 className="text-2xl font-black text-slate-900 mb-2">¡Alta de docente exitosa!</h2>
+          <h2 className="text-2xl font-black text-[#0B1828] mb-2">¡Alta de docente exitosa!</h2>
           <p className="text-slate-600 font-medium mb-6">El expediente digital y el usuario de acceso han sido creados bajo la misma transacción de base de datos.</p>
           
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-4 flex justify-between items-center">
-            <span className="text-sm text-slate-500 font-bold">Matrícula generada:</span>
-            <span className="text-xl font-black text-blue-700 tracking-widest">{credenciales.matricula}</span>
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-4 flex justify-between items-center shadow-inner">
+            <span className="text-sm text-[#0B1828] font-bold">Matrícula generada:</span>
+            <span className="text-xl font-black text-[#0B1828] tracking-widest">{credenciales.matricula}</span>
           </div>
 
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8 relative group">
-            <span className="block text-sm text-slate-500 font-bold mb-2">Contraseña temporal:</span>
-            <code className="text-3xl font-mono font-black text-slate-900 tracking-wider">{credenciales.password}</code>
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-8 relative group shadow-inner">
+            <span className="block text-sm text-[#0B1828] font-bold mb-2">Contraseña temporal:</span>
+            <code className="text-3xl font-mono font-black text-[#0B1828] tracking-wider">{credenciales.password}</code>
             <button
               onClick={handleCopyPassword}
-              className="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-sm border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 transition-all focus:ring-2 focus:ring-blue-100"
+              className="absolute top-4 right-4 p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 text-[#0B1828] hover:bg-slate-50 transition-all active:scale-95 focus:ring-2 focus:ring-slate-400"
               title="Copiar contraseña"
             >
-              {copied ? <CheckCircle className="w-5 h-5 text-emerald-500" /> : <Copy className="w-5 h-5" />}
+              {copied ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
             </button>
           </div>
 
-          <button onClick={() => onSuccess()} className="w-full py-3 px-4 bg-emerald-600 text-white rounded-xl font-bold shadow-md hover:bg-emerald-700 transition-all">
+          <button onClick={() => onSuccess()} className="w-full py-4 px-4 bg-[#0B1828] text-white rounded-2xl font-black text-lg shadow-xl hover:shadow-[#0B1828]/30 hover:bg-[#162840] transition-all active:scale-[0.98]">
             Entendido, volver al listado
           </button>
         </div>
@@ -327,61 +360,70 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     );
   }
 
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none";
+  const getValidationClass = (hasError) => 
+    hasError 
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+      : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
 
-      <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center">
-          <button onClick={onBack} className="mr-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h2 className="text-xl font-black text-slate-800">
-              {isEditing ? "Editar expediente de docente" : "Nuevo expediente de docente"}
-            </h2>
-            {!isEditing && (
-              <p className="text-sm text-slate-500 font-medium mt-0.5">Paso {paso} de 2</p>
-            )}
-          </div>
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden mb-8 relative">
+
+      <div className="bg-[#0B1828] px-6 py-5 flex items-center shadow-md relative z-10">
+        <button onClick={onBack} className="mr-4 p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95">
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+        <div>
+          <h2 className="text-xl font-black text-white">
+            {isEditing ? "Modificar docente" : "Nuevo docente"}
+          </h2>
+          {!isEditing && (
+            <p className="text-sm text-white/60 font-medium mt-0.5">Paso {paso} de 2</p>
+          )}
         </div>
       </div>
 
-      <form onSubmit={paso === 2 ? handleOpenModal : (e) => e.preventDefault()} className="p-6 md:p-8">
+      <form onSubmit={paso === 2 ? handleOpenModal : (e) => e.preventDefault()} className="p-6 md:p-10">
         
         {paso === 1 && !isEditing && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* ... Contenido del Paso 1 sin cambios ... */}
+          <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl mx-auto">
+            
+            <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl mb-8 w-fit">
+              <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
+              Indica un campo obligatorio para el sistema
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <User className="w-4 h-4 mr-2 text-blue-500" /> Nombres *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <User className="w-4 h-4 mr-2" /> Nombres <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="text" name="nombres" value={formData.nombres} onChange={handleChange}
                   placeholder="Ej. Juan Carlos"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.nombres ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.nombres)}`}
                 />
                 {errores.nombres && <p className="text-xs font-bold text-red-500">{errores.nombres}</p>}
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="text" name="apellido_paterno" value={formData.apellido_paterno} onChange={handleChange}
                   placeholder="Ej. Pérez"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.apellido_paterno ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.apellido_paterno)}`}
                 />
                 {errores.apellido_paterno && <p className="text-xs font-bold text-red-500">{errores.apellido_paterno}</p>}
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="text" name="apellido_materno" value={formData.apellido_materno} onChange={handleChange}
                   placeholder="Ej. López"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.apellido_materno ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.apellido_materno)}`}
                 />
                 {errores.apellido_materno && <p className="text-xs font-bold text-red-500">{errores.apellido_materno}</p>}
               </div>
@@ -389,61 +431,62 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo personal *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <Mail className="w-4 h-4 mr-2" /> Correo personal <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="email" name="personal_email" value={formData.personal_email} onChange={handleChange}
                   placeholder="juan@gmail.com"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.personal_email ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.personal_email)}`}
                 />
                 {errores.personal_email && <p className="text-xs font-bold text-red-500">{errores.personal_email}</p>}
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  <Mail className="w-4 h-4 mr-2 text-blue-500" /> Correo institucional *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  <Mail className="w-4 h-4 mr-2" /> Correo institucional <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
                   type="email" name="institutional_email" value={formData.institutional_email} onChange={handleChange}
-                  placeholder="j.perez@unid.edu.mx"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.institutional_email ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  placeholder="j.perez@red.unid.mx"
+                  className={`${inputBaseClass} ${getValidationClass(errores.institutional_email)}`}
                 />
                 {errores.institutional_email && <p className="text-xs font-bold text-red-500">{errores.institutional_email}</p>}
               </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100">
-              <label className="flex items-center text-sm font-bold text-slate-700 mb-4">
-                <ImagePlus className="w-4 h-4 mr-2 text-blue-500" /> Fotografía de perfil (Opcional)
+              <label className="flex items-center text-sm font-bold text-[#0B1828] mb-4">
+                <ImagePlus className="w-4 h-4 mr-2" /> Fotografía (Opcional)
               </label>
-              <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div className="h-28 w-28 rounded-full bg-white overflow-hidden border-4 border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
-                  {previewUrl ? <img src={previewUrl} alt="Previsualización" className="h-full w-full object-cover" /> : <User className="h-12 w-12 text-slate-300" />}
+              <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="h-28 w-28 rounded-full bg-white overflow-hidden border-4 border-white shadow-md flex items-center justify-center shrink-0">
+                  {previewUrl ? <img src={previewUrl} alt="Previsualización" className="h-full w-full object-cover" /> : <User className="h-10 w-10 text-slate-300" />}
                 </div>
                 <div className="w-full">
                   <input
                     type="file" name="foto_perfil_url" accept="image/*" onChange={handleFileChange}
-                    className="block w-full text-slate-600 text-sm file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer transition-colors"
+                    className="block w-full text-[#0B1828] text-sm file:mr-4 file:py-3 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-[#0B1828] file:text-white hover:file:bg-[#162840] hover:file:shadow-md cursor-pointer transition-all file:transition-all"
                   />
-                  <p className="mt-2 text-xs font-medium text-slate-500">Formatos soportados: JPG, PNG, WEBP (Max: 10MB)</p>
+                  <p className="mt-3 text-xs font-medium text-slate-500 flex items-center">
+                    <ImagePlus className="w-3.5 h-3.5 mr-1.5" /> Formatos soportados: JPG, PNG, WEBP (Max: 10MB)
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-6 border-t border-slate-100">
+            <div className="pt-8 border-t border-dashed border-slate-200 mt-2">
               <button
                 type="button" onClick={validarPaso1}
-                className="flex items-center px-8 py-3 rounded-xl shadow-md font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all"
+                className="w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
               >
-                Siguiente paso <ChevronRight className="w-5 h-5 ml-2" />
+                Siguiente Paso <ChevronRight className="w-6 h-6 ml-2" />
               </button>
             </div>
           </div>
         )}
 
-        {/* PASO 2: Expediente docente */}
         {paso === 2 && (
-          <div className="space-y-6 animate-in slide-in-from-right-8 duration-300">
+          <div className="space-y-6 animate-in slide-in-from-right-8 duration-300 max-w-4xl mx-auto">
             {bloquearCamposLegales && (
               <div className="bg-blue-50 text-blue-800 p-4 rounded-xl flex items-start gap-3 text-sm font-medium border border-blue-100">
                 <Lock className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -453,159 +496,175 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">RFC *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">RFC <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
                   type="text" name="rfc" required maxLength="13" value={formData.rfc}
                   onChange={handleChange} onKeyDown={handleKeyDownStrict}
                   disabled={bloquearCamposLegales}
                   placeholder="XAXX010101000"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.rfc ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.rfc ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
                 />
                 {errores.rfc && <p className="text-xs font-bold text-red-500">{errores.rfc}</p>}
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">CURP *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">CURP <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
                   type="text" name="curp" required maxLength="18" value={formData.curp}
                   onChange={handleChange} onKeyDown={handleKeyDownStrict}
                   disabled={bloquearCamposLegales}
                   placeholder="XAXX010101HXXXXXX0"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.curp ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.curp ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
                 />
                 {errores.curp && <p className="text-xs font-bold text-red-500">{errores.curp}</p>}
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">Celular *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">Celular <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
                   type="text" name="celular" required maxLength="10" value={formData.celular} onChange={handleChange}
                   placeholder="5512345678"
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all ${errores.celular ? 'border-red-300 focus:ring-red-100' : 'border-slate-200 focus:ring-blue-100'}`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.celular)}`}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-slate-100">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">C.P. *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">C.P. <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
                   type="text" name="cp" required maxLength="5" value={formData.cp} onChange={handleChange}
                   placeholder="97000"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
+                  className={`${inputBaseClass} ${getValidationClass(errores.cp)}`}
                 />
+                {errores.cp && <p className="text-xs font-bold text-red-500">{errores.cp}</p>}
               </div>
               <div className="col-span-3 space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">
-                  Colonia *
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                  Colonia <span className="text-[#0B1828] ml-1">*</span>
                   {estadoRepublica && <span className="ml-2 text-xs font-medium text-slate-400">({estadoRepublica})</span>}
                 </label>
-                {coloniasDisponibles.length > 0 ? (
-                  <select
-                    name="colonia" required value={formData.colonia} onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="">Seleccione una colonia</option>
-                    {coloniasDisponibles.map((col, idx) => <option key={idx} value={col}>{col}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    type="text" name="colonia" required value={formData.colonia} onChange={handleChange}
-                    placeholder="Nombre de la colonia"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                )}
+                <select
+                  name="colonia" required value={formData.colonia} onChange={handleChange}
+                  disabled={coloniasDisponibles.length === 0}
+                  className={`${inputBaseClass} appearance-none ${
+                    coloniasDisponibles.length === 0 
+                      ? 'bg-slate-50 cursor-not-allowed text-slate-500 border-slate-200' 
+                      : 'bg-white border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828] cursor-pointer'
+                  }`}
+                >
+                  {coloniasDisponibles.length === 0 ? (
+                    <option value="">
+                      {formData.cp?.length === 5 ? 'C.P. inválido o no encontrado' : 'Ingresa un C.P.'}
+                    </option>
+                  ) : (
+                    <>
+                      <option value="">Seleccione una colonia</option>
+                      {coloniasDisponibles.map((col, idx) => (
+                        <option key={idx} value={col}>{col}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="flex gap-3">
                 <div className="flex-1 space-y-2">
-                  <label className="flex items-center text-sm font-bold text-slate-700">Calle *</label>
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Calle <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
                     type="text" name="calle" required value={formData.calle} onChange={handleChange}
-                    placeholder="Av. Reforma"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
+                    placeholder="Av. Ejemplo"
+                    className={`${inputBaseClass} ${getValidationClass()}`}
                   />
                 </div>
                 <div className="w-28 space-y-2">
-                  <label className="flex items-center text-sm font-bold text-slate-700">No. *</label>
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">No. <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
                     type="text" name="numero" required value={formData.numero} onChange={handleChange}
                     placeholder="123"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all"
+                    className={`${inputBaseClass} ${getValidationClass()}`}
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">Clave INE *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">Clave INE <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
                   type="text" name="clave_ine" required value={formData.clave_ine} onChange={handleChange}
                   disabled={bloquearCamposLegales}
+                  maxLength="18" 
                   placeholder="IDMEX..."
-                  className={`w-full px-4 py-3 rounded-xl border text-sm focus:ring-2 transition-all uppercase ${bloquearCamposLegales ? 'bg-slate-100 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} border-slate-200 focus:ring-blue-100`}
+                  className={`${inputBaseClass} uppercase ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'}`}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">Grado máximo *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">Nivel académico <span className="text-[#0B1828] ml-1">*</span></label>
                 <select
                   name="nivel_academico" required value={formData.nivel_academico} onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
+                  className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
                 >
-                  <option value="">-- Seleccione --</option>
+                  <option value="">Seleccione un nivel</option>
                   <option value="LICENCIATURA">Licenciatura</option>
                   <option value="MAESTRIA">Maestría</option>
                   <option value="DOCTORADO">Doctorado</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-slate-700">Academia *</label>
+                <label className="flex items-center text-sm font-bold text-[#0B1828]">Academia <span className="text-[#0B1828] ml-1">*</span></label>
                 <select
                   name="academia_id" required value={formData.academia_id} onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
+                  className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
                 >
-                  <option value="">-- Seleccione una academia --</option>
+                  <option value="">Seleccione una academia</option>
                   {academiasDisponibles.map(a => <option key={a.id_academia} value={a.id_academia}>{a.nombre}</option>)}
                 </select>
               </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-700 mb-4">Archivos digitales del expediente</h3>
+              <h3 className="text-lg font-black text-[#0B1828] mb-4">Archivos Digitales</h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 {documentosRequeridos.map((doc) => {
                   const urlActual = getDocumentoUrl(doc.tipoBackend);
+                  const archivoSeleccionado = archivos[doc.id];
                   return (
-                    <div key={doc.id} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="text-sm font-bold text-slate-700 flex items-center">
-                          <FileText className="w-4 h-4 mr-1 text-blue-500" /> {doc.label}
+                    <div key={doc.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
+                      <div className="flex justify-between items-center mb-3">
+                        <label className="text-sm font-bold text-[#0B1828] flex items-center">
+                          <FileText className="w-4 h-4 mr-1.5" /> {doc.label}
                         </label>
                         {urlActual && (
                           <a href={`${BACKEND_URL}${urlActual}`} target="_blank" rel="noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center"
+                            className="text-xs text-[#0B1828] font-bold hover:underline flex items-center bg-white px-2 py-1 rounded-md border border-slate-200"
                           >
-                            <ExternalLink className="inline w-3 h-3 mr-0.5" /> Ver
+                            <ExternalLink className="inline w-3 h-3 mr-1" /> Ver
                           </a>
                         )}
                       </div>
                       <input
                         type="file" name={doc.id} accept="application/pdf"
-                        required={!isEditing} onChange={handleFileChange}
-                        className="block w-full text-xs file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer transition-colors"
+                        required={!isEditing && !archivoSeleccionado} onChange={handleFileChange}
+                        className="block w-full text-xs file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-[#0B1828] file:text-white file:font-bold hover:file:bg-[#162840] cursor-pointer transition-colors"
                       />
+                      {archivoSeleccionado && (
+                        <p className="mt-3 text-xs font-bold text-emerald-600 flex items-center truncate bg-emerald-50 px-2 py-1 rounded-md" title={archivoSeleccionado.name}>
+                          <CheckCircle className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+                          {archivoSeleccionado.name}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            <div className="flex justify-between pt-6 border-t border-slate-100">
+            <div className="flex flex-col sm:flex-row justify-between gap-4 pt-8 border-t border-dashed border-slate-200 mt-2">
               {!isEditing ? (
                 <button
                   type="button" onClick={() => setPaso(1)}
-                  className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl transition-colors"
+                  className="px-6 py-4 text-[#0B1828] font-black hover:bg-slate-50 rounded-2xl transition-all border border-slate-200"
                 >
                   Volver al paso 1
                 </button>
@@ -613,59 +672,58 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`flex items-center px-8 py-3 rounded-xl shadow-md font-bold text-white disabled:opacity-50 transition-all ${
-                  isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'
+                className={`flex justify-center items-center px-8 py-4 rounded-2xl font-black transition-all duration-300 text-lg sm:min-w-[300px] ${
+                  isSubmitting ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300" : "bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
                 }`}
               >
                 {isSubmitting
-                  ? <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  ? <Loader2 className="w-6 h-6 mr-2 animate-spin" />
                   : isEditing
-                    ? <RefreshCw className="w-5 h-5 mr-2" />
-                    : <CheckCircle className="w-5 h-5 mr-2" />
+                    ? <RefreshCw className="w-6 h-6 mr-2" />
+                    : <Save className="w-6 h-6 mr-2" />
                 }
-                {isEditing ? "Actualizar expediente" : "Finalizar y guardar"}
+                {isSubmitting ? "Guardando..." : (isEditing ? "Modificar Docente" : "Nuevo Docente")}
               </button>
             </div>
           </div>
         )}
       </form>
 
-      {/* Modal de confirmación */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden">
-            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200 bg-slate-50/50">
-              <h3 className="text-lg font-black text-slate-900">Confirmar registro</h3>
-              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
-                <X className="w-5 h-5 text-slate-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200 bg-[#0B1828]">
+              <h3 className="text-lg font-black text-white">Confirmar registro</h3>
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                <X className="w-5 h-5 text-white" />
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 mb-4 font-medium">Esta acción realizará inserciones dependientes en la base de datos. ¿Los datos son correctos?</p>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm space-y-2">
+              <p className="text-sm text-slate-600 mb-5 font-medium">Esta acción realizará inserciones dependientes en la base de datos. ¿Los datos son correctos?</p>
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm space-y-3">
                 <div className="flex">
-                  <span className="font-bold w-1/3 text-slate-700">RFC:</span>
-                  <span className="text-slate-600">{formData.rfc}</span>
+                  <span className="font-black w-1/3 text-[#0B1828]">RFC:</span>
+                  <span className="text-slate-600 font-medium">{formData.rfc}</span>
                 </div>
                 <div className="flex">
-                  <span className="font-bold w-1/3 text-slate-700">Correo inst.:</span>
-                  <span className="text-slate-600">{formData.institutional_email || 'No modificado'}</span>
+                  <span className="font-black w-1/3 text-[#0B1828]">Correo inst.:</span>
+                  <span className="text-slate-600 font-medium">{formData.institutional_email || 'No asignado'}</span>
                 </div>
               </div>
             </div>
-            <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+            <div className="bg-slate-50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                className="px-6 py-3 bg-white border border-slate-200 rounded-xl font-bold text-[#0B1828] hover:bg-slate-50 transition-colors shadow-sm"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="flex items-center px-5 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+                className="flex items-center px-6 py-3 rounded-xl font-black text-white bg-[#0B1828] hover:bg-[#162840] disabled:opacity-50 transition-all shadow-sm"
               >
-                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : null}
                 Confirmar
               </button>
             </div>

@@ -84,6 +84,9 @@ const horarioModel = {
     let conn;
     try {
       conn = await pool.getConnection();
+      
+      // CAMBIO: Se sustituye INNER JOIN grupos por LEFT JOIN grupos.
+      // Se agrega COALESCE para identificar correctamente las materias de tronco común.
       const rows = await conn.query(
         `SELECT
            a.id_asignacion,
@@ -91,13 +94,13 @@ const horarioModel = {
            a.hora_inicio,
            a.hora_fin,
            m.nombre        AS nombre_materia,
-           g.identificador AS nombre_grupo,
+           COALESCE(g.identificador, 'TRONCO COMÚN') AS nombre_grupo,
            au.nombre_codigo AS nombre_aula,
            p.codigo        AS codigo_periodo,
            p.anio          AS anio_periodo
          FROM asignaciones a
          INNER JOIN materias m  ON m.id_materia = a.materia_id
-         INNER JOIN grupos   g  ON g.id_grupo   = a.grupo_id
+         LEFT JOIN grupos   g  ON g.id_grupo   = a.grupo_id
          INNER JOIN aulas    au ON au.id_aula    = a.aula_id
          INNER JOIN periodos p  ON p.id_periodo  = a.periodo_id
          WHERE a.docente_id    = ?
