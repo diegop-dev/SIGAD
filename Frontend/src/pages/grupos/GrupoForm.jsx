@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react"; 
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Layers, Loader2, Trash2, Hash, BookOpen, AlertTriangle, Ban, GraduationCap, RefreshCw } from "lucide-react";
+import { Save, ArrowLeft, Layers, Loader2, Hash, BookOpen, AlertTriangle, Ban, GraduationCap, RefreshCw, Calendar } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -8,8 +8,14 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth(); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
+  
   const [carreras, setCarreras] = useState([]); 
   const [cargandoCarreras, setCargandoCarreras] = useState(true);
+
+  // Estados exclusivos para los cuatrimestres
+  const [cuatrimestres, setCuatrimestres] = useState([]);
+  const [cargandoCuatrimestres, setCargandoCuatrimestres] = useState(false);
+  const [cuatrimestreId, setCuatrimestreId] = useState(initialData?.cuatrimestre_id || "");
 
   const [serverAction, setServerAction] = useState(null); 
   const [serverMessage, setServerMessage] = useState('');
@@ -21,10 +27,11 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
   const [carreraId, setCarreraId] = useState(initialData?.carrera_id || "");
 
   useEffect(() => {
-    const fetchCarreras = async () => {
+    const fetchCatalogos = async () => {
       try {
-        const response = await api.get("/carreras");
-        const listaCarreras = Array.isArray(response.data) ? response.data : response.data.data;
+        // 1. Cargar carreras siempre (se usan tanto para crear como para editar)
+        const responseCarreras = await api.get("/carreras");
+        const listaCarreras = Array.isArray(responseCarreras.data) ? responseCarreras.data : responseCarreras.data.data;
         const carrerasActivas = listaCarreras.filter(c => c.estatus === 'ACTIVO');
         setCarreras(carrerasActivas || []);
 
@@ -35,15 +42,25 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
             setNivelSeleccionado(carreraActual.nivel_academico || "LICENCIATURA");
           }
         }
+
+        // 2. Cargar cuatrimestres SOLO si estamos editando
+        if (isEditing) {
+          setCargandoCuatrimestres(true);
+          const responseCuatrimestres = await api.get("/cuatrimestres");
+          const listaCuatrimestres = Array.isArray(responseCuatrimestres.data) ? responseCuatrimestres.data : responseCuatrimestres.data.data;
+          setCuatrimestres(listaCuatrimestres || []);
+        }
+
       } catch (error) {
-        console.error("Error al cargar carreras:", error);
-        toast.error("No se pudieron cargar las carreras disponibles.");
+        console.error("Error al cargar catálogos:", error);
+        toast.error("No se pudieron cargar los datos disponibles.");
       } finally {
         setCargandoCarreras(false);
+        if (isEditing) setCargandoCuatrimestres(false);
       }
     };
-    fetchCarreras();
-  }, [initialData]);
+    fetchCatalogos();
+  }, [initialData, isEditing]);
 
   const carrerasFiltradas = useMemo(() => {
     if (!modalidadSeleccionada || !nivelSeleccionado) return [];
@@ -77,17 +94,23 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
   };
 
+  const handleCuatrimestreChange = (e) => {
+    setCuatrimestreId(e.target.value);
+    setServerAction(null);
+    if (errores.cuatrimestre_id) setErrores({ ...errores, cuatrimestre_id: null });
+  };
+
   const validate = () => {
     const newErrors = {};
-    if (!nivelSeleccionado) {
-      newErrors.nivel_academico = "Selecciona el nivel académico";
+    if (!nivelSeleccionado) newErrors.nivel_academico = "Selecciona el nivel académico";
+    if (!modalidadSeleccionada) newErrors.modalidad = "Selecciona una modalidad";
+    if (!carreraId) newErrors.carrera_id = "Selecciona un programa académico";
+    
+    // Validar el cuatrimestre SOLO si estamos en modo edición
+    if (isEditing && !cuatrimestreId) {
+      newErrors.cuatrimestre_id = "Selecciona un cuatrimestre";
     }
-    if (!modalidadSeleccionada) {
-      newErrors.modalidad = "Selecciona una modalidad";
-    }
-    if (!carreraId) {
-      newErrors.carrera_id = "Selecciona una carrera";
-    }
+
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -108,6 +131,8 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       };
 
       if (isEditing) {
+        // Incluir el cuatrimestre modificado en el payload del PUT
+        payload.cuatrimestre_id = Number(cuatrimestreId);
         await api.put(`/grupos/${initialData.id_grupo}`, payload);
       } else {
         await api.post("/grupos", payload);
@@ -168,7 +193,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
             {isEditing ? "Modificar grupo" : "Nuevo grupo"}
           </h2>
           <p className="text-sm text-white/60 font-medium">
-            {isEditing ? "Modifica la asignación de carrera." : "Filtra por nivel, modalidad y elige la carrera."}
+            {isEditing ? "Modifica la asignación de carrera y cuatrimestre." : "Filtra por nivel, modalidad y elige la carrera."}
           </p>
         </div>
       </div>
@@ -181,12 +206,12 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
           </div>
 
           <div className="space-y-6">
-            <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Asignación Académica</h3>
+            <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Asignación académica</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
-                  <GraduationCap className="w-4 h-4 mr-2" /> Nivel Académico <span className="text-[#0B1828] ml-1">*</span>
+                  <GraduationCap className="w-4 h-4 mr-2" /> Nivel académico <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <select
                   value={nivelSeleccionado}
@@ -218,25 +243,47 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
                 {errores.modalidad && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.modalidad}</p>}
               </div>
 
-      <div className="md:col-span-2 space-y-2">
-        <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
-          <BookOpen className="w-4 h-4 mr-2" /> Programa académico asignado <span className="text-[#0B1828] ml-1">*</span>
-        </label>
-        <select
-          value={carreraId}
-          onChange={handleCarreraChange}
-          disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
-          className={`${inputBaseClass} ${getValidationClass(errores.carrera_id)}`}
-        >
-          <option value="">-- Seleccione una carrera/maestría --</option>
-          {carrerasFiltradas.map(c => (
-            <option key={c.id_carrera} value={c.id_carrera}>
-              {c.nombre_carrera || "Programa sin nombre"}
-            </option>
-          ))}
-        </select>
-        {errores.carrera_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.carrera_id}</p>}
-      </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                  <BookOpen className="w-4 h-4 mr-2" /> Programa académico asignado <span className="text-[#0B1828] ml-1">*</span>
+                </label>
+                <select
+                  value={carreraId}
+                  onChange={handleCarreraChange}
+                  disabled={!modalidadSeleccionada || cargandoCarreras || serverAction === 'BLOCK'}
+                  className={`${inputBaseClass} ${getValidationClass(errores.carrera_id)}`}
+                >
+                  <option value="">-- Seleccione una carrera/maestría --</option>
+                  {carrerasFiltradas.map(c => (
+                    <option key={c.id_carrera} value={c.id_carrera}>
+                      {c.nombre_carrera || "Programa sin nombre"}
+                    </option>
+                  ))}
+                </select>
+                {errores.carrera_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.carrera_id}</p>}
+              </div>
+
+              {/* Selector de Cuatrimestre: Renderizado condicional SOLO para edición */}
+              {isEditing && (
+                <div className="md:col-span-2 space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Calendar className="w-4 h-4 mr-2" /> Cuatrimestre correspondiente <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <select
+                    value={cuatrimestreId}
+                    onChange={handleCuatrimestreChange}
+                    disabled={cargandoCuatrimestres || serverAction === 'BLOCK'}
+                    className={`${inputBaseClass} ${getValidationClass(errores.cuatrimestre_id)}`}
+                  >
+                    <option value="">{cargandoCuatrimestres ? "Cargando..." : "-- Seleccione el cuatrimestre --"}</option>
+                    {cuatrimestres.map(c => (
+                      <option key={c.id_cuatrimestre} value={c.id_cuatrimestre}>{c.nombre}</option>
+                    ))}
+                  </select>
+                  {errores.cuatrimestre_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.cuatrimestre_id}</p>}
+                </div>
+              )}
+
               <div className="md:col-span-2 space-y-2 mt-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
                   <Hash className="w-4 h-4 mr-2" /> Identificador {isEditing ? "actual" : "generado"}
@@ -293,11 +340,11 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
             ) : (
               <button 
                 type="submit" 
-                disabled={isSubmitting || cargandoCarreras} 
+                disabled={isSubmitting || cargandoCarreras || cargandoCuatrimestres} 
                 className={`w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg shadow-xl active:scale-[0.98] ${
                   serverAction === 'WARN' 
                     ? 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-600/30' 
-                    : isSubmitting || cargandoCarreras
+                    : isSubmitting || cargandoCarreras || cargandoCuatrimestres
                       ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300 shadow-none"
                       : "bg-[#0B1828] text-white hover:bg-[#162840] hover:shadow-[#0B1828]/30"
                 }`}
@@ -314,7 +361,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
                 
                 {isSubmitting
                   ? "Procesando cambios..."
-                  : serverAction === 'WARN' ? "Confirmar cambio y rechazar clases" : (isEditing ? "Modificar Grupo" : "Nuevo Grupo")
+                  : serverAction === 'WARN' ? "Confirmar cambio y rechazar clases" : (isEditing ? "Modificar grupo" : "Nuevo grupo")
                 }
               </button>
             )}

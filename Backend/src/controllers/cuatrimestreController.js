@@ -2,12 +2,12 @@ const cuatrimestreModel = require('../models/cuatrimestreModel');
 
 const cuatrimestreController = {
 
-  getCuatrimestres: async (req, res) => {
+  obtenerCuatrimestresActivos: async (req, res) => {
     try {
-      const cuatrimestres = await cuatrimestreModel.getCuatrimestres();
+      const cuatrimestres = await cuatrimestreModel.obtenerCuatrimestresActivos();
       return res.status(200).json(cuatrimestres);
     } catch (error) {
-      console.error("[Error getCuatrimestres]:", error);
+      console.error("[Error obtenerCuatrimestresActivos]:", error);
       return res.status(500).json({
         message: "Error interno al procesar el catálogo de cuatrimestres"
       });

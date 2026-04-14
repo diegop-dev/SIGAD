@@ -2,12 +2,12 @@ const pool = require("../config/database");
 
 const cuatrimestreModel = {
   // Método dedicado a la obtención de cuatrimestres para interfaz interna
-  getCuatrimestres: async () => {
+  obtenerCuatrimestresActivos: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
       const rows = await conn.query(`
-        SELECT id_cuatrimestre, nombre
+        SELECT id_cuatrimestre, nombre, estatus
         FROM cuatrimestres
         ORDER BY id_cuatrimestre ASC
       `);
