@@ -1,7 +1,7 @@
 const pool = require("../config/database");
 
 const carreraModel = {
-  getCarreraById: async (id_carrera) => {
+  obtenerCarreraPorId: async (id_carrera) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -12,7 +12,7 @@ const carreraModel = {
     }
   },
 
-  findExistingCarrera: async (nombre_carrera, modalidad, nivel_academico) => {
+  encontrarCarreraExistente: async (nombre_carrera, modalidad, nivel_academico) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -45,7 +45,7 @@ const carreraModel = {
     }
   },
 
-  getAcademiasActivas: async () => {
+  obtenerAcademiasActivas: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -74,7 +74,7 @@ const carreraModel = {
     }
   },
 
-  getAllCarreras: async (periodo_id = null) => {
+  obtenerTodasLasCarreras: async (periodo_id = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -116,7 +116,7 @@ const carreraModel = {
     }
   },
 
-  getCarrerasParaSincronizacion: async () => {
+  obtenerCarrerasParaSincronizacion: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -130,7 +130,7 @@ const carreraModel = {
   // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
   // Regla de negocio: restringe mutaciones estructurales si la carrera
   // tiene materias vinculadas a una asignación docente vigente.
-  checkDependenciasActivas: async (id_carrera) => {
+  verificarDependenciasActivas: async (id_carrera) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -209,7 +209,7 @@ const carreraModel = {
   },
 
 // Baja logica
-  deactivateCarrera: async (id_carrera, modificado_por) => {
+  desactivarCarrera: async (id_carrera, modificado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -226,7 +226,7 @@ const carreraModel = {
   },
 
   // Reactivacion de carrera
-  activateCarrera: async (id_carrera, modificado_por) => {
+  activarCarrera: async (id_carrera, modificado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -249,7 +249,7 @@ const carreraModel = {
   // Devuelve carreras activas con los nombres de campo que espera SESA.
   // id_carrera  → id_programa_academico
   // nombre_carrera → nombre_programa
-  ObtenerProgramasAcademicos: async () => {
+  obtenerProgramasAcademicos: async () => {
     let conn;
     try {
       conn = await pool.getConnection();

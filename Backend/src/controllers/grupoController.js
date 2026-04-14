@@ -4,7 +4,7 @@ const assignmentModel = require('../models/assignmentModel');
 
 const grupoController = {
 
-  getGruposParaSincronizacion: async (req, res) => {
+  obtenerGruposParaSincronizacion: async (req, res) => {
     try {
       const { carrera_id, cuatrimestre_id } = req.query;
       if (!carrera_id || !cuatrimestre_id) {
@@ -12,17 +12,17 @@ const grupoController = {
           message: 'Parámetros incompletos. Se requiere carrera_id y cuatrimestre_id.'
         });
       }
-      const grupos = await grupoModel.getGruposParaSincronizacion(carrera_id, cuatrimestre_id);
+      const grupos = await grupoModel.obtenerGruposParaSincronizacion(carrera_id, cuatrimestre_id);
       return res.status(200).json(grupos);
     } catch (error) {
-      console.error('[Error getGruposParaSincronizacion]:', error);
+      console.error('[Error obtenerGruposParaSincronizacion]:', error);
       return res.status(500).json({ message: 'Error interno al procesar el catálogo de grupos.' });
     }
   },
 
-  getGrupos: async (req, res) => {
+  obtenerTodosLosGrupos: async (req, res) => {
     try {
-      const grupos = await grupoModel.getAllGrupos();
+      const grupos = await grupoModel.obtenerTodosLosGrupos();
       return res.status(200).json(grupos);
     } catch (error) {
       console.error('Error al obtener grupos:', error);
@@ -35,7 +35,7 @@ const grupoController = {
       const { carrera_id, nivel_academico } = req.body;
       const creado_por = req.usuario ? req.usuario.id_usuario : null;
 
-      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const carreraInfo = await carreraModel.obtenerCarreraPorId(carrera_id);
       const nivelSeguro = carreraInfo ? carreraInfo.nivel_academico : (nivel_academico || 'LICENCIATURA');
 
       const datosNuevoGrupo = {
@@ -72,11 +72,11 @@ const grupoController = {
       const { carrera_id, cuatrimestre_id, confirmar_rechazo, nivel_academico } = req.body;
       const modificado_por = req.usuario ? req.usuario.id_usuario : null;
 
-      const grupoExistente = await grupoModel.getGrupoById(id);
+      const grupoExistente = await grupoModel.obtenerGrupoPorId(id);
       if (!grupoExistente) return res.status(404).json({ message: 'Grupo no encontrado' });
 
       let identificadorFinal = grupoExistente.identificador;
-      const carreraInfo = await carreraModel.getCarreraById(carrera_id);
+      const carreraInfo = await carreraModel.obtenerCarreraPorId(carrera_id);
       const nivelSeguro = carreraInfo ? carreraInfo.nivel_academico : (nivel_academico || 'LICENCIATURA');
 
       // 1. Detección de mutaciones en campos estructurales críticos
@@ -87,7 +87,7 @@ const grupoController = {
 
       // 2. Validación de integridad referencial
       if (intentoCambioEstructural) {
-        const tieneAsignacionesActivas = await grupoModel.checkDependenciasActivas(id);
+        const tieneAsignacionesActivas = await grupoModel.verificarDependenciasActivas(id);
         
         if (tieneAsignacionesActivas) {
           return res.status(409).json({
@@ -100,7 +100,7 @@ const grupoController = {
 
       // 3. Manejo de estados de advertencia (Solo si cambia la carrera, como antes)
       if (Number(grupoExistente.carrera_id) !== Number(carrera_id)) {
-        const asignaciones = await assignmentModel.getAllAsignaciones({ grupo_id: id });
+        const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ grupo_id: id });
         const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
 
         if (tieneEnviadas && !confirmar_rechazo) {
@@ -149,7 +149,7 @@ const grupoController = {
       if (!eliminado_por) return res.status(400).json({ error: "Falta especificar el usuario que realiza la baja." });
 
       // Optimización SQL: Bloqueo inmediato de integridad referencial
-      const tieneAceptadas = await grupoModel.checkDependenciasActivas(id);
+      const tieneAceptadas = await grupoModel.verificarDependenciasActivas(id);
       
       if (tieneAceptadas) {
         return res.status(409).json({
@@ -160,7 +160,7 @@ const grupoController = {
       }
 
       // Comprobación secundaria (en memoria) para advertencias "ENVIADAS"
-      const asignaciones = await assignmentModel.getAllAsignaciones({ grupo_id: id });
+      const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ grupo_id: id });
       const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
 
       if (tieneEnviadas && !confirmar_rechazo) {
@@ -199,18 +199,18 @@ const grupoController = {
 
   // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
   // Filtros opcionales: ?id_programa_academico=X&cuatrimestre_id=Y
-  ObtenerGrupos: async (req, res) => {
+  obtenerCatalogoGrupos: async (req, res) => {
     try {
       const { id_programa_academico, cuatrimestre_id } = req.query;
 
-      const grupos = await grupoModel.ObtenerGrupos({
+      const grupos = await grupoModel.obtenerCatalogoGrupos({
         id_programa_academico: id_programa_academico || null,
         cuatrimestre_id:       cuatrimestre_id       || null,
       });
 
       res.status(200).json(grupos);
     } catch (error) {
-      console.error("[Error ObtenerGrupos]:", error);
+      console.error("[Error obtenerCatalogoGrupos]:", error);
       res.status(500).json({ error: "Error al consultar los grupos" });
     }
   },

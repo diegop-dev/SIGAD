@@ -7,7 +7,7 @@ const cuatrimestreController = require("../controllers/cuatrimestreController");
 router.get("/catalogo", cuatrimestreController.ObtenerCuatrimestres);
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/", verifyToken, cuatrimestreController.getCuatrimestres);
-router.get("/sincronizacion", verifyToken, cuatrimestreController.getCuatrimestres);
+router.get("/", verifyToken, cuatrimestreController.obtenerCuatrimestresActivos);
+router.get("/sincronizacion", verifyToken, cuatrimestreController.obtenerCuatrimestresActivos);
 
 module.exports = router;

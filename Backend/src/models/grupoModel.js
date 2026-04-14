@@ -1,7 +1,7 @@
 const pool = require("../config/database");
 
 const grupoModel = {
-  getGruposParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
+  obtenerGruposParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -34,7 +34,7 @@ const grupoModel = {
     }
   },
 
-  getAllGrupos: async () => {
+  obtenerTodosLosGrupos: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -60,7 +60,7 @@ const grupoModel = {
     }
   },
 
-  getCarreraSiglas: async (carrera_id) => {
+  obtenerCarreraSiglas: async (carrera_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -87,7 +87,7 @@ const grupoModel = {
     }
   },
 
-  getGrupoById: async (id_grupo) => {
+  obtenerGrupoPorId: async (id_grupo) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -102,7 +102,7 @@ const grupoModel = {
     }
   },
 
-  getGruposByCarrera: async (carrera_id) => {
+  obtenerGruposPorCarrera: async (carrera_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -119,7 +119,7 @@ const grupoModel = {
   // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
   // Regla de negocio: restringe mutaciones estructurales si el grupo
   // tiene asignaciones docentes vigentes.
-  checkDependenciasActivas: async (id_grupo) => {
+  verificarDependenciasActivas: async (id_grupo) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -246,7 +246,7 @@ const grupoModel = {
   // ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
   // Filtro implícito: estatus = ACTIVO.
   // Filtros opcionales: id_programa_academico (carrera_id), cuatrimestre_id.
-  ObtenerGrupos: async ({ id_programa_academico, cuatrimestre_id } = {}) => {
+  obtenerCatalogoGrupos: async ({ id_programa_academico, cuatrimestre_id } = {}) => {
     let conn;
     try {
       conn = await pool.getConnection();
