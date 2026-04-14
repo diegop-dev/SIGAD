@@ -45,7 +45,6 @@ const registrarAula = async (req, res) => {
        VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
       [nombre, tipo, capacidad, ubicacion, creado_por]
     );
-    logAudit({ modulo: 'AULAS', accion: 'CREACION', registro_afectado: nombre, detalle: `Tipo: ${tipo}`, usuario_id: creado_por, ip_address: getClientIp(req) });
     res.status(201).json({
       message: "Espacio académico registrado con éxito.",
       id_aula: resultado.insertId
@@ -115,7 +114,6 @@ const actualizarAula = async (req, res) => {
       [nombre, tipo, capacidad, ubicacion, estatus, modificado_por, id]
     );
     if (resultado.affectedRows === 0) return res.status(404).json({ message: "Aula no encontrada." });
-    logAudit({ modulo: 'AULAS', accion: 'MODIFICACION', registro_afectado: `Aula #${id} — ${nombre}`, detalle: null, usuario_id: modificado_por, ip_address: getClientIp(req) });
     res.json({ message: "Actualizado con éxito." });
   } catch (error) {
     console.error("Error al actualizar:", error);
@@ -142,7 +140,6 @@ const desactivarAula = async (req, res) => {
       [eliminado_por, id]
     );
     if (resultado.affectedRows === 0) return res.status(404).json({ message: "Aula o laboratorio no encontrado." });
-    logAudit({ modulo: 'AULAS', accion: 'BAJA', registro_afectado: `Aula #${id}`, detalle: null, usuario_id: eliminado_por, ip_address: getClientIp(req) });
     res.json({ message: "Espacio académico desactivado con éxito." });
   } catch (error) {
     console.error("Error al desactivar aula:", error);

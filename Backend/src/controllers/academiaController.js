@@ -74,7 +74,7 @@ exports.updateAcademia = async (req, res) => {
     // 4. Ejecutar la actualización dinámica
     const data = { nombre, descripcion, usuario_id, modificado_por };
     await Academia.actualizar(id, data);
-    logAudit({ modulo: 'ACADEMIAS', accion: 'MODIFICACION', registro_afectado: `Academia #${id}`, detalle: null, usuario_id: req.user?.id_usuario, ip_address: getClientIp(req) });
+
     res.json({ message: "Academia actualizada correctamente" });
   } catch (error) {
     console.error("Error al actualizar academia:", error);

@@ -109,7 +109,6 @@ const registerDocente = async (req, res) => {
         if (!enviado) console.error(`[Aviso] El docente ${nombres} se creó, pero falló el envío de correo a ${personal_email}.`);
       });
 
-    logAudit({ modulo: 'DOCENTES', accion: 'CREACION', registro_afectado: `${nombres} ${apellido_paterno} — ${matricula}`, detalle: null, usuario_id: creado_por, ip_address: getClientIp(req) });
     res.status(201).json({
       message: "Expediente de docente y credenciales de usuario creados con éxito.",
       matricula_generada: matricula,
@@ -168,7 +167,6 @@ const updateDocente = async (req, res) => {
       domicilio: domicilio_completo, documentos: documentosNuevos
     });
 
-    logAudit({ modulo: 'DOCENTES', accion: 'MODIFICACION', registro_afectado: `Docente #${id}`, detalle: null, usuario_id: modificado_por ?? req.user?.id_usuario, ip_address: getClientIp(req) });
     res.status(200).json({ message: "Docente actualizado correctamente" });
   } catch (error) {
     console.error("Error al actualizar docente:", error);
@@ -213,7 +211,6 @@ const deactivateDocente = async (req, res) => {
     const affectedRows = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
     if (affectedRows === 0) return res.status(404).json({ error: "Docente no encontrado. No se pudo realizar la baja." });
 
-    logAudit({ modulo: 'DOCENTES', accion: 'BAJA', registro_afectado: `Docente #${id}`, detalle: motivo_baja, usuario_id: eliminado_por, ip_address: getClientIp(req) });
     res.status(200).json({ message: "Docente dado de baja exitosamente del sistema." });
   } catch (error) {
     console.error("Error crítico al dar de baja al docente:", error);
@@ -277,7 +274,6 @@ const reactivateDocente = async (req, res) => {
     const usuario_id     = req.user?.id_usuario;
     const affectedRows   = await docenteModel.reactivateDocente(id, usuario_id);
     if (affectedRows === 0) return res.status(404).json({ error: "Docente no encontrado o no se pudo reactivar." });
-    logAudit({ modulo: 'DOCENTES', accion: 'MODIFICACION', registro_afectado: `Docente #${id} — reactivado`, detalle: null, usuario_id, ip_address: getClientIp(req) });
     res.status(200).json({ message: "Docente reactivado exitosamente." });
   } catch (error) {
     console.error("Error al reactivar docente:", error);

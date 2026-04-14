@@ -64,7 +64,6 @@ const createPeriodo = async (req, res) => {
       creado_por,
     });
 
-    logAudit({ modulo: 'PERIODOS', accion: 'CREACION', registro_afectado: codigo, detalle: null, usuario_id: creado_por, ip_address: getClientIp(req) });
     res.status(201).json({
       message: "Periodo creado correctamente",
       id_periodo: result.id,
@@ -126,7 +125,6 @@ const updatePeriodo = async (req, res) => {
       modificado_por,
     });
 
-    logAudit({ modulo: 'PERIODOS', accion: 'MODIFICACION', registro_afectado: `Periodo #${id} — ${codigo}`, detalle: null, usuario_id: modificado_por, ip_address: getClientIp(req) });
     res.status(200).json({ message: "Periodo actualizado correctamente" });
   } catch (error) {
     console.error("[Error updatePeriodo]:", error);
@@ -149,7 +147,6 @@ const deletePeriodo = async (req, res) => {
     }
 
     await periodoModel.deletePeriodoFisico(id);
-    logAudit({ modulo: 'PERIODOS', accion: 'BAJA', registro_afectado: `Periodo #${id} — ${periodo.codigo}`, detalle: 'Borrado físico', usuario_id: req.user?.id_usuario, ip_address: getClientIp(req) });
     res.json({ message: "Periodo eliminado" });
   } catch (error) {
     console.error(error);
@@ -190,7 +187,6 @@ const togglePeriodo = async (req, res) => {
     }
 
     await periodoModel.togglePeriodoStatus(id, usuario);
-    logAudit({ modulo: 'PERIODOS', accion: 'MODIFICACION', registro_afectado: `Periodo #${id}`, detalle: 'Cambio de estatus', usuario_id: usuario, ip_address: getClientIp(req) });
     res.status(200).json({ message: "Estatus actualizado" });
   } catch (error) {
     console.error("Error cambiando estatus:", error);
