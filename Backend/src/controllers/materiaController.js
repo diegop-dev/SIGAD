@@ -1,5 +1,6 @@
 const materiaModel = require("../models/materiaModel");
 const carreraModel = require("../models/carreraModel");
+const assignmentModel = require('../models/assignmentModel');
 
 /*
 =========================
@@ -28,7 +29,7 @@ const generarCodigoMateria = async (nombreMateria, carreraId, nivelAcademico = '
   const prefijoMateria = obtenerTresLetras(nombreMateria);
   let prefijoCarrera = "GEN";
   if (carreraId) {
-    const carrera = await carreraModel.getCarreraById(carreraId);
+    const carrera = await carreraModel.obtenerCarreraPorId(carreraId);
     if (carrera) {
       const nombreCarrera = carrera.nombre_carrera || carrera.nombre || "";
       prefijoCarrera = obtenerTresLetras(nombreCarrera);
@@ -51,13 +52,13 @@ API SINCRONIZACION
 =========================
 */
 
-const getMateriasParaSincronizacion = async (req, res) => {
+const obtenerMateriasParaSincronizacion = async (req, res) => {
   try {
     const { carrera_id, cuatrimestre_id } = req.query;
     if (!carrera_id || !cuatrimestre_id) {
       return res.status(400).json({ message: "Se requiere carrera_id y cuatrimestre_id" });
     }
-    const materias = await materiaModel.getMateriasParaSincronizacion(carrera_id, cuatrimestre_id);
+    const materias = await materiaModel.obtenerMateriasParaSincronizacion(carrera_id, cuatrimestre_id);
     res.status(200).json(materias);
   } catch (error) {
     console.error("Error sincronización materias:", error);
@@ -71,9 +72,9 @@ CONSULTA GENERAL
 =========================
 */
 
-const getMaterias = async (req, res) => {
+const obtenerMaterias = async (req, res) => {
   try {
-    const materias = await materiaModel.getAllMaterias();
+    const materias = await materiaModel.obtenerTodasLasMaterias();
     res.status(200).json(materias);
   } catch (error) {
     console.error("Error obteniendo materias:", error);
@@ -87,7 +88,7 @@ CREAR MATERIA
 =========================
 */
 
-const createMateria = async (req, res) => {
+const crearMateria = async (req, res) => {
   try {
     const {
       nombre, creditos, cupo_maximo, tipo_asignatura,
@@ -119,7 +120,7 @@ const createMateria = async (req, res) => {
       creado_por: req.user?.id_usuario || null
     };
 
-    const resultado = await materiaModel.createMateria(nuevaMateria);
+    const resultado = await materiaModel.crearMateria(nuevaMateria);
     const insertId  = resultado.insertId || resultado[0]?.insertId;
 
     res.status(201).json({ message: "Materia creada correctamente", id_materia: insertId, codigo_unico });
@@ -135,7 +136,7 @@ ACTUALIZAR MATERIA
 =========================
 */
 
-const updateMateria = async (req, res) => {
+const actualizarMateria = async (req, res) => {
   try {
     const usuario = req.user;
     if (!usuario) return res.status(401).json({ error: "Usuario no autenticado" });
@@ -143,14 +144,15 @@ const updateMateria = async (req, res) => {
     const { id } = req.params;
     const {
       nombre, creditos, cupo_maximo, tipo_asignatura,
-      nivel_academico, periodo_id, cuatrimestre_id, carrera_id
+      nivel_academico, periodo_id, cuatrimestre_id, carrera_id,
+      confirmar_rechazo 
     } = req.body;
 
     const modificado_por = usuario.id_usuario;
-    const materiaActual  = await materiaModel.getMateriaById(id);
+    const materiaActual  = await materiaModel.obtenerMateriaPorId(id);
     if (!materiaActual) return res.status(404).json({ error: "Materia no encontrada" });
 
-    const cuatrimestreActivo = await materiaModel.getCuatrimestreActivo(materiaActual.cuatrimestre_id);
+    const cuatrimestreActivo = await materiaModel.obtenerCuatrimestreActivo(materiaActual.cuatrimestre_id);
     if (cuatrimestreActivo) {
       return res.status(409).json({ error: "No se puede modificar la materia porque el cuatrimestre está activo" });
     }
@@ -159,7 +161,7 @@ const updateMateria = async (req, res) => {
       if (usuario.id_rol !== 3) {
         return res.status(403).json({ error: "No tienes permisos para modificar materias" });
       }
-      const academia = await materiaModel.getAcademiaDeMateria(id);
+      const academia = await materiaModel.obtenerAcademiaDeMateria(id);
       if (!academia || academia.usuario_id !== usuario.id_usuario) {
         return res.status(403).json({ error: "No eres el coordinador de la academia de esta materia" });
       }
@@ -169,7 +171,7 @@ const updateMateria = async (req, res) => {
     const nombreLimpio  = nombre.toUpperCase().trim();
     const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
 
-    // Validación de integridad referencial para atributos estructurales
+    // Validación de integridad referencial
     const intentoCambioEstructural = 
       (nivelSeguro !== materiaActual.nivel_academico) ||
       (tipo_asignatura !== undefined && tipo_asignatura !== materiaActual.tipo_asignatura) ||
@@ -178,13 +180,28 @@ const updateMateria = async (req, res) => {
       (cuatrimestre_id !== undefined && Number(cuatrimestre_id) !== Number(materiaActual.cuatrimestre_id));
 
     if (intentoCambioEstructural) {
-      const tieneAsignaciones = await materiaModel.checkDependenciasActivas(id);
-      if (tieneAsignaciones) {
+      const tieneAceptadas = await materiaModel.verificarDependenciasActivas(id);
+      if (tieneAceptadas) {
         return res.status(409).json({
           action: "BLOCK",
           error: "Conflicto de integridad relacional",
-          detalles: "No es posible modificar los datos estructurales de esta materia (nivel académico, tipo, carrera, periodo o cuatrimestre) porque ya cuenta con clases asignadas. Debe liberar la carga horaria previamente."
+          detalles: "No es posible modificar la estructura de esta materia porque ya cuenta con clases ACEPTADAS. Debe reasignar o cancelar estas clases previamente."
         });
+      }
+
+      // Lógica de Advertencia y Rechazo Automático
+      const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ materia_id: id });
+      const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+      if (tieneEnviadas && !confirmar_rechazo) {
+        return res.status(409).json({
+          action: "WARN",
+          error: "Advertencia de asignaciones pendientes",
+          detalles: "Esta materia tiene asignaciones ENVIADAS a docentes. Modificarla rechazará automáticamente estas clases. ¿Deseas continuar?"
+        });
+      }
+      if (tieneEnviadas && confirmar_rechazo) {
+        await assignmentModel.rechazarAsignacionesPorMateria(id, modificado_por);
       }
     }
 
@@ -206,7 +223,7 @@ const updateMateria = async (req, res) => {
       codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
     }
 
-    await materiaModel.updateMateria(id, {
+    await materiaModel.actualizarMateria(id, {
       codigo_unico, nombre: nombreLimpio, creditos, cupo_maximo,
       tipo_asignatura, nivel_academico: nivelSeguro,
       periodo_id, cuatrimestre_id, carrera_id: carreraSegura, modificado_por
@@ -221,69 +238,65 @@ const updateMateria = async (req, res) => {
 
 /*
 =========================
-BORRADO FISICO
-=========================
-*/
-
-const deleteMateria = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const materia = await materiaModel.getMateriaById(id);
-    if (!materia) return res.status(404).json({ error: "Materia no encontrada" });
-
-    const cuatrimestreActivo = await materiaModel.getCuatrimestreActivo(materia.cuatrimestre_id);
-    if (cuatrimestreActivo) {
-      return res.status(409).json({ error: "No se puede eliminar la materia porque el cuatrimestre está activo" });
-    }
-
-    const usado = await materiaModel.checkMateriaUsage(id);
-    if (usado > 0) {
-      return res.status(409).json({
-        error: "No se puede eliminar la materia porque tiene registros históricos vinculados; se recomienda la baja lógica"
-      });
-    }
-
-    await materiaModel.deleteMateriaFisica(id);
-    res.status(200).json({ message: "Materia eliminada" });
-  } catch (error) {
-    console.error("Error eliminando materia:", error);
-    res.status(500).json({ error: "Error eliminando materia" });
-  }
-};
-
-/*
-=========================
 BAJA LOGICA
 =========================
 */
 
-const toggleMateria = async (req, res) => {
+const desactivarMateria = async (req, res) => {
   try {
     const { id }    = req.params;
     const usuario   = req.user?.id_usuario;
+    const { confirmar_rechazo } = req.body || {}; // Evitamos error si el body viene vacío
 
-    // Validación de integridad antes del borrado lógico
-    const materiaActual = await materiaModel.getMateriaById(id);
-    if (!materiaActual) {
-      return res.status(404).json({ error: "Materia no encontrada" });
-    }
+    const materiaActual = await materiaModel.obtenerMateriaPorId(id);
+    if (!materiaActual) return res.status(404).json({ error: "Materia no encontrada" });
 
     if (materiaActual.estatus === 'ACTIVO') {
-      const tieneAsignaciones = await materiaModel.checkDependenciasActivas(id);
-      if (tieneAsignaciones) {
+      const tieneAceptadas = await materiaModel.verificarDependenciasActivas(id);
+      if (tieneAceptadas) {
         return res.status(409).json({
           action: "BLOCK",
           error: "Conflicto de integridad relacional",
-          detalles: "No es posible desactivar esta materia porque cuenta con clases asignadas y activas. Debe reasignar o cancelar estas clases en el módulo de asignaciones antes de proceder."
+          detalles: "No es posible desactivar esta materia porque cuenta con clases ACEPTADAS vigentes. Debe liberar la carga horaria primero."
         });
+      }
+
+      const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ materia_id: id });
+      const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+      if (tieneEnviadas && !confirmar_rechazo) {
+        return res.status(409).json({
+          action: "WARN",
+          error: "Advertencia de asignaciones pendientes",
+          detalles: "Darlo de baja rechazará automáticamente las asignaciones ENVIADAS vinculadas a esta materia. ¿Deseas continuar?"
+        });
+      }
+      if (tieneEnviadas && confirmar_rechazo) {
+        await assignmentModel.rechazarAsignacionesPorMateria(id, usuario);
       }
     }
 
-    await materiaModel.toggleMateriaStatus(id, usuario);
-    res.status(200).json({ message: "Estatus actualizado correctamente" });
+    await materiaModel.desactivarMateria(id, usuario);
+    res.status(200).json({ message: "Materia desactivada correctamente" });
   } catch (error) {
-    console.error("Error cambiando estatus:", error);
-    res.status(500).json({ error: "Error cambiando estatus" });
+    console.error("Error desactivando materia:", error);
+    res.status(500).json({ error: "Error interno desactivando materia" });
+  }
+};
+
+const reactivarMateria = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = req.user?.id_usuario;
+
+    const materiaActual = await materiaModel.obtenerMateriaPorId(id);
+    if (!materiaActual) return res.status(404).json({ error: "Materia no encontrada" });
+
+    await materiaModel.reactivarMateria(id, usuario);
+    res.status(200).json({ message: "Materia reactivada correctamente" });
+  } catch (error) {
+    console.error("Error reactivando materia:", error);
+    res.status(500).json({ error: "Error interno reactivando materia" });
   }
 };
 
@@ -309,11 +322,11 @@ const ObtenerMaterias = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
-  getMateriasParaSincronizacion,
-  getMaterias,
-  createMateria,
-  updateMateria,
-  deleteMateria,
-  toggleMateria,
+  obtenerMateriasParaSincronizacion,
+  obtenerMaterias,
+  crearMateria,
+  actualizarMateria,
+  desactivarMateria,
+  reactivarMateria,
   ObtenerMaterias, 
 };

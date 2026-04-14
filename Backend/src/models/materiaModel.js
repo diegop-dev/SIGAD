@@ -1,8 +1,9 @@
 const pool = require("../config/database");
 
+
 const materiaModel = {
 
-  getMateriaById: async (id) => {
+  obtenerMateriaPorId: async (id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -16,7 +17,7 @@ const materiaModel = {
     }
   },
 
-  getCuatrimestreActivo: async (cuatrimestre_id) => {
+  obtenerCuatrimestreActivo: async (cuatrimestre_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -31,7 +32,7 @@ const materiaModel = {
     }
   },
 
-  getAcademiaDeMateria: async (id_materia) => {
+  obtenerAcademiaDeMateria: async (id_materia) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -85,7 +86,7 @@ const materiaModel = {
     }
   },
 
-  getMateriasParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
+  obtenerMateriasParaSincronizacion: async (carrera_id, cuatrimestre_id) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -104,7 +105,7 @@ const materiaModel = {
     }
   },
 
-  getAllMaterias: async () => {
+  obtenerTodasLasMaterias: async () => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -133,7 +134,7 @@ const materiaModel = {
     }
   },
 
-  createMateria: async (data) => {
+  crearMateria: async (data) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -162,7 +163,7 @@ const materiaModel = {
   // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
   // Regla de negocio: restringe mutaciones estructurales si la materia
   // se encuentra vinculada a una asignación docente vigente.
-  checkDependenciasActivas: async (id_materia) => {
+  verificarDependenciasActivas: async (id_materia) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -195,7 +196,7 @@ const materiaModel = {
     }
   },
 
-  updateMateria: async (id, data) => {
+  actualizarMateria: async (id, data) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -248,42 +249,38 @@ const materiaModel = {
     }
   },
 
-  checkMateriaUsage: async (id) => {
-    let conn;
-    try {
-      conn = await pool.getConnection();
-      const rows = await conn.query(`
-        SELECT COUNT(*) AS total FROM Asignaciones WHERE materia_id = ?
-      `,[id]);
-      return Number(rows[0].total);
-    } finally {
-      if (conn) conn.release();
-    }
-  },
-
-  deleteMateriaFisica: async (id) => {
-    let conn;
-    try {
-      conn = await pool.getConnection();
-      await conn.query(`DELETE FROM Materias WHERE id_materia = ?`, [id]);
-    } finally {
-      if (conn) conn.release();
-    }
-  },
-
-  toggleMateriaStatus: async (id, usuario) => {
+desactivarMateria: async (id, usuario) => {
     let conn;
     try {
       conn = await pool.getConnection();
       await conn.query(`
         UPDATE Materias
         SET
-          estatus           = IF(estatus='ACTIVO','INACTIVO','ACTIVO'),
-          eliminado_por     = IF(estatus='ACTIVO', ?, NULL),
-          fecha_eliminacion = IF(estatus='ACTIVO', NOW(), NULL),
+          estatus           = 'INACTIVO',
+          eliminado_por     = ?,
+          fecha_eliminacion = NOW(),
           modificado_por    = ?
         WHERE id_materia = ?
       `,[usuario, usuario, id]);
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  reactivarMateria: async (id, usuario) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      await conn.query(`
+        UPDATE Materias
+        SET
+          estatus           = 'ACTIVO',
+          eliminado_por     = NULL,
+          fecha_eliminacion = NULL,
+          modificado_por    = ?,
+          fecha_modificacion = NOW()
+        WHERE id_materia = ?
+      `,[usuario, id]);
     } finally {
       if (conn) conn.release();
     }
