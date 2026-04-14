@@ -304,13 +304,18 @@ export const GrupoManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
-                        <button 
-                          title="Editar grupo" 
-                          onClick={() => handleEditarGrupo(grupo)}
-                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
+                      <button 
+                        title={grupo.estatus === 'INACTIVO' ? "No se puede editar un grupo inactivo" : "Editar grupo"}
+                        onClick={() => handleEditarGrupo(grupo)}
+                        disabled={grupo.estatus === 'INACTIVO'}
+                        className={`p-2 rounded-xl transition-all ${
+                          grupo.estatus === 'INACTIVO' 
+                            ? 'text-slate-200 cursor-not-allowed' 
+                            : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-95'
+                        }`}
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
                         
                         {grupo.estatus === 'ACTIVO' ? (
                           <button

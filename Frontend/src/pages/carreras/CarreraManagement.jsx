@@ -272,13 +272,18 @@ export const CarreraManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
-                        <button 
-                          title="Editar programa" 
-                          onClick={() => handleEditarCarrera(carrera)}
-                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
+                      <button 
+                        title={carrera.estatus === 'INACTIVO' ? "No se puede editar un programa inactivo" : "Editar programa"}
+                        onClick={() => handleEditarCarrera(carrera)}
+                        disabled={carrera.estatus === 'INACTIVO'}
+                        className={`p-2 rounded-xl transition-all ${
+                          carrera.estatus === 'INACTIVO' 
+                            ? 'text-slate-200 cursor-not-allowed' 
+                            : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-95'
+                        }`}
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
                         
                         {carrera.estatus === 'ACTIVO' ? (
                           <button 
