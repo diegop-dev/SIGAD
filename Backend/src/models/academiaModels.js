@@ -1,6 +1,19 @@
 const db = require('../config/database');
 
 const Academia = {
+  getAcademiaById: async (id) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(
+        "SELECT * FROM academias WHERE id_academia = ?",
+        [id]
+      );
+      return rows[0];
+    } finally {
+      if (conn) conn.release();
+    }
+  },
 
   getCoordinadoresDisponibles: async () => {
     let conn;
@@ -36,13 +49,51 @@ const Academia = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LÓGICA ──────────────────
+  // Regla de negocio: restringe la alteración del nombre o coordinador si
+  // la academia tiene materias vinculadas a una asignación docente vigente.
+  checkDependenciasActivas: async (id_academia) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM academias ac
+        INNER JOIN carreras c ON ac.id_academia = c.academia_id
+        INNER JOIN materias m ON c.id_carrera = m.carrera_id
+        INNER JOIN Asignaciones a ON m.id_materia = a.materia_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE ac.id_academia = ? 
+          AND ac.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_academia]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   registrar: async (data) => {
     let conn;
     try {
       conn = await db.getConnection();
       await conn.query(
-        `INSERT INTO academias (nombre, descripcion, usuario_id, creado_por, estatus)
-         VALUES (?, ?, ?, ?, 'ACTIVO')`,
+        `INSERT INTO academias (nombre, descripcion, usuario_id, creado_por, estatus, fecha_creacion)
+         VALUES (?, ?, ?, ?, 'ACTIVO', NOW())`,
         [data.nombre, data.descripcion, data.usuario_id, data.creado_por]
       );
     } finally {
@@ -50,46 +101,58 @@ const Academia = {
     }
   },
 
-  // 🔹 ACTUALIZADO: Graba el ID que llega directamente del controlador
   actualizar: async (id, data) => {
     let conn;
     try {
       conn = await db.getConnection();
-      await conn.query(
-        `UPDATE academias 
-         SET nombre = ?, 
-             descripcion = ?, 
-             usuario_id = ?, 
-             modificado_por = ?, 
-             fecha_modificacion = NOW()
-         WHERE id_academia = ?`,
-        [data.nombre, data.descripcion, data.usuario_id, data.modificado_por, id]
-      );
+      
+      let updates = [
+        'modificado_por = ?', 
+        'fecha_modificacion = NOW()'
+      ];
+      let params = [data.modificado_por];
+
+      if (data.descripcion !== undefined) {
+        updates.push('descripcion = ?');
+        params.push(data.descripcion);
+      }
+      if (data.nombre !== undefined) {
+        updates.push('nombre = ?');
+        params.push(data.nombre);
+      }
+      if (data.usuario_id !== undefined) {
+        updates.push('usuario_id = ?');
+        params.push(data.usuario_id);
+      }
+
+      let query = `UPDATE academias SET ${updates.join(', ')} WHERE id_academia = ?`;
+      params.push(id);
+
+      await conn.query(query, params);
       return { success: true };
     } finally {
       if (conn) conn.release();
     }
   },
 
-  // 🔹 ACTUALIZADO: Registra la trazabilidad exacta del usuario logueado
-  cambiarEstatus: async (id, nuevoEstatus, modificado_por) => {
+  toggleAcademiaStatus: async (id, usuario) => {
     let conn;
     try {
       conn = await db.getConnection();
-      await conn.query(
-        `UPDATE academias 
-         SET estatus = ?, 
-             modificado_por = ?, 
-             fecha_modificacion = NOW() 
-         WHERE id_academia = ?`,
-        [nuevoEstatus, modificado_por, id]
-      );
+      await conn.query(`
+        UPDATE academias
+        SET
+          estatus           = IF(estatus = 'ACTIVO', 'INACTIVO', 'ACTIVO'),
+          eliminado_por     = IF(estatus = 'ACTIVO', ?, NULL),
+          fecha_eliminacion = IF(estatus = 'ACTIVO', NOW(), NULL),
+          modificado_por    = ?
+        WHERE id_academia = ?
+      `, [usuario, usuario, id]);
       return { success: true };
     } finally {
       if (conn) conn.release();
     }
   },
-
 
   getAcademias: async () => {
     let conn;
@@ -101,13 +164,12 @@ const Academia = {
           a.nombre,
           a.descripcion,
           a.usuario_id, 
-          -- 🔹 CAMBIO AQUÍ: Formato Día-Mes-Año
           DATE_FORMAT(a.fecha_creacion, '%d/%m/%Y') AS fecha_creacion,
           a.estatus,
           CONCAT(u.nombres, ' ', u.apellido_paterno) AS coordinador_nombre
         FROM academias a
         LEFT JOIN usuarios u ON a.usuario_id = u.id_usuario
-        ORDER BY a.fecha_creacion DESC -- Ordenar por las más recientes
+        ORDER BY a.fecha_creacion DESC
       `);
       return rows;
     } finally {

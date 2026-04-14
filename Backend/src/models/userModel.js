@@ -1,10 +1,41 @@
 const pool = require("../config/database");
 
-const userModel = {
-  // ==========================================
-  // CONSULTAS DE LECTURA
-  // ==========================================
+// Funciones de validación interna
+const validateUserData = (data) => {
+  const nameRegex = /^[a-zA-ZÀ-ÿ\u00f1\u00d1]+(\s[a-zA-ZÀ-ÿ\u00f1\u00d1]+)*$/;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
+  const cleanData = { ...data };
+
+  // Validación de nombres y apellidos (Req 5, 6 y 7)
+  const nameFields = ['nombres', 'apellido_paterno', 'apellido_materno'];
+  nameFields.forEach(field => {
+    if (cleanData[field]) {
+      cleanData[field] = cleanData[field].trim();
+      if (!nameRegex.test(cleanData[field])) {
+        throw new Error(`El campo ${field} contiene caracteres inválidos o espacios extra.`);
+      }
+    }
+  });
+
+  // Validación de correos (Req 3, 5 y 8)
+  const emailFields = ['personal_email', 'institutional_email'];
+  emailFields.forEach(field => {
+    if (cleanData[field]) {
+      cleanData[field] = cleanData[field].trim();
+      if (!emailRegex.test(cleanData[field]) || (cleanData[field].match(/@/g) || []).length !== 1) {
+        throw new Error(`El campo ${field} no tiene un formato de correo válido o contiene múltiples @.`);
+      }
+    }
+  });
+
+  return cleanData;
+};
+
+
+const userModel = {
+  
+  // Consultas de lectura
   findExistingEmails: async (personal_email, institutional_email) => {
     let conn;
     try {
@@ -69,28 +100,64 @@ const userModel = {
     }
   },
 
-  // ==========================================
-  // CONSULTAS DE ESCRITURA (MUTACIONES)
-  // ==========================================
+  // Validación de integridad para baja de usuarios docente
+  checkDependenciasDocente: async (id_usuario) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM Usuarios u
+        INNER JOIN Docentes d ON u.id_usuario = d.usuario_id
+        INNER JOIN Asignaciones a ON d.id_docente = a.docente_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE u.id_usuario = ? 
+          AND u.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_usuario]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
 
+  
+  // Consultas de escritura
   createUser: async (userData) => {
     let conn;
     try {
+      // Aplicamos limpieza y validación antes de procesar en BD
+      const cleanData = validateUserData(userData);
+      
       conn = await pool.getConnection();
       const result = await conn.query(
         `INSERT INTO Usuarios 
         (nombres, apellido_paterno, apellido_materno, personal_email, institutional_email, password_hash, foto_perfil_url, rol_id, creado_por) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          userData.nombres,
-          userData.apellido_paterno,
-          userData.apellido_materno,
-          userData.personal_email,
-          userData.institutional_email,
-          userData.password_hash,
-          userData.foto_perfil_url,
-          userData.rol_id,
-          userData.creado_por,
+          cleanData.nombres,
+          cleanData.apellido_paterno,
+          cleanData.apellido_materno,
+          cleanData.personal_email,
+          cleanData.institutional_email,
+          cleanData.password_hash, // Nota: La complejidad de la contraseña debe validarse en el controlador ANTES del hash
+          cleanData.foto_perfil_url,
+          cleanData.rol_id,
+          cleanData.creado_por,
         ]
       );
       return result.insertId;
@@ -102,13 +169,15 @@ const userModel = {
   updateUser: async (id_usuario, updateData) => {
     let conn;
     try {
-      conn = await pool.getConnection();
-      
-      const fields = Object.keys(updateData);
-      const values = Object.values(updateData);
+      // Aplicamos limpieza y validación a los datos a actualizar
+      const cleanData = validateUserData(updateData);
+
+      const fields = Object.keys(cleanData);
+      const values = Object.values(cleanData);
       
       if (fields.length === 0) return 0;
 
+      conn = await pool.getConnection();
       const setClause = fields.map(field => `${field} = ?`).join(', ');
       values.push(id_usuario); 
 
@@ -123,7 +192,7 @@ const userModel = {
     }
   },
 
-  // HU-04 DESACTIVAR USUARIO (Soft Delete)
+  // Desactivar usuario
   deactivateUser: async (id_usuario, eliminado_por) => {
     let conn;
     try {
@@ -142,12 +211,12 @@ const userModel = {
     }
   },
 
-  // NUEVO: REACTIVAR USUARIO
+  // Reactivar usuario
   activateUser: async (id_usuario, modificado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      // Limpiamos los rastros de eliminación y lo volvemos a poner ACTIVO
+      // limpiamos los rastros de eliminación y lo volvemos a poner activo
       const result = await conn.query(
         `UPDATE Usuarios 
          SET estatus = 'ACTIVO', 

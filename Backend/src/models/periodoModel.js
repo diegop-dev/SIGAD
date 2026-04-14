@@ -37,6 +37,40 @@ const periodoModel = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LÓGICA ──────────────────
+  // Regla de negocio: restringe la alteración de fechas críticas o la 
+  // desactivación del periodo si existen asignaciones docentes vigentes.
+  checkDependenciasActivas: async (id_periodo) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM Periodos p
+        INNER JOIN Asignaciones a ON p.id_periodo = a.periodo_id
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE p.id_periodo = ? 
+          AND p.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+      `, [id_periodo]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   // ─── EP-01 SESA: GET /periodos/activo ────────────────────────────────────────
   // Devuelve el único periodo con estatus ACTIVO.
   // La respuesta es un objeto plano (no arreglo) según la spec de SESA.
@@ -90,25 +124,38 @@ const periodoModel = {
     let conn;
     try {
       conn = await pool.getConnection();
-      await conn.query(`
-        UPDATE Periodos
-        SET
-          codigo            = ?,
-          anio              = ?,
-          fecha_inicio      = ?,
-          fecha_fin         = ?,
-          fecha_limite_calif= ?,
-          modificado_por    = ?
-        WHERE id_periodo = ?
-      `, [
+
+      // Campos base siempre permitidos
+      let updates = [
+        'codigo = ?',
+        'anio = ?',
+        'modificado_por = ?'
+      ];
+      
+      let queryParams = [
         data.codigo,
         data.anio,
-        data.fecha_inicio,
-        data.fecha_fin,
-        data.fecha_limite_calif,
-        data.modificado_por,
-        id,
-      ]);
+        data.modificado_por
+      ];
+
+      // Inyección condicional de campos estructurales (fechas)
+      if (data.fecha_inicio !== undefined) {
+        updates.push('fecha_inicio = ?');
+        queryParams.push(data.fecha_inicio);
+      }
+      if (data.fecha_fin !== undefined) {
+        updates.push('fecha_fin = ?');
+        queryParams.push(data.fecha_fin);
+      }
+      if (data.fecha_limite_calif !== undefined) {
+        updates.push('fecha_limite_calif = ?');
+        queryParams.push(data.fecha_limite_calif);
+      }
+
+      let query = `UPDATE Periodos SET ${updates.join(', ')} WHERE id_periodo = ?`;
+      queryParams.push(id);
+
+      await conn.query(query, queryParams);
     } finally {
       if (conn) conn.release();
     }

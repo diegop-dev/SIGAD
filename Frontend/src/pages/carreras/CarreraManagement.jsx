@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, X, AlertTriangle, Ban, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { CarreraForm } from './CarreraForm';
@@ -15,16 +15,25 @@ export const CarreraManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [carreraAEditar, setCarreraAEditar] = useState(null);
 
-  // ESTADOS PARA EL MODAL DE ELIMINAR
+  // ESTADOS PARA EL MODAL DE BAJA LOGICA (ELIMINAR)
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [carreraToDelete, setCarreraToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [motivoBaja, setMotivoBaja] = useState('');
+  
+  // ESTADOS PARA EL MODAL DE REACTIVACIÓN
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [carreraToActivate, setCarreraToActivate] = useState(null);
+  const [isActivating, setIsActivating] = useState(false);
+
+  // ESTADOS PARA INTERCEPTAR INTEGRIDAD RELACIONAL
+  const [serverAction, setServerAction] = useState(null);
+  const [serverMessage, setServerMessage] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [nivelFilter, setNivelFilter] = useState(''); // <-- NUEVO ESTADO PARA NIVEL ACADÉMICO
+  const [nivelFilter, setNivelFilter] = useState(''); 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -66,7 +75,7 @@ export const CarreraManagement = () => {
       const coincideBusqueda = nombreCarrera.includes(busqueda) || codigoCarrera.includes(busqueda);
       const coincideAcademia = academiaFilter ? carrera.nombre_academia === academiaFilter : true;
       const coincideEstatus = statusFilter ? carrera.estatus === statusFilter : true;
-      const coincideNivel = nivelFilter ? carrera.nivel_academico === nivelFilter : true; // <-- NUEVO FILTRO
+      const coincideNivel = nivelFilter ? carrera.nivel_academico === nivelFilter : true;
 
       return coincideBusqueda && coincideAcademia && coincideEstatus && coincideNivel;
     });
@@ -98,11 +107,19 @@ export const CarreraManagement = () => {
     setShowForm(true);
   };
 
-  // FUNCIONES PARA ELIMINAR 
+  //FUNCIONES PARA BAJA LÓGICA 
   const handleEliminarRapido = (carrera) => {
     setCarreraToDelete(carrera);
-    setMotivoBaja(''); // Limpiar el motivo anterior
+    setMotivoBaja('');
+    setServerAction(null);
+    setServerMessage('');
     setShowDeleteModal(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setServerAction(null);
+    setServerMessage('');
   };
 
   const confirmDelete = async () => {
@@ -121,12 +138,55 @@ export const CarreraManagement = () => {
       });
       
       toast.success("Estatus actualizado correctamente", { id: toastId });
-      setShowDeleteModal(false);
-      fetchCarreras(); // Recargar la tabla
+      handleCloseDeleteModal();
+      fetchCarreras(); 
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error al actualizar el estatus", { id: toastId });
+      const status = error.response?.status;
+      const data = error.response?.data || {};
+
+      if (status === 409 && data.action === "BLOCK") {
+        setServerAction("BLOCK");
+        const detalles = data.detalles || "Conflicto de integridad referencial.";
+        setServerMessage(detalles);
+        toast.error("Operación denegada por reglas de integridad", { id: toastId, duration: 8000 });
+      } else {
+        const msg = data.message || data.error || "Error al actualizar el estatus";
+        toast.error(msg, { id: toastId });
+      }
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  //FUNCIONES PARA REACTIVACIÓN 
+  const handleActivarRapido = (carrera) => {
+    setCarreraToActivate(carrera);
+    setShowActivateModal(true);
+  };
+
+  const handleCloseActivateModal = () => {
+    setShowActivateModal(false);
+    setCarreraToActivate(null);
+  };
+
+  const confirmActivate = async () => {
+    setIsActivating(true);
+    const toastId = toast.loading("Reactivando programa...");
+
+    try {
+      await api.patch(`/carreras/${carreraToActivate.id_carrera}/activate`, {
+        modificado_por: user?.id_usuario
+      });
+      
+      toast.success("Programa reactivado correctamente", { id: toastId });
+      handleCloseActivateModal();
+      fetchCarreras(); 
+    } catch (error) {
+      const data = error.response?.data || {};
+      const msg = data.message || data.error || "Error al reactivar el programa";
+      toast.error(msg, { id: toastId });
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -145,6 +205,7 @@ export const CarreraManagement = () => {
 
   return (
     <div className="space-y-6">
+      {/* HEADER DE LA SECCIÓN */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
@@ -161,6 +222,7 @@ export const CarreraManagement = () => {
         </button>
       </div>
 
+      {/* FILTROS Y BÚSQUEDA */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col xl:flex-row gap-4">
         <div className="flex-1 relative">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -175,10 +237,7 @@ export const CarreraManagement = () => {
           />
         </div>
         
-        {/* CONTENEDOR DE SELECTORES CON FLEX-WRAP */}
         <div className="flex flex-wrap sm:flex-nowrap gap-4">
-          
-          {/* NUEVO FILTRO: NIVEL ACADÉMICO */}
           <select
             value={nivelFilter}
             onChange={(e) => setNivelFilter(e.target.value)}
@@ -217,6 +276,7 @@ export const CarreraManagement = () => {
         </div>
       </div>
 
+      {/* TABLA DE RESULTADOS */}
       <div className="bg-white shadow-sm rounded-2xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200">
@@ -262,7 +322,6 @@ export const CarreraManagement = () => {
                           <Hash className="w-4 h-4 mr-1 text-slate-400" />
                           {carrera.codigo_unico || 'N/A'}
                         </div>
-                        {/* INSIGNIA DE NIVEL ACADÉMICO */}
                         <div className="mt-1">
                           <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${carrera.nivel_academico === 'MAESTRIA' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
                             {carrera.nivel_academico || 'LICENCIATURA'}
@@ -306,13 +365,25 @@ export const CarreraManagement = () => {
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        <button 
-                          title="Cambiar estatus" 
-                          onClick={() => handleEliminarRapido(carrera)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                        
+                        {/* BOTÓN CONDICIONAL: BAJA O REACTIVAR */}
+                        {carrera.estatus === 'ACTIVO' ? (
+                          <button 
+                            title="Dar de baja" 
+                            onClick={() => handleEliminarRapido(carrera)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button 
+                            title="Reactivar programa" 
+                            onClick={() => handleActivarRapido(carrera)}
+                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                          >
+                            <RefreshCw className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -322,6 +393,7 @@ export const CarreraManagement = () => {
           </table>
         </div>
 
+        {/* PAGINACIÓN */}
         {!isLoading && filteredCarreras.length > 0 && (
           <div className="bg-slate-50/50 px-6 py-4 border-t border-slate-100 flex items-center justify-between">
             <div>
@@ -354,41 +426,108 @@ export const CarreraManagement = () => {
         )}
       </div>
 
-      {/* MODAL DE CONFIRMACIÓN DE BAJA */}
+      {/* MODAL DE CONFIRMACIÓN DE BAJA O BLOQUEO DE INTEGRIDAD */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden border border-slate-100">
+            
+            <div className={`flex justify-between items-center px-6 py-5 border-b ${serverAction === 'BLOCK' ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50'}`}>
+               <div className={`flex items-center ${serverAction === 'BLOCK' ? 'text-amber-600' : 'text-red-600'}`}>
+                 {serverAction === 'BLOCK' ? <Ban className="w-5 h-5 mr-2" /> : <AlertTriangle className="w-5 h-5 mr-2" />}
+                 <h3 className="text-lg font-black tracking-tight">
+                   {serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar cambio de estatus'}
+                 </h3>
+               </div>
+               <button onClick={handleCloseDeleteModal} disabled={isDeleting} className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+
             <div className="p-6">
-              <h3 className="text-lg font-black text-slate-900 mb-2">Confirmar cambio de estatus</h3>
               <p className="text-sm text-slate-600 mb-4">
                 ¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-slate-900">{carreraToDelete?.nombre_carrera}</span>?
               </p>
               
-              <div className="space-y-2 mb-6">
-                <label className="text-sm font-bold text-slate-700">Motivo de la baja *</label>
-                <textarea
-                  value={motivoBaja}
-                  onChange={(e) => setMotivoBaja(e.target.value)}
-                  placeholder="Escribe el motivo..."
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-red-100 transition-all resize-none h-24"
-                />
-              </div>
+              {serverAction === 'BLOCK' ? (
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
+                  <p className="text-sm text-amber-900 font-bold mb-2">{serverMessage}</p>
+                  <p className="text-xs text-amber-700 font-medium">
+                    Dirígete a la sección de asignaciones para liberar la carga académica vinculada a este programa antes de intentar darle de baja.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 mb-6">
+                  <label className="text-sm font-bold text-slate-700">Motivo de la baja *</label>
+                  <textarea
+                    value={motivoBaja}
+                    onChange={(e) => setMotivoBaja(e.target.value)}
+                    placeholder="Escribe el motivo..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-red-100 transition-all resize-none h-24"
+                  />
+                </div>
+              )}
 
               <div className="flex justify-end gap-3">
                 <button
-                  onClick={() => setShowDeleteModal(false)}
+                  onClick={handleCloseDeleteModal}
                   disabled={isDeleting}
-                  className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                  {serverAction === 'BLOCK' ? 'Entendido, cerrar' : 'Cancelar'}
+                </button>
+
+                {serverAction !== 'BLOCK' && (
+                  <button
+                    onClick={confirmDelete}
+                    disabled={isDeleting || !motivoBaja.trim()}
+                    className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Confirmar baja
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE REACTIVACIÓN */}
+      {showActivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden border border-slate-100">
+            
+            <div className="flex justify-between items-center px-6 py-5 border-b border-emerald-100 bg-emerald-50">
+               <div className="flex items-center text-emerald-600">
+                 <RefreshCw className="w-5 h-5 mr-2" />
+                 <h3 className="text-lg font-black tracking-tight">Confirmar reactivación</h3>
+               </div>
+               <button onClick={handleCloseActivateModal} disabled={isActivating} className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-6">
+                ¿Estás seguro que deseas reactivar el programa <span className="font-bold text-slate-900">{carreraToActivate?.nombre_carrera}</span>? Volverá a estar disponible en los procesos académicos.
+              </p>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleCloseActivateModal}
+                  disabled={isActivating}
+                  className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
                 >
                   Cancelar
                 </button>
+
                 <button
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all"
+                  onClick={confirmActivate}
+                  disabled={isActivating}
+                  className="flex items-center px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm"
                 >
-                  {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                  Confirmar baja
+                  {isActivating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                  Confirmar reactivación
                 </button>
               </div>
             </div>

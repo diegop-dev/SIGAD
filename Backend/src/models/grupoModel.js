@@ -116,17 +116,78 @@ const grupoModel = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
+  // Regla de negocio: restringe mutaciones estructurales si el grupo
+  // tiene asignaciones docentes vigentes.
+  checkDependenciasActivas: async (id_grupo) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM grupos g
+        INNER JOIN Asignaciones a ON g.id_grupo = a.grupo_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE g.id_grupo = ? 
+          AND g.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_grupo]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   actualizarGrupo: async (id_grupo, datosGrupo) => {
     const { identificador, carrera_id, cuatrimestre_id, nivel_academico, modificado_por } = datosGrupo;
     let conn;
     try {
       conn = await pool.getConnection();
-      const result = await conn.query(
-        `UPDATE grupos 
-         SET identificador = ?, carrera_id = ?, cuatrimestre_id = ?, nivel_academico = ?, modificado_por = ?, fecha_modificacion = NOW()
-         WHERE id_grupo = ?`,
-        [identificador, carrera_id, cuatrimestre_id, nivel_academico, modificado_por, id_grupo]
-      );
+
+      // Campos base siempre permitidos
+      let updates = [
+        'identificador = ?',
+        'modificado_por = ?',
+        'fecha_modificacion = NOW()'
+      ];
+      
+      let queryParams = [
+        identificador,
+        modificado_por
+      ];
+
+      // Inyección condicional de campos estructurales
+      if (carrera_id !== undefined) {
+        updates.push('carrera_id = ?');
+        queryParams.push(carrera_id);
+      }
+      if (cuatrimestre_id !== undefined) {
+        updates.push('cuatrimestre_id = ?');
+        queryParams.push(cuatrimestre_id);
+      }
+      if (nivel_academico !== undefined) {
+        updates.push('nivel_academico = ?');
+        queryParams.push(nivel_academico);
+      }
+
+      let query = `UPDATE grupos SET ${updates.join(', ')} WHERE id_grupo = ?`;
+      queryParams.push(id_grupo);
+
+      const result = await conn.query(query, queryParams);
       return result;
     } finally {
       if (conn) conn.release();

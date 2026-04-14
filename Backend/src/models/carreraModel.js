@@ -127,16 +127,97 @@ const carreraModel = {
     }
   },
 
+  // ─── VALIDACIÓN DE INTEGRIDAD PARA EDICIÓN Y BAJA LOGICA ──────────────────
+  // Regla de negocio: restringe mutaciones estructurales si la carrera
+  // tiene materias vinculadas a una asignación docente vigente.
+  checkDependenciasActivas: async (id_carrera) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
+        FROM carreras c
+        INNER JOIN materias m ON c.id_carrera = m.carrera_id
+        INNER JOIN Asignaciones a ON m.id_materia = a.materia_id
+        INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
+        INNER JOIN (
+          SELECT 
+            MIN(id_asignacion) AS min_id,
+            grupo_id, materia_id, docente_id, periodo_id, aula_id
+          FROM Asignaciones
+          GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
+        ) rep ON a.grupo_id <=> rep.grupo_id 
+             AND a.materia_id = rep.materia_id 
+             AND a.docente_id = rep.docente_id 
+             AND a.periodo_id = rep.periodo_id 
+             AND a.aula_id = rep.aula_id
+        WHERE c.id_carrera = ? 
+          AND c.estatus = 'ACTIVO'
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_carrera]);
+      
+      return rows[0].dependencias_activas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   actualizarCarrera: async (id_carrera, datosCarrera) => {
     const { codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = datosCarrera;
     let conn;
     try {
       conn = await pool.getConnection();
+      
+      // base de campos de actualización siempre permitidos
+      let updates = [
+        'codigo_unico = ?',
+        'nombre_carrera = ?',
+        'modificado_por = ?',
+        'fecha_modificacion = NOW()'
+      ];
+      
+      let queryParams = [
+        codigo_unico,
+        nombre_carrera,
+        modificado_por
+      ];
+
+      // inyección condicional de campos estructurales
+      if (modalidad !== undefined) {
+        updates.push('modalidad = ?');
+        queryParams.push(modalidad);
+      }
+      if (academia_id !== undefined) {
+        updates.push('academia_id = ?');
+        queryParams.push(academia_id);
+      }
+      if (nivel_academico !== undefined) {
+        updates.push('nivel_academico = ?');
+        queryParams.push(nivel_academico);
+      }
+
+      let query = `UPDATE carreras SET ${updates.join(', ')} WHERE id_carrera = ?`;
+      queryParams.push(id_carrera);
+
+      const result = await conn.query(query, queryParams);
+      return result;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+// Baja logica
+  deactivateCarrera: async (id_carrera, modificado_por) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET codigo_unico = ?, nombre_carrera = ?, modalidad = ?, academia_id = ?, nivel_academico = ?, modificado_por = ?, fecha_modificacion = NOW()
+         SET estatus = 'INACTIVO', modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [codigo_unico, nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por, id_carrera]
+        [modificado_por, id_carrera]
       );
       return result;
     } finally {
@@ -144,21 +225,25 @@ const carreraModel = {
     }
   },
 
-  deactivateCarrera: async (id_carrera, eliminado_por, motivo_baja) => {
+  // Reactivacion de carrera
+  activateCarrera: async (id_carrera, modificado_por) => {
     let conn;
     try {
       conn = await pool.getConnection();
       const result = await conn.query(
         `UPDATE carreras 
-         SET estatus = 'INACTIVO', eliminado_por = ?, motivo_baja = ?, fecha_eliminacion = NOW()
+         SET estatus = 'ACTIVO', modificado_por = ?, fecha_modificacion = NOW()
          WHERE id_carrera = ?`,
-        [eliminado_por, motivo_baja, id_carrera]
+        [modificado_por, id_carrera]
       );
       return result;
     } finally {
       if (conn) conn.release();
     }
   },
+
+  // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
+  // ... (lo que sigue del SESA queda igual)
 
   // ─── EP-02 SESA: GET /programas_academicos ───────────────────────────────────
   // Devuelve carreras activas con los nombres de campo que espera SESA.

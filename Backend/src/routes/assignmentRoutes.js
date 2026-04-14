@@ -8,7 +8,12 @@ router.get('/catalogo', assignmentController.ObtenerAsignaciones);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── HU-38: Sincronizar promedios consolidados desde SESA ────────────────────
-router.post('/sincronizar-promedios', requireRole([1, 2]), assignmentController.sincronizarPromedios);
+router.post('/sincronizar-promedios', assignmentController.sincronizarPromedios);
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nuevo: Validar borrador de asignación (Pre-flight Validation)
+router.post('/validar-borrador', verifyToken, requireRole([1, 2]), assignmentController.validarBorrador);
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Ruta exclusiva para la API de sincronización externa (HU-37 / API-05)
