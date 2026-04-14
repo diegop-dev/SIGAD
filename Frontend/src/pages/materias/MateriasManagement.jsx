@@ -314,9 +314,14 @@ export const MateriasManagement = () => {
                           <Eye className="w-5 h-5" />
                         </button>
                         <button
-                          title="Editar materia"
+                          title={m.estatus === 'INACTIVO' ? "No se puede editar una materia inactiva" : "Editar materia"}
                           onClick={() => setEditingMateria(m)}
-                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95"
+                          disabled={m.estatus === 'INACTIVO'}
+                          className={`p-2 rounded-xl transition-all ${
+                            m.estatus === 'INACTIVO'
+                              ? 'text-slate-200 cursor-not-allowed'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-95'
+                          }`}
                         >
                           <Edit className="w-5 h-5" />
                         </button>

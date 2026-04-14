@@ -20,7 +20,7 @@ export const ReactivarGrupoModal = ({ grupo, onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center px-6 py-5 border-b border-emerald-100 bg-emerald-50">
           <div className="flex items-center text-emerald-600">
