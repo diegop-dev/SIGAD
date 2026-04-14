@@ -98,6 +98,7 @@ const carreraController = {
 
       const resultado = await carreraModel.crearCarrera(datosNuevaCarrera);
 
+      logAudit({ modulo: 'CARRERAS', accion: 'CREACION', registro_afectado: `${datosNuevaCarrera.nombre_carrera} (${datosNuevaCarrera.codigo_unico})`, detalle: null, usuario_id: creado_por, ip_address: getClientIp(req) });
       return res.status(201).json({
         success: true,
         message: 'La carrera se ha registrado correctamente.',
@@ -159,6 +160,7 @@ const carreraController = {
         }
       }
 
+      logAudit({ modulo: 'CARRERAS', accion: 'MODIFICACION', registro_afectado: `Carrera #${id} — ${datosUpdate.nombre_carrera}`, detalle: null, usuario_id: idUsuario, ip_address: getClientIp(req) });
       return res.status(200).json({
         success: true,
         message: 'La carrera y sus grupos vinculados se han actualizado correctamente.'
@@ -187,6 +189,7 @@ const carreraController = {
         return res.status(404).json({ success: false, message: 'Carrera no encontrada. No se pudo cambiar el estatus.' });
       }
 
+      logAudit({ modulo: 'CARRERAS', accion: 'BAJA', registro_afectado: `Carrera #${id}`, detalle: motivo_baja, usuario_id: eliminado_por, ip_address: getClientIp(req) });
       return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente del sistema.' });
     } catch (error) {
       console.error("Error al dar de baja la carrera:", error);

@@ -55,6 +55,7 @@ const grupoController = {
 
       await grupoModel.actualizarIdentificador(nuevoId, identificadorFinal);
 
+      logAudit({ modulo: 'GRUPOS', accion: 'CREACION', registro_afectado: identificadorFinal, detalle: null, usuario_id: creado_por, ip_address: getClientIp(req) });
       return res.status(201).json({
         success: true,
         message: 'Grupo registrado y autogenerado correctamente.',
@@ -114,6 +115,7 @@ const grupoController = {
         modificado_por
       });
 
+      logAudit({ modulo: 'GRUPOS', accion: 'MODIFICACION', registro_afectado: `Grupo #${id} — ${identificadorFinal}`, detalle: null, usuario_id: modificado_por, ip_address: getClientIp(req) });
       return res.status(200).json({
         success: true,
         message: 'Grupo actualizado correctamente.',
@@ -155,6 +157,7 @@ const grupoController = {
       const affectedRows = await grupoModel.desactivarGrupo(id, eliminado_por);
       if (affectedRows === 0) return res.status(404).json({ error: "Grupo no encontrado." });
 
+      logAudit({ modulo: 'GRUPOS', accion: 'BAJA', registro_afectado: `Grupo #${id}`, detalle: null, usuario_id: eliminado_por, ip_address: getClientIp(req) });
       res.status(200).json({ message: "Grupo dado de baja exitosamente del sistema." });
     } catch (error) {
       console.error("Error al dar de baja grupo:", error);
@@ -168,6 +171,7 @@ const grupoController = {
       const modificado_por  = req.user?.id_usuario;
       const affectedRows    = await grupoModel.reactivarGrupo(id, modificado_por);
       if (affectedRows === 0) return res.status(404).json({ error: "Grupo no encontrado o no se pudo reactivar." });
+      logAudit({ modulo: 'GRUPOS', accion: 'MODIFICACION', registro_afectado: `Grupo #${id} — reactivado`, detalle: null, usuario_id: modificado_por, ip_address: getClientIp(req) });
       res.status(200).json({ message: "Grupo reactivado exitosamente." });
     } catch (error) {
       console.error("Error al reactivar grupo:", error);
