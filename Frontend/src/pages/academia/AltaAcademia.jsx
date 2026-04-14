@@ -35,14 +35,27 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const regex = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]*$/;
-    if (name === 'nombre' && value !== '' && !regex.test(value)) {
-      toast.error('No se permiten caracteres especiales (@#$%&/)');
+
+    if (name === 'nombre') {
+      // Solo letras y espacios (SIN números)
+      const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+
+      // Bloquea caracteres inválidos SIN mostrar toast
+      if (!regex.test(value)) {
+        return;
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        nombre: value.replace(/\s+/g, ' '),
+      }));
+
       return;
     }
+
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'nombre' ? value.replace(/\s+/g, ' ') : value,
+      [name]: value,
     }));
   };
 
@@ -59,10 +72,27 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
 
   const handleOpenModal = async (e) => {
     e.preventDefault();
-    if (!formData.nombre || !formData.usuario_id) {
-      toast.error('Complete los campos obligatorios.');
+
+    const nombreLimpio = formData.nombre.trim();
+
+    // Validar vacío o solo espacios
+    if (!nombreLimpio) {
+      toast.error('El nombre no puede estar vacío.');
       return;
     }
+
+    // Validar solo letras
+    const regex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+    if (!regex.test(nombreLimpio)) {
+      toast.error('El nombre solo puede contener letras.');
+      return;
+    }
+
+    if (!formData.usuario_id) {
+      toast.error('Seleccione un coordinador.');
+      return;
+    }
+
     const toastId = toast.loading('Verificando disponibilidad...');
     const existe = await validarNombreUnico();
     toast.dismiss(toastId);
@@ -71,6 +101,7 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       toast.error('El nombre de la academia ya existe.');
       return;
     }
+
     setShowModal(true);
   };
 
@@ -89,7 +120,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
       const status = error.response?.status;
       const errorData = error.response?.data || {};
 
-      // Intercepción de conflictos de concurrencia (ej. nombre duplicado)
       if (status === 409) {
         toast.error(errorData.error || 'El nombre ya está registrado.', { id: toastId, duration: 5000 });
       } else {
@@ -103,7 +133,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
-      {/* Header */}
       <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center">
         <button
           onClick={onBack}
@@ -123,7 +152,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
         <form onSubmit={handleOpenModal} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Nombre */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <BookOpen className="w-4 h-4 mr-2 text-blue-500" /> Nombre *
@@ -140,7 +168,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
               />
             </div>
 
-            {/* Coordinador */}
             <div className="space-y-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <UserCheck className="w-4 h-4 mr-2 text-blue-500" /> Coordinador *
@@ -164,7 +191,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
               </select>
             </div>
 
-            {/* Descripción — ancho completo */}
             <div className="space-y-2 md:col-span-2">
               <label className="flex items-center text-sm font-bold text-slate-700">
                 <FileText className="w-4 h-4 mr-2 text-blue-500" /> Descripción
@@ -196,7 +222,6 @@ export const AltaAcademia = ({ onBack, onSuccess }) => {
         </form>
       </div>
 
-      {/* Modal de confirmación */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">

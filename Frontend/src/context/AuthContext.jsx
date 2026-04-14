@@ -14,7 +14,6 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = () => {
       const token = localStorage.getItem('sigad_jwt');
       const storedUser = localStorage.getItem('sigad_user');
-
       if (token && storedUser) {
         setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
@@ -32,7 +31,6 @@ export const AuthProvider = ({ children }) => {
         institutional_email,
         password_raw
       });
-
       const { token, usuario } = response.data;
 
       // Persistencia de credenciales en el navegador
@@ -61,12 +59,23 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(false);
   };
 
-  // NUEVO: Función para actualizar el estado tras cambiar la contraseña temporal
+  // Actualiza el estado tras cambiar la contraseña temporal
   const completePasswordChange = () => {
     if (user) {
       const updatedUser = { ...user, es_password_temporal: 0 };
-      setUser(updatedUser); // Actualiza la memoria RAM (estado)
-      localStorage.setItem('sigad_user', JSON.stringify(updatedUser)); // Actualiza el disco duro (navegador)
+      setUser(updatedUser);
+      localStorage.setItem('sigad_user', JSON.stringify(updatedUser));
+    }
+  };
+
+  // Actualiza campos puntuales del usuario en memoria y en localStorage.
+  // Usado por MiPerfil → UserProfile para reflejar cambios (ej. foto)
+  // en el sidebar sin recargar la página.
+  const updateUserData = (newData) => {
+    if (user) {
+      const updatedUser = { ...user, ...newData };
+      setUser(updatedUser);
+      localStorage.setItem('sigad_user', JSON.stringify(updatedUser));
     }
   };
 
@@ -77,7 +86,8 @@ export const AuthProvider = ({ children }) => {
       loading, 
       login, 
       logout,
-      completePasswordChange // <-- Lo exponemos para usarlo en el Modal
+      completePasswordChange,
+      updateUserData,       // ← disponible en toda la app vía useAuth()
     }}>
       {children}
     </AuthContext.Provider>

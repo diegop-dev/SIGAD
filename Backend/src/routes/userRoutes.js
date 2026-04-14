@@ -10,17 +10,24 @@ const docenteController = require('../controllers/docenteController');
 // Permite al frontend verificar en tiempo real si el correo ya existe en la BD
 router.get('/check-email', userController.checkEmailExists);
 
-// ─── EP-08 SESA: GET /users/catalogo/{id_usuario} ──────────────────────────────
+// ─── EP-08 SESA: GET /users/catalogo/:id_usuario ───────────────────────────
 router.get('/catalogo/:id_usuario', docenteController.ObtenerUsuarioPorId);
-// ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
 // HU-02: Listar usuarios — solo directivos
 router.get('/', verifyToken, requireRole([1, 2]), userController.getUsers);
 
 // HU-01: Registro de usuario
-// Nota: 'validateUserRegistration' ahora servirá como primera barrera, 
-// respaldada por las validaciones estrictas que inyectamos en el controller.
 router.post('/register', uploadProfilePic.single('foto_perfil_url'), validateUserRegistration, userController.registerUser);
+
+// IMPORTANTE: /me/foto y /:id/deactivate DEBEN declararse ANTES de /:id
+// para que Express no interprete "me" o "deactivate" como un valor de parámetro ID.
+
+// Mi Perfil: actualización de fotografía propia — cualquier usuario autenticado
+router.put('/me/foto', verifyToken, uploadProfilePic.single('foto_perfil_url'), userController.updateMyPhoto);
+
+// Mi Perfil: consulta del propio expediente — cualquier usuario autenticado
+router.get('/:id', verifyToken, userController.getUserById);
 
 // HU-03: Modificar usuario — solo directivos
 router.put('/:id', verifyToken, requireRole([1, 2]), uploadProfilePic.single('foto_perfil_url'), userController.updateUser);

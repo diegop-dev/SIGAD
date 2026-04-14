@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { AltaDocente } from "./AltaDocente";
-import { UserForm } from "../users/UserForm"; 
+import { UserProfile } from "../users/UserProfile";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "../../hooks/useAuth"; 
+import { useAuth } from "../../hooks/useAuth";
 
 export const MiPerfil = () => {
-  const { user } = useAuth(); 
+  const { user, updateUserData } = useAuth();
   const [miExpediente, setMiExpediente] = useState(null);
   const [cargando, setCargando] = useState(true);
   const navigate = useNavigate();
@@ -35,6 +35,13 @@ export const MiPerfil = () => {
     }
   }, [user]);
 
+  // Callback que recibe UserProfile tras una subida exitosa.
+  // Actualiza el contexto de auth para que el sidebar refleje la nueva foto
+  // sin necesidad de recargar la página.
+  const handlePhotoUpdate = (newRelativeUrl) => {
+    updateUserData({ foto_perfil_url: newRelativeUrl });
+  };
+
   if (cargando) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
@@ -48,30 +55,25 @@ export const MiPerfil = () => {
     return (
       <div className="bg-red-50 text-red-800 p-6 rounded-xl border border-red-100 text-center">
         <h3 className="text-lg font-bold mb-2">Perfil no encontrado</h3>
-        <p>Hubo un problema al cargar tus datos. Contacta a soporte o a un administrador.</p>
+        <p>Hubo un problema al cargar tus datos. Contacta a soporte o a un Administrador.</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-6">
-      </div>
-
       {user?.rol_id === 3 ? (
-        <AltaDocente 
-          docenteToEdit={miExpediente} 
-          onBack={() => navigate('/dashboard')} 
-          onSuccess={() => navigate('/dashboard')}
+        <AltaDocente
+          docenteToEdit={miExpediente}
+          onBack={() => navigate("/dashboard")}
+          onSuccess={() => navigate("/dashboard")}
         />
       ) : (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <UserForm 
-            userToEdit={miExpediente} 
-            onBack={() => navigate('/dashboard')} 
-            onSuccess={() => navigate('/dashboard')}
-          />
-        </div>
+        <UserProfile
+          userToView={miExpediente}
+          onBack={() => navigate("/dashboard")}
+          onPhotoUpdate={handlePhotoUpdate}
+        />
       )}
     </div>
   );

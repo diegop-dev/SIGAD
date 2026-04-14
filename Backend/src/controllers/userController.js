@@ -45,6 +45,41 @@ const getUsers = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// GET /users/:id  — Obtener un usuario por su ID
+// ─────────────────────────────────────────────────────────────
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const currentUserId = req.user?.id_usuario;
+    const currentUserRole = req.user?.rol_id;
+
+    if (!currentUserId || !currentUserRole) {
+      return res.status(401).json({ error: "No se pudo identificar al usuario que realiza la petición." });
+    }
+
+    // Un usuario solo puede consultar su propio perfil, salvo que sea rol 1 o 2
+    const isSelf = Number(currentUserId) === Number(id);
+    if (!isSelf && currentUserRole === 3) {
+      return res.status(403).json({ error: "Acceso denegado: No tienes permisos para consultar este perfil." });
+    }
+
+    const user = await userModel.findUserById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado en el sistema." });
+    }
+
+    // No exponer el hash de contraseña
+    const { password_hash, ...safeUser } = user;
+    res.status(200).json({ data: safeUser });
+
+  } catch (error) {
+    console.error("[Error en userController - getUserById]:", error);
+    res.status(500).json({ error: "Error interno del servidor al consultar el usuario." });
+  }
+};
+
 const registerUser = async (req, res) => {
   try {
     let {
@@ -290,6 +325,58 @@ const updateUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// PUT /users/me/foto  — El usuario actualiza su propia foto
+// Solo permite cambiar foto_perfil_url; no toca datos sensibles
+// ni requiere rol elevado.
+// ─────────────────────────────────────────────────────────────
+const updateMyPhoto = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id_usuario;
+
+    if (!currentUserId) {
+      return res.status(401).json({ error: "No se pudo identificar al usuario autenticado." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No se recibió ninguna imagen. Selecciona un archivo válido." });
+    }
+
+    const existingUser = await userModel.findUserById(currentUserId);
+    if (!existingUser) {
+      return res.status(404).json({ error: "Usuario no encontrado en el sistema." });
+    }
+
+    // Eliminar foto anterior si existe
+    if (existingUser.foto_perfil_url) {
+      const oldPhotoPath = path.join(__dirname, '..', existingUser.foto_perfil_url);
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    const foto_perfil_url = `/uploads/profiles/${req.file.filename}`;
+
+    const affectedRows = await userModel.updateUser(currentUserId, {
+      foto_perfil_url,
+      modificado_por: currentUserId,
+    });
+
+    if (affectedRows === 0) {
+      return res.status(500).json({ error: "No se pudo actualizar la fotografía. Intenta de nuevo." });
+    }
+
+    res.status(200).json({
+      message: "Fotografía de perfil actualizada correctamente.",
+      foto_perfil_url,
+    });
+
+  } catch (error) {
+    console.error("[Error en userController - updateMyPhoto]:", error);
+    res.status(500).json({ error: "Error interno del servidor al actualizar la fotografía." });
+  }
+};
+
 const deactivateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -395,7 +482,9 @@ module.exports = {
   checkEmailExists,
   registerUser,
   getUsers,
+  getUserById,
   updateUser,
+  updateMyPhoto,
   deactivateUser,
-  activateUser
+  activateUser,
 };
