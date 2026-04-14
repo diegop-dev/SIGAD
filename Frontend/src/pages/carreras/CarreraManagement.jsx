@@ -95,6 +95,12 @@ export const CarreraManagement = () => {
     setShowForm(true);
   };
 
+  // ✨ CORRECCIÓN: Función reincorporada para manejar la edición
+  const handleEditarCarrera = (carrera) => {
+    setCarreraAEditar(carrera);
+    setShowForm(true);
+  };
+
   if (showForm) {
     return (
       <CarreraForm 
@@ -268,7 +274,7 @@ export const CarreraManagement = () => {
                       <div className="flex justify-center space-x-2">
                         <button 
                           title="Editar programa" 
-                          onClick={() => setCarreraAEditar(carrera)}
+                          onClick={() => handleEditarCarrera(carrera)}
                           className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95"
                         >
                           <Edit className="w-5 h-5" />
