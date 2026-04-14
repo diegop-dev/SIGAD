@@ -1,5 +1,6 @@
 const carreraModel = require('../models/carreraModel');
 const grupoModel = require('../models/grupoModel');
+const assignmentModel = require('../models/assignmentModel');
 
 const generarSiglas = async (nombreCarrera, modalidad, nivel_academico = 'LICENCIATURA', excluir_id = null) => {
   const palabrasIgnoradas = ["DE", "LA", "DEL", "Y", "EN", "EL", "LOS", "LAS"];
@@ -120,38 +121,49 @@ const carreraController = {
     }
   },
 
-  actualizarCarrera: async (req, res) => {
+actualizarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
-      const { nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por } = req.body;
+      const { nombre_carrera, modalidad, academia_id, nivel_academico, modificado_por, confirmar_rechazo } = req.body;
       const idUsuario = req.usuario ? req.usuario.id_usuario : modificado_por;
       const nivelSeguro = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
 
-      // 1. Recuperar el estado actual para validación referencial
       const carreraActual = await carreraModel.obtenerCarreraPorId(id);
-      if (!carreraActual) {
-        return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
-      }
+      if (!carreraActual) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
 
-      // 2. Detectar intentos de mutación en atributos estructurales de la malla
       const intentoCambioEstructural = 
         (nivelSeguro !== carreraActual.nivel_academico) ||
         (modalidad !== carreraActual.modalidad) ||
         (Number(academia_id) !== Number(carreraActual.academia_id));
 
       if (intentoCambioEstructural) {
-        const tieneAsignaciones = await carreraModel.verificarDependenciasActivas(id);
-        if (tieneAsignaciones) {
+        const tieneAceptadas = await carreraModel.verificarDependenciasActivas(id);
+        if (tieneAceptadas) {
           return res.status(409).json({
             success: false,
             action: "BLOCK",
             error: "Conflicto de integridad relacional",
-            detalles: "No es posible modificar el nivel académico, modalidad o academia de este programa porque ya cuenta con clases asignadas. Debe liberar la carga horaria previamente."
+            detalles: "No es posible modificar el nivel, modalidad o academia porque este programa cuenta con clases ACEPTADAS vigentes."
           });
+        }
+
+        // ✨ Lógica de Advertencia y Rechazo Automático
+        const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ carrera_id: id });
+        const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+        if (tieneEnviadas && !confirmar_rechazo) {
+          return res.status(409).json({
+            success: false,
+            action: "WARN",
+            error: "Advertencia de asignaciones pendientes",
+            detalles: "Modificar la estructura de esta carrera rechazará automáticamente asignaciones ENVIADAS a docentes. ¿Deseas continuar?"
+          });
+        }
+        if (tieneEnviadas && confirmar_rechazo) {
+          await assignmentModel.rechazarAsignacionesPorCarrera(id, idUsuario);
         }
       }
 
-      // 3. Validación de duplicidad
       const carreraExistente = await carreraModel.encontrarCarreraExistente(nombre_carrera, modalidad, nivelSeguro);
       if (carreraExistente && carreraExistente.id_carrera !== Number(id)) {
         return res.status(409).json({
@@ -172,7 +184,7 @@ const carreraController = {
 
       await carreraModel.actualizarCarrera(id, datosActualizar);
 
-      // 4. Actualización en cascada de identificadores de grupo
+      // Actualización en cascada de identificadores de grupo
       const grupos = await grupoModel.obtenerGruposPorCarrera(id);
       if (grupos && grupos.length > 0) {
         for (const grupo of grupos) {
@@ -185,47 +197,49 @@ const carreraController = {
         }
       }
 
-      return res.status(200).json({
-        success: true,
-        message: 'La carrera y sus grupos vinculados se han actualizado correctamente.'
-      });
+      return res.status(200).json({ success: true, message: 'La carrera se ha actualizado correctamente.' });
     } catch (error) {
       console.error('Error al actualizar la carrera:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Ocurrió un error en el servidor al intentar actualizar la carrera.',
-        error: error.message
-      });
+      return res.status(500).json({ success: false, message: 'Error interno.' });
     }
   },
 
-
-desactivarCarrera: async (req, res) => {
+  desactivarCarrera: async (req, res) => {
     try {
       const { id } = req.params;
-      const { eliminado_por, motivo_baja } = req.body;
+      const { eliminado_por, motivo_baja, confirmar_rechazo } = req.body;
 
-      // Validacion estricta del motivo aunque no se persista
       if (!motivo_baja || motivo_baja.trim() === '') {
         return res.status(400).json({ success: false, message: 'Debe especificar un motivo para la baja.' });
       }
 
-      // Verificacion de dependencias
-      const tieneAsignaciones = await carreraModel.verificarDependenciasActivas(id);
-      if (tieneAsignaciones) {
+      const tieneAceptadas = await carreraModel.verificarDependenciasActivas(id);
+      if (tieneAceptadas) {
         return res.status(409).json({
           success: false,
           action: "BLOCK",
           error: "Conflicto de integridad relacional",
-          detalles: "No es posible desactivar este programa académico porque cuenta con materias impartiéndose actualmente. Debe cancelar o reasignar estas clases antes de proceder."
+          detalles: "No es posible desactivar este programa porque cuenta con clases ACEPTADAS impartiéndose. Debe liberar la carga horaria primero."
         });
       }
 
-      // Ejecucion de baja 
-      const result = await carreraModel.desactivarCarrera(id, eliminado_por);
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
+      const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ carrera_id: id });
+      const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
+
+      if (tieneEnviadas && !confirmar_rechazo) {
+        return res.status(409).json({
+          success: false,
+          action: "WARN",
+          error: "Advertencia de asignaciones pendientes",
+          detalles: "Darlo de baja rechazará automáticamente las asignaciones ENVIADAS vinculadas a este programa. ¿Deseas continuar?"
+        });
       }
+      if (tieneEnviadas && confirmar_rechazo) {
+        await assignmentModel.rechazarAsignacionesPorCarrera(id, eliminado_por);
+      }
+
+      const result = await carreraModel.desactivarCarrera(id, eliminado_por);
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Carrera no encontrada.' });
 
       return res.status(200).json({ success: true, message: 'Carrera dada de baja exitosamente.' });
     } catch (error) {

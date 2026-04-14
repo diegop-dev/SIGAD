@@ -1,6 +1,6 @@
 const { check, validationResult } = require("express-validator");
 
-const validateMateria = [
+const validarMateria = [
 
   check("nombre")
     .trim()
@@ -74,4 +74,4 @@ const validateMateria = [
   },
 ];
 
-module.exports = { validateMateria };
+module.exports = { validarMateria };

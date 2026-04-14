@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, X, AlertTriangle, Ban, RefreshCw } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { CarreraForm } from './CarreraForm';
 import { useAuth } from '../../hooks/useAuth';
-import { TOAST_CARRERAS, TOAST_COMMON } from '../../../constants/toastMessages';
+
+import { CarreraForm } from './CarreraForm';
+import { DesactivarCarreraModal } from './DesactivarCarreraModal';
+import { ReactivarCarreraModal } from './ReactivarCarreraModal';
 
 export const CarreraManagement = () => {
   const { user } = useAuth();
@@ -15,17 +17,9 @@ export const CarreraManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [carreraAEditar, setCarreraAEditar] = useState(null);
 
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [carreraToDelete, setCarreraToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [motivoBaja, setMotivoBaja] = useState('');
-  
-  const [showActivateModal, setShowActivateModal] = useState(false);
-  const [carreraToActivate, setCarreraToActivate] = useState(null);
-  const [isActivating, setIsActivating] = useState(false);
-
-  const [serverAction, setServerAction] = useState(null);
-  const [serverMessage, setServerMessage] = useState('');
+  // Estados para los modales separados
+  const [carreraToDesactivar, setCarreraToDesactivar] = useState(null);
+  const [carreraToReactivar, setCarreraToReactivar] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
@@ -42,7 +36,7 @@ export const CarreraManagement = () => {
       setCarreras(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error al cargar programas:", error);
-      toast.error(TOAST_CARRERAS.errorCarga);
+      toast.error("Error al cargar programas");
       setCarreras([]);
     } finally {
       setIsLoading(false);
@@ -91,98 +85,14 @@ export const CarreraManagement = () => {
   const handleSuccessAction = () => {
     setShowForm(false);
     setCarreraAEditar(null);
+    setCarreraToDesactivar(null);
+    setCarreraToReactivar(null);
     fetchCarreras();
   };
 
   const handleNuevaCarrera = () => {
     setCarreraAEditar(null);
     setShowForm(true);
-  };
-
-  const handleEditarCarrera = (carrera) => {
-    setCarreraAEditar(carrera);
-    setShowForm(true);
-  };
-
-  const handleEliminarRapido = (carrera) => {
-    setCarreraToDelete(carrera);
-    setMotivoBaja('');
-    setServerAction(null);
-    setServerMessage('');
-    setShowDeleteModal(true);
-  };
-
-  const handleCloseDeleteModal = () => {
-    setShowDeleteModal(false);
-    setServerAction(null);
-    setServerMessage('');
-  };
-
-  const confirmDelete = async () => {
-    if (!motivoBaja.trim()) {
-      toast.error("El motivo de la baja es obligatorio.");
-      return;
-    }
-
-    setIsDeleting(true);
-    const toastId = toast.loading("Actualizando estatus...");
-
-    try {
-      await api.patch(`/carreras/${carreraToDelete.id_carrera}/desactivar`, {
-        eliminado_por: user?.id_usuario,
-        motivo_baja: motivoBaja
-      });
-      
-      toast.success("Estatus actualizado correctamente", { id: toastId });
-      handleCloseDeleteModal();
-      fetchCarreras(); 
-    } catch (error) {
-      const status = error.response?.status;
-      const data = error.response?.data || {};
-
-      if (status === 409 && data.action === "BLOCK") {
-        setServerAction("BLOCK");
-        const detalles = data.detalles || "Conflicto de integridad referencial.";
-        setServerMessage(detalles);
-        toast.error("Operación denegada por reglas de integridad", { id: toastId, duration: 8000 });
-      } else {
-        const msg = data.message || data.error || "Error al actualizar el estatus";
-        toast.error(msg, { id: toastId });
-      }
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleActivarRapido = (carrera) => {
-    setCarreraToActivate(carrera);
-    setShowActivateModal(true);
-  };
-
-  const handleCloseActivateModal = () => {
-    setShowActivateModal(false);
-    setCarreraToActivate(null);
-  };
-
-  const confirmActivate = async () => {
-    setIsActivating(true);
-    const toastId = toast.loading("Reactivando programa...");
-
-    try {
-      await api.patch(`/carreras/${carreraToActivate.id_carrera}/activar`, {
-        modificado_por: user?.id_usuario
-      });
-      
-      toast.success("Programa reactivado correctamente", { id: toastId });
-      handleCloseActivateModal();
-      fetchCarreras(); 
-    } catch (error) {
-      const data = error.response?.data || {};
-      const msg = data.message || data.error || "Error al reactivar el programa";
-      toast.error(msg, { id: toastId });
-    } finally {
-      setIsActivating(false);
-    }
   };
 
   if (showForm) {
@@ -358,7 +268,7 @@ export const CarreraManagement = () => {
                       <div className="flex justify-center space-x-2">
                         <button 
                           title="Editar programa" 
-                          onClick={() => handleEditarCarrera(carrera)}
+                          onClick={() => setCarreraAEditar(carrera)}
                           className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all active:scale-95"
                         >
                           <Edit className="w-5 h-5" />
@@ -367,7 +277,7 @@ export const CarreraManagement = () => {
                         {carrera.estatus === 'ACTIVO' ? (
                           <button 
                             title="Dar de baja" 
-                            onClick={() => handleEliminarRapido(carrera)}
+                            onClick={() => setCarreraToDesactivar(carrera)}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-95"
                           >
                             <Trash2 className="w-5 h-5" />
@@ -375,7 +285,7 @@ export const CarreraManagement = () => {
                         ) : (
                           <button 
                             title="Reactivar programa" 
-                            onClick={() => handleActivarRapido(carrera)}
+                            onClick={() => setCarreraToReactivar(carrera)}
                             className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-95"
                           >
                             <RefreshCw className="w-5 h-5" />
@@ -422,112 +332,17 @@ export const CarreraManagement = () => {
         )}
       </div>
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
-            
-            <div className={`flex justify-between items-center px-6 py-5 border-b ${serverAction === 'BLOCK' ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50'}`}>
-               <div className={`flex items-center ${serverAction === 'BLOCK' ? 'text-amber-600' : 'text-red-600'}`}>
-                 {serverAction === 'BLOCK' ? <Ban className="w-5 h-5 mr-2" /> : <AlertTriangle className="w-5 h-5 mr-2" />}
-                 <h3 className="text-lg font-black tracking-tight">
-                   {serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar cambio de estatus'}
-                 </h3>
-               </div>
-               <button onClick={handleCloseDeleteModal} disabled={isDeleting} className="text-slate-400 hover:text-[#0B1828] hover:bg-slate-200 p-2 rounded-xl transition-colors active:scale-95">
-                 <X className="w-5 h-5" />
-               </button>
-            </div>
+      <DesactivarCarreraModal
+        carrera={carreraToDesactivar}
+        onClose={() => setCarreraToDesactivar(null)}
+        onSuccess={handleSuccessAction}
+      />
 
-            <div className="p-6 md:p-8">
-              <p className="text-sm text-slate-600 font-medium mb-4">
-                ¿Estás seguro que deseas dar de baja el programa <span className="font-bold text-[#0B1828]">{carreraToDelete?.nombre_carrera}</span>?
-              </p>
-              
-              {serverAction === 'BLOCK' ? (
-                <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 mb-2 shadow-sm">
-                  <p className="text-sm text-amber-900 font-bold mb-2">{serverMessage}</p>
-                  <p className="text-xs text-amber-700 font-medium">
-                    Dirígete a la sección de asignaciones para liberar la carga académica vinculada a este programa antes de intentar darle de baja.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 mb-2">
-                  <label className="text-sm font-bold text-[#0B1828]">Motivo de la baja <span className="text-[#0B1828] ml-1">*</span></label>
-                  <textarea
-                    value={motivoBaja}
-                    onChange={(e) => setMotivoBaja(e.target.value)}
-                    placeholder="Escribe el motivo..."
-                    className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-sm focus:ring-1 focus:border-[#0B1828] focus:ring-[#0B1828] transition-all resize-none h-24 shadow-sm outline-none"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={handleCloseDeleteModal}
-                disabled={isDeleting}
-                className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-[#0B1828] transition-all shadow-sm active:scale-95"
-              >
-                {serverAction === 'BLOCK' ? 'Entendido, cerrar' : 'Cancelar'}
-              </button>
-
-              {serverAction !== 'BLOCK' && (
-                <button
-                  onClick={confirmDelete}
-                  disabled={isDeleting || !motivoBaja.trim()}
-                  className="flex items-center px-6 py-3 rounded-xl text-sm font-black text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all shadow-md hover:shadow-red-600/30 active:scale-95"
-                >
-                  {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                  Confirmar baja
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showActivateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-auto overflow-hidden">
-            
-            <div className="flex justify-between items-center px-6 py-5 border-b border-emerald-100 bg-emerald-50">
-               <div className="flex items-center text-emerald-600">
-                 <RefreshCw className="w-5 h-5 mr-2" />
-                 <h3 className="text-lg font-black tracking-tight">Confirmar reactivación</h3>
-               </div>
-               <button onClick={handleCloseActivateModal} disabled={isActivating} className="text-slate-400 hover:text-[#0B1828] hover:bg-slate-200 p-2 rounded-xl transition-colors active:scale-95">
-                 <X className="w-5 h-5" />
-               </button>
-            </div>
-
-            <div className="p-6 md:p-8">
-              <p className="text-sm text-slate-600 font-medium">
-                ¿Estás seguro que deseas reactivar el programa <span className="font-bold text-[#0B1828]">{carreraToActivate?.nombre_carrera}</span>? Volverá a estar disponible en los procesos académicos.
-              </p>
-            </div>
-
-            <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
-              <button
-                onClick={handleCloseActivateModal}
-                disabled={isActivating}
-                className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-[#0B1828] transition-all shadow-sm active:scale-95"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={confirmActivate}
-                disabled={isActivating}
-                className="flex items-center px-6 py-3 rounded-xl text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-md hover:shadow-emerald-600/30 active:scale-95"
-              >
-                {isActivating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                Confirmar reactivación
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReactivarCarreraModal
+        carrera={carreraToReactivar}
+        onClose={() => setCarreraToReactivar(null)}
+        onSuccess={handleSuccessAction}
+      />
     </div>
   );
 };
