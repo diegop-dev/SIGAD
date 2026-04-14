@@ -142,7 +142,7 @@ export const MateriasModal = ({
           {/* Auditoría */}
           <div className="border-t pt-4 text-sm text-slate-500">
             <p>
-              Creado por: <span className="font-semibold">{materia.creado_por}</span>
+              Creado por: <span className="font-semibold">{materia.creado_por_nombre || "No disponible"}</span>
             </p>
             <p>
               Fecha creación:{" "}

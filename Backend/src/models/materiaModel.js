@@ -112,12 +112,19 @@ const materiaModel = {
         SELECT
           m.*,
           c.nombre AS cuatrimestre_nombre,
+          c.estatus AS cuatrimestre_estatus,
           p.codigo AS periodo_codigo,
-          car.nombre_carrera
+          car.nombre_carrera,
+          TRIM(CONCAT(
+            COALESCE(u.nombres, ''), ' ',
+            COALESCE(u.apellido_paterno, ''),
+            IF(u.apellido_materno IS NOT NULL AND u.apellido_materno != '', CONCAT(' ', u.apellido_materno), '')
+          )) AS creado_por_nombre
         FROM Materias m
         LEFT JOIN Cuatrimestres c ON m.cuatrimestre_id = c.id_cuatrimestre
         LEFT JOIN Periodos p ON m.periodo_id = p.id_periodo
         LEFT JOIN Carreras car ON m.carrera_id = car.id_carrera
+        LEFT JOIN Usuarios u ON m.creado_por = u.id_usuario
         ORDER BY m.id_materia DESC
       `);
       return rows;

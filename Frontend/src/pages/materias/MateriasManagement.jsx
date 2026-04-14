@@ -27,6 +27,7 @@ export const MateriasManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchError, setSearchError] = useState("");
   const [filterTipo, setFilterTipo] = useState("");
   const [filterCarrera, setFilterCarrera] = useState("");
   const [filterPeriodo, setFilterPeriodo] = useState("");
@@ -39,6 +40,17 @@ export const MateriasManagement = () => {
   const [editingMateria, setEditingMateria] = useState(null);
   const [deletingMateria, setDeletingMateria] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    const trimmed = value.trim();
+    if (trimmed.length > 0 && !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(trimmed)) {
+      setSearchError("La búsqueda debe contener al menos una letra.");
+    } else {
+      setSearchError("");
+    }
+    setSearchTerm(value);
+  };
 
   const fetchMaterias = async () => {
     setIsLoading(true);
@@ -60,12 +72,17 @@ export const MateriasManagement = () => {
   }, []);
 
   const filteredMaterias = useMemo(() => {
+    const trimmed = searchTerm.trim();
+    const hasLetter = /[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(trimmed);
+    const efectivaBusqueda = (trimmed && hasLetter) ? trimmed.toLowerCase() : '';
+
     return materias.filter(m => {
-      const busqueda = searchTerm.toLowerCase();
       const codigo = m.codigo_unico?.toLowerCase() || '';
       const nombre = m.nombre?.toLowerCase() || '';
 
-      const coincideBusqueda = codigo.includes(busqueda) || nombre.includes(busqueda);
+      const coincideBusqueda = efectivaBusqueda
+        ? (codigo.includes(efectivaBusqueda) || nombre.includes(efectivaBusqueda))
+        : true;
       const coincideTipo = filterTipo ? m.tipo_asignatura === filterTipo : true;
       const coincideCarrera = filterCarrera ? String(m.carrera_id) === filterCarrera : true;
       const coincidePeriodo = filterPeriodo ? String(m.periodo_id) === filterPeriodo : true;
@@ -152,9 +169,16 @@ export const MateriasManagement = () => {
             type="text"
             placeholder="Buscar por código único o nombre de la materia..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-11 block w-full rounded-xl border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:text-sm py-3 transition-all duration-200"
+            onChange={handleSearchChange}
+            className={`pl-11 block w-full rounded-xl bg-slate-50 focus:bg-white focus:ring-2 sm:text-sm py-3 transition-all duration-200 ${
+              searchError
+                ? "border-red-300 focus:border-red-400 focus:ring-red-200"
+                : "border-slate-200 focus:border-blue-500 focus:ring-blue-200"
+            }`}
           />
+          {searchError && (
+            <p className="absolute mt-1 text-xs font-bold text-red-500 pl-1">{searchError}</p>
+          )}
         </div>
 
         {/* CONTENEDOR DE SELECTORES */}
@@ -323,7 +347,13 @@ export const MateriasManagement = () => {
                         </button>
                         <button
                           title="Editar materia"
-                          onClick={() => setEditingMateria(m)}
+                          onClick={() => {
+                            if (m.cuatrimestre_estatus === "ACTIVO") {
+                              toast.error("No se puede editar la materia porque el cuatrimestre está activo.");
+                              return;
+                            }
+                            setEditingMateria(m);
+                          }}
                           className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
                         >
                           <Edit className="w-5 h-5" />

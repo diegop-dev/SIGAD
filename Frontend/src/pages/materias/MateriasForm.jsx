@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; 
+import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Award, Edit3, Trash2, GraduationCap } from "lucide-react";
 import api from "../../services/api";
@@ -84,7 +84,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     }
     else {
       let finalValue = value;
-      
+
       if (name === 'codigo_unico') {
         finalValue = value.toUpperCase().slice(0, 15);
       } else if (type === 'number') {
@@ -93,10 +93,46 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
 
       setFormData(prev => ({ ...prev, [name]: finalValue }));
     }
-    
-    // Limpieza dinámica de errores
+
+    // Validación en vivo para el campo nombre
+    if (name === 'nombre') {
+      const charsInvalidos = /[^A-Za-z0-9ÁÉÍÓÚáéíóúÑñ\s\-\.]/;
+      if (value && charsInvalidos.test(value)) {
+        setErrores(prev => ({ ...prev, nombre: "El nombre contiene caracteres no permitidos (solo letras, números, guiones y puntos)" }));
+      } else {
+        setErrores(prev => ({ ...prev, nombre: null }));
+      }
+      return;
+    }
+
+    // Limpieza dinámica de errores para los demás campos
     if (errores[name]) setErrores(prev => ({ ...prev, [name]: null }));
   };
+
+  const hasChanges = useMemo(() => {
+    if (!isEditing || !initialData) return true;
+    const orig = {
+      nombre: (initialData.nombre || "").trim(),
+      creditos: Number(initialData.creditos || 1),
+      cupo_maximo: Number(initialData.cupo_maximo || 30),
+      tipo_asignatura: initialData.tipo_asignatura || "TRONCO_COMUN",
+      nivel_academico: initialData.nivel_academico || "LICENCIATURA",
+      periodo_id: String(initialData.periodo_id || ""),
+      cuatrimestre_id: String(initialData.cuatrimestre_id || ""),
+      carrera_id: String(initialData.carrera_id || ""),
+    };
+    const curr = {
+      nombre: formData.nombre.trim(),
+      creditos: Number(formData.creditos),
+      cupo_maximo: Number(formData.cupo_maximo),
+      tipo_asignatura: formData.tipo_asignatura,
+      nivel_academico: formData.nivel_academico,
+      periodo_id: String(formData.periodo_id),
+      cuatrimestre_id: String(formData.cuatrimestre_id),
+      carrera_id: String(formData.carrera_id),
+    };
+    return JSON.stringify(orig) !== JSON.stringify(curr);
+  }, [formData, isEditing, initialData]);
 
   const validate = () => {
     const newErrors = {};
@@ -123,6 +159,10 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isEditing && !hasChanges) {
+      toast.error("No has realizado ningún cambio.");
+      return;
+    }
     if (!validate()) return;
 
     setIsSubmitting(true);
@@ -196,7 +236,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   };
 
   const esTroncoComun = formData.tipo_asignatura === "TRONCO_COMUN";
-  
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="bg-slate-50/50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
@@ -386,9 +426,9 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
           {/* Footer de botones */}
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             {isEditing ? (
-              <button 
-                type="submit" 
-                disabled={isSubmitting || cargandoCatalogos} 
+              <button
+                type="submit"
+                disabled={isSubmitting || cargandoCatalogos || !hasChanges}
                 className="flex items-center px-6 py-3 rounded-xl font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Edit3 className="w-5 h-5 mr-2" />}
