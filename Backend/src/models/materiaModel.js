@@ -1,6 +1,5 @@
 const pool = require("../config/database");
 
-
 const materiaModel = {
 
   obtenerMateriaPorId: async (id) => {
@@ -49,22 +48,25 @@ const materiaModel = {
     }
   },
 
-  verificarMateriaDuplicada: async (nombre, carrera_id, nivel_academico, id_actual = null) => {
+  // ─── CAMBIO APLICADO AQUÍ ──────────────────────────────────────────────────
+  // Ahora la duplicidad se basa únicamente en el codigo_unico.
+  // Nota para el controlador: Se cambiaron los parámetros que recibe.
+  verificarMateriaDuplicada: async (codigo_unico, id_actual = null) => {
     let conn;
     try {
       conn = await pool.getConnection();
       let query = `
         SELECT id_materia
         FROM Materias
-        WHERE nombre = ?
-        AND carrera_id <=> ?
-        AND nivel_academico = ?
+        WHERE codigo_unico = ?
       `;
-      const params = [nombre, carrera_id || null, nivel_academico];
+      const params = [codigo_unico];
+      
       if (id_actual) {
         query += ` AND id_materia != ?`;
         params.push(id_actual);
       }
+      
       const rows = await conn.query(query, params);
       return rows.length > 0;
     } finally {
@@ -242,7 +244,7 @@ const materiaModel = {
     }
   },
 
-desactivarMateria: async (id, usuario) => {
+  desactivarMateria: async (id, usuario) => {
     let conn;
     try {
       conn = await pool.getConnection();

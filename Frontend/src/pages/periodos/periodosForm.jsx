@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, Loader2, Calendar, Edit3, Ban } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Calendar, RefreshCw, Ban } from "lucide-react";
 import api from "../../services/api";
 
 const formatearFechaParaInput = (cadenaFecha) => {
@@ -13,12 +13,15 @@ const obtenerNombreMes = (fecha) => {
     "ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO",
     "JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"
   ];
-  const date = new Date(fecha);
+  // Aseguramos leer la fecha local sin desfases de zona horaria si viene en formato YYYY-MM-DD
+  const [year, month, day] = fecha.split('-');
+  const date = new Date(year, month - 1, day);
   return meses[date.getMonth()];
 };
 
 const generarCodigo = (inicio, fin) => {
-  const year = new Date(inicio).getFullYear();
+  if (!inicio || !fin) return "";
+  const year = inicio.split('-')[0];
   const mesInicio = obtenerNombreMes(inicio);
   const mesFin = obtenerNombreMes(fin);
   return `${year}-${mesInicio}-${mesFin}`;
@@ -40,6 +43,7 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errores, setErrores] = useState({});
   const [periodosExistentes, setPeriodosExistentes] = useState([]);
+  const [isFormDirty, setIsFormDirty] = useState(false);
   
   // Memoria del semáforo de integridad
   const [serverAction, setServerAction] = useState(null); 
@@ -64,36 +68,20 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     cargarPeriodos();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setServerAction(null); // Limpiar alerta de integridad al intentar corregir
-    
-    let updatedData = {
-      ...formData,
-      [name]: value
-    };
-
-    if (name === "fecha_inicio" && value) {
-      const inicio = new Date(value);
-      const fechaFin = new Date(inicio);
-      fechaFin.setDate(fechaFin.getDate() + 84); // +12 semanas
-      const fechaLimite = new Date(fechaFin);
-      fechaLimite.setDate(fechaLimite.getDate() - 15); // -15 días
-
-      updatedData.fecha_fin = fechaFin.toISOString().split("T")[0];
-      updatedData.fecha_limite_calif = fechaLimite.toISOString().split("T")[0];
+  // Determinar si el formulario ha cambiado (Dirty state)
+  useEffect(() => {
+    if (!isEditing) {
+      setIsFormDirty(!!formData.fecha_inicio || !!formData.fecha_fin || !!formData.fecha_limite_calif);
+      return;
     }
 
-    setFormData(updatedData);
+    const hasChanged = 
+      formData.fecha_inicio !== formatearFechaParaInput(periodoToEdit?.fecha_inicio) ||
+      formData.fecha_fin !== formatearFechaParaInput(periodoToEdit?.fecha_fin) ||
+      formData.fecha_limite_calif !== formatearFechaParaInput(periodoToEdit?.fecha_limite_calif);
 
-    if (errores[name]) {
-      setErrores((prev) => ({ ...prev, [name]: null }));
-    }
-    
-    if (name === "fecha_inicio" || name === "fecha_fin") {
-      setErrores((prev) => ({ ...prev, overlap: null }));
-    }
-  };
+    setIsFormDirty(hasChanged);
+  }, [formData, periodoToEdit, isEditing]);
 
   const verificarOverlapConExistentes = (inicio, fin, idActual = null) => {
     if (!inicio || !fin) return null;
@@ -101,7 +89,7 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     for (const periodo of periodosExistentes) {
       if (idActual && periodo.id_periodo === idActual) continue;
       
-      if (hayOverlap(inicio, fin, periodo.fecha_inicio, periodo.fecha_fin)) {
+      if (hayOverlap(inicio, fin, formatearFechaParaInput(periodo.fecha_inicio), formatearFechaParaInput(periodo.fecha_fin))) {
         const fechaInicioExistente = new Date(periodo.fecha_inicio).toLocaleDateString();
         const fechaFinExistente = new Date(periodo.fecha_fin).toLocaleDateString();
         
@@ -111,8 +99,61 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     return null;
   };
 
+  // Validación en tiempo real de empalmes
+  useEffect(() => {
+    if (formData.fecha_inicio && formData.fecha_fin) {
+      const errorOverlap = verificarOverlapConExistentes(
+        formData.fecha_inicio, 
+        formData.fecha_fin, 
+        periodoToEdit?.id_periodo
+      );
+
+      setErrores((prev) => {
+        if (errorOverlap) {
+          return { ...prev, overlap: errorOverlap };
+        } else {
+          const newErrors = { ...prev };
+          delete newErrors.overlap;
+          return newErrors;
+        }
+      });
+    }
+  }, [formData.fecha_inicio, formData.fecha_fin, periodosExistentes, periodoToEdit]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setServerAction(null); // Limpiar alerta de integridad al intentar corregir
+    
+    let updatedData = {
+      ...formData,
+      [name]: value
+    };
+
+    // Lógica automática de fechas
+    if (name === "fecha_inicio" && value) {
+      const inicio = new Date(value);
+      // Se utiliza UTC para evitar desfases al sumar días
+      const fechaFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000)); // +12 semanas
+      const fechaLimite = new Date(fechaFin.getTime() - (15 * 24 * 60 * 60 * 1000)); // -15 días
+
+      updatedData.fecha_fin = fechaFin.toISOString().split("T")[0];
+      updatedData.fecha_limite_calif = fechaLimite.toISOString().split("T")[0];
+    }
+
+    setFormData(updatedData);
+
+    // Limpiar el error específico del campo modificado
+    if (errores[name]) {
+      setErrores((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
   const validate = () => {
-    const newErrors = {};
+    const newErrors = { ...errores }; // Preservar errores en tiempo real como el overlap
     const { fecha_inicio, fecha_fin, fecha_limite_calif } = formData;
 
     if (!fecha_inicio) newErrors.fecha_inicio = "Fecha de inicio obligatoria";
@@ -122,38 +163,24 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     if (fecha_inicio && fecha_fin) {
       const inicio = new Date(fecha_inicio);
       const fin = new Date(fecha_fin);
-      const minFin = new Date(inicio);
-      minFin.setDate(minFin.getDate() + 84);
+      const minFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000));
 
       if (fin < minFin) {
         newErrors.fecha_fin = "Debe ser al menos 12 semanas después del inicio";
+      }
+      
+      if (inicio > fin) {
+        newErrors.fecha_fin = "La fecha de fin debe ser posterior a la fecha de inicio";
       }
     }
 
     if (fecha_fin && fecha_limite_calif) {
       const fin = new Date(fecha_fin);
       const limite = new Date(fecha_limite_calif);
-      const maxLimite = new Date(fin);
-      maxLimite.setDate(maxLimite.getDate() - 15);
+      const maxLimite = new Date(fin.getTime() - (15 * 24 * 60 * 60 * 1000));
 
       if (limite > maxLimite) {
         newErrors.fecha_limite_calif = "Debe ser al menos 15 días antes de la fecha final";
-      }
-    }
-
-    if (fecha_inicio && fecha_fin && new Date(fecha_inicio) > new Date(fecha_fin)) {
-      newErrors.fecha_fin = "La fecha de fin debe ser posterior a la fecha de inicio";
-    }
-
-    if (fecha_inicio && fecha_fin && Object.keys(newErrors).length === 0) {
-      const errorOverlap = verificarOverlapConExistentes(
-        fecha_inicio, 
-        fecha_fin, 
-        periodoToEdit?.id_periodo
-      );
-      
-      if (errorOverlap) {
-        newErrors.overlap = errorOverlap;
       }
     }
 
@@ -173,7 +200,7 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
       const payload = {
         ...formData,
         codigo,
-        anio: new Date(formData.fecha_inicio).getFullYear()
+        anio: formData.fecha_inicio.split('-')[0] // Extraer el año directamente del input
       };
 
       if (isEditing) {
@@ -199,7 +226,7 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
         toast.error("Operación denegada por reglas de integridad", { duration: 8000 });
       } else {
         const msg = errorData.error || errorData.mensaje || "Error al guardar el periodo";
-        if (msg.includes("sobrepone")) {
+        if (msg.toLowerCase().includes("sobrepone")) {
           setErrores(prev => ({ ...prev, overlap: msg }));
         }
         toast.error(`Error: ${msg}`);
@@ -209,169 +236,160 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     }
   };
 
+  const isSubmitDisabled = isSubmitting || !isFormDirty || Object.keys(errores).length > 0 || serverAction === 'BLOCK';
+
+  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none [&:autofill]:shadow-[inset_0_0_0px_1000px_#fff] [&:autofill]:[-webkit-text-fill-color:#0B1828]";
+  const getValidationClass = (hasError) => 
+    hasError 
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
+      : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
+
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="bg-slate-50 px-6 py-5 border-b border-slate-200 flex items-center">
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden relative">
+      
+      {/* Header estandarizado */}
+      <div className="bg-[#0B1828] px-6 py-5 flex items-center shadow-md relative z-10">
         <button
+          type="button"
           onClick={onBack}
-          className="mr-4 p-2 rounded-xl text-slate-400 hover:bg-slate-100"
+          className="mr-4 p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5 text-white" />
         </button>
 
         <div>
-          <h2 className="text-xl font-bold text-slate-800">
-            {isEditing ? "Editar periodo escolar" : "Nuevo periodo escolar"}
+          <h2 className="text-xl font-black text-white">
+            {isEditing ? "Modificar periodo escolar" : "Nuevo periodo escolar"}
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-white/60 font-medium">
             Define el rango de fechas del ciclo escolar
           </p>
         </div>
       </div>
 
-      <div className="p-6 md:p-8">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="p-6 md:p-10">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto">
           
-          {errores.overlap && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-              <p className="text-sm font-medium flex items-center">
-                <span className="mr-2">⚠️</span>
-                {errores.overlap}
-              </p>
-            </div>
-          )}
+          <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl mb-8 w-fit">
+            <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
+            Indica un campo obligatorio para el sistema
+          </div>
 
-          {serverAction === 'BLOCK' && (
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start">
-              <Ban className="w-5 h-5 text-amber-600 mr-3 mt-0.5 shrink-0" />
-              <div>
-                <h4 className="text-sm font-bold text-amber-900 mb-1">Acción bloqueada</h4>
-                <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+          <div className="space-y-10">
+            {/* Mensajes de Alerta del Servidor (Integridad) */}
+            {serverAction === 'BLOCK' && (
+              <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 flex items-start shadow-sm">
+                <Ban className="w-6 h-6 text-amber-600 mr-3 mt-0.5 shrink-0" />
+                <div>
+                  <h4 className="text-base font-black text-amber-900 mb-1">Acción bloqueada</h4>
+                  <p className="text-sm text-amber-800 font-medium leading-relaxed">{serverMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Sección: Fechas del Periodo */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-black text-[#0B1828] border-b border-slate-100 pb-2">Configuración de Fechas</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Calendar className="w-4 h-4 mr-2" /> Fecha inicio <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="fecha_inicio"
+                    value={formData.fecha_inicio}
+                    onChange={handleChange}
+                    disabled={serverAction === 'BLOCK'}
+                    className={`${inputBaseClass} ${getValidationClass(errores.fecha_inicio || errores.overlap)}`}
+                  />
+                  {(errores.fecha_inicio || errores.overlap) && (
+                    <p className="text-xs font-bold text-red-500 mt-1.5">
+                      {errores.fecha_inicio || errores.overlap}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Calendar className="w-4 h-4 mr-2 opacity-0" /> Fecha fin <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="fecha_fin"
+                    value={formData.fecha_fin}
+                    onChange={handleChange}
+                    disabled={serverAction === 'BLOCK'}
+                    min={formData.fecha_inicio}
+                    className={`${inputBaseClass} ${getValidationClass(errores.fecha_fin || errores.overlap)}`}
+                  />
+                  {(errores.fecha_fin || errores.overlap) && (
+                    <p className="text-xs font-bold text-red-500 mt-1.5">
+                      {errores.fecha_fin || errores.overlap}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
+                    <Calendar className="w-4 h-4 mr-2 text-slate-400" /> Fecha límite de captura de calificaciones <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    name="fecha_limite_calif"
+                    value={formData.fecha_limite_calif}
+                    onChange={handleChange}
+                    disabled={serverAction === 'BLOCK'}
+                    max={formData.fecha_fin}
+                    className={`${inputBaseClass} ${getValidationClass(errores.fecha_limite_calif)}`}
+                  />
+                  {errores.fecha_limite_calif && (
+                    <p className="text-xs font-bold text-red-500 mt-1.5">
+                      {errores.fecha_limite_calif}
+                    </p>
+                  )}
+                </div>
+
               </div>
             </div>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Calendar className="w-4 h-4 mr-2 text-blue-500" />
-                Fecha inicio
-              </label>
-
-              <input
-                type="date"
-                name="fecha_inicio"
-                value={formData.fecha_inicio}
-                onChange={handleChange}
-                disabled={serverAction === 'BLOCK'}
-                min={new Date().toISOString().split("T")[0]}
-                className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                  errores.fecha_inicio
-                    ? "border-red-300 bg-red-50"
-                    : "border-slate-200 focus:border-blue-500"
-                }`}
-              />
-              {errores.fecha_inicio && (
-                <p className="text-xs text-red-500">{errores.fecha_inicio}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Calendar className="w-4 h-4 mr-2 text-blue-500" />
-                Fecha fin
-              </label>
-
-              <input
-                type="date"
-                name="fecha_fin"
-                value={formData.fecha_fin}
-                onChange={handleChange}
-                disabled={serverAction === 'BLOCK'}
-                min={formData.fecha_inicio}
-                className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                  errores.fecha_fin
-                    ? "border-red-300 bg-red-50"
-                    : "border-slate-200 focus:border-blue-500"
-                }`}
-              />
-              {errores.fecha_fin && (
-                <p className="text-xs text-red-500">{errores.fecha_fin}</p>
-              )}
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label className="flex items-center text-sm font-bold text-slate-700">
-                <Calendar className="w-4 h-4 mr-2 text-amber-500" />
-                Fecha límite de captura de calificaciones
-              </label>
-
-              <input
-                type="date"
-                name="fecha_limite_calif"
-                value={formData.fecha_limite_calif}
-                onChange={handleChange}
-                disabled={serverAction === 'BLOCK'}
-                max={formData.fecha_fin}
-                className={`w-full px-4 py-3 rounded-xl border text-sm ${
-                  errores.fecha_limite_calif
-                    ? "border-red-300 bg-red-50"
-                    : "border-slate-200 focus:border-blue-500"
-                }`}
-              />
-              {errores.fecha_limite_calif && (
-                <p className="text-xs text-red-500">
-                  {errores.fecha_limite_calif}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {formData.fecha_inicio && formData.fecha_fin && (
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
-              <p className="text-sm text-slate-600">
-                <span className="font-semibold">Código generado:</span>{" "}
-                <code className="bg-white px-2 py-1 rounded border border-slate-200 text-blue-600">
+            {/* Código generado previsualización */}
+            {formData.fecha_inicio && formData.fecha_fin && !errores.overlap && (
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mt-2 relative group shadow-inner">
+                <span className="block text-sm text-[#0B1828] font-bold mb-2">Código generado automáticamente:</span>
+                <code className="text-2xl font-mono font-black text-[#0B1828] tracking-wider">
                   {generarCodigo(formData.fecha_inicio, formData.fecha_fin)}
                 </code>
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="flex justify-end pt-6 border-t border-slate-100">
-            {serverAction === 'BLOCK' ? (
-              <button
-                type="button"
-                onClick={onBack}
-                className="px-8 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all"
-              >
-                Cerrar y volver
-              </button>
-            ) : (
+            {/* Footer Submit */}
+            <div className="pt-8 border-t border-dashed border-slate-200 mt-2">
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="flex items-center px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitDisabled}
+                className={`w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg ${
+                  isSubmitDisabled
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300"
+                    : "bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
+                }`}
               >
-                {isSubmitting ? (
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                ) : isEditing ? (
-                  <Edit3 className="w-5 h-5 mr-2" />
-                ) : (
-                  <Save className="w-5 h-5 mr-2" />
-                )}
-
-                {isSubmitting 
-                  ? "Guardando..." 
+                {isSubmitting
+                  ? <Loader2 className="w-6 h-6 mr-2 animate-spin" />
                   : isEditing 
-                    ? "Actualizar periodo" 
-                    : "Guardar periodo"
+                    ? <RefreshCw className="w-6 h-6 mr-2 text-white" />
+                    : <Save className="w-6 h-6 mr-2 text-white" />
+                }
+                {isSubmitting
+                  ? "Guardando cambios..."
+                  : isEditing ? "Modificar Periodo" : "Nuevo Periodo"
                 }
               </button>
-            )}
-          </div>
+            </div>
 
+          </div>
         </form>
       </div>
     </div>

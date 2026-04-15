@@ -40,11 +40,16 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
           api.get("/cuatrimestres")
         ]);
 
+        // ─── CAMBIO AQUÍ: Filtrado de periodos activos ───────────────────────────
+        const rawPeriodos = Array.isArray(resPeriodos.data) ? resPeriodos.data : resPeriodos.data?.data || [];
+        const periodosActivos = rawPeriodos.filter(p => p.estatus === "ACTIVO");
+
         setCatalogos({
           carreras: Array.isArray(resCarreras.data) ? resCarreras.data : resCarreras.data?.data || [],
-          periodos: Array.isArray(resPeriodos.data) ? resPeriodos.data : resPeriodos.data?.data || [],
+          periodos: periodosActivos, // Solo se guardan en el estado los activos
           cuatrimestres: Array.isArray(resCuatrimestres.data) ? resCuatrimestres.data : resCuatrimestres.data?.data || []
         });
+        // ──────────────────────────────────────────────────────────────────────────
       } catch (error) {
         console.error("Error al cargar los catálogos de dependencias:", error);
         toast.error("Fallo al cargar la información base del formulario.");
