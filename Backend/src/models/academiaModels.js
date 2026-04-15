@@ -20,7 +20,7 @@ const Academia = {
     try {
       conn = await db.getConnection();
       const rows = await conn.query(`
-        SELECT id_usuario, nombres, apellido_paterno
+        SELECT id_usuario, nombres, apellido_paterno, apellido_materno, foto_perfil_url
         FROM usuarios
         WHERE rol_id = 2  -- 🔹 Administradores/Coordinadores
       `);
@@ -163,10 +163,18 @@ const Academia = {
           a.id_academia,
           a.nombre,
           a.descripcion,
-          a.usuario_id, 
+          a.usuario_id,
           DATE_FORMAT(a.fecha_creacion, '%d/%m/%Y') AS fecha_creacion,
           a.estatus,
-          CONCAT(u.nombres, ' ', u.apellido_paterno) AS coordinador_nombre
+          CONCAT(
+            u.nombres, ' ',
+            u.apellido_paterno,
+            IF(u.apellido_materno IS NOT NULL AND u.apellido_materno != '',
+              CONCAT(' ', u.apellido_materno),
+              ''
+            )
+          ) AS coordinador_nombre,
+          u.foto_perfil_url AS coordinador_foto_perfil_url
         FROM academias a
         LEFT JOIN usuarios u ON a.usuario_id = u.id_usuario
         ORDER BY a.fecha_creacion DESC

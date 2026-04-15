@@ -103,16 +103,16 @@ const crearMateria = async (req, res) => {
     const nombreLimpio  = nombre.toUpperCase().trim();
     const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
 
-    const existeDuplicado = await materiaModel.verificarMateriaDuplicada(
-      nombreLimpio, carreraSegura, nivelSeguro
-    );
+    // Generamos el código primero para poder validar por él
+    const codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
+
+    const existeDuplicado = await materiaModel.verificarMateriaDuplicada(codigo_unico);
     if (existeDuplicado) {
       return res.status(409).json({
-        error: "Ya existe una materia con este nombre registrada en este nivel académico para esta carrera."
+        error: "Ya existe una materia registrada con este código único."
       });
     }
 
-    const codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
     const nuevaMateria = {
       codigo_unico, nombre: nombreLimpio, creditos, cupo_maximo,
       tipo_asignatura, nivel_academico: nivelSeguro,
@@ -152,21 +152,6 @@ const actualizarMateria = async (req, res) => {
     const materiaActual  = await materiaModel.obtenerMateriaPorId(id);
     if (!materiaActual) return res.status(404).json({ error: "Materia no encontrada" });
 
-    const cuatrimestreActivo = await materiaModel.obtenerCuatrimestreActivo(materiaActual.cuatrimestre_id);
-    if (cuatrimestreActivo) {
-      return res.status(409).json({ error: "No se puede modificar la materia porque el cuatrimestre está activo" });
-    }
-
-    if (usuario.id_rol !== 1 && usuario.id_rol !== 2) {
-      if (usuario.id_rol !== 3) {
-        return res.status(403).json({ error: "No tienes permisos para modificar materias" });
-      }
-      const academia = await materiaModel.obtenerAcademiaDeMateria(id);
-      if (!academia || academia.usuario_id !== usuario.id_usuario) {
-        return res.status(403).json({ error: "No eres el coordinador de la academia de esta materia" });
-      }
-    }
-
     const nivelSeguro   = nivel_academico ? nivel_academico.toUpperCase() : 'LICENCIATURA';
     const nombreLimpio  = nombre.toUpperCase().trim();
     const carreraSegura = (tipo_asignatura === "TRONCO_COMUN") ? null : carrera_id;
@@ -205,15 +190,7 @@ const actualizarMateria = async (req, res) => {
       }
     }
 
-    const existeDuplicado = await materiaModel.verificarMateriaDuplicada(
-      nombreLimpio, carreraSegura, nivelSeguro, id
-    );
-    if (existeDuplicado) {
-      return res.status(409).json({
-        error: "Ya existe una materia con este nombre registrada en este nivel académico para esta carrera."
-      });
-    }
-
+    // Comprobamos si es necesario generar un código nuevo por cambios en datos clave
     let codigo_unico = materiaActual.codigo_unico;
     if (
       nombreLimpio !== materiaActual.nombre ||
@@ -221,6 +198,14 @@ const actualizarMateria = async (req, res) => {
       nivelSeguro !== materiaActual.nivel_academico
     ) {
       codigo_unico = await generarCodigoMateria(nombreLimpio, carreraSegura, nivelSeguro);
+    }
+
+    // Validación de duplicidad con los nuevos parámetros (código único)
+    const existeDuplicado = await materiaModel.verificarMateriaDuplicada(codigo_unico, id);
+    if (existeDuplicado) {
+      return res.status(409).json({
+        error: "Ya existe una materia registrada con este código único."
+      });
     }
 
     await materiaModel.actualizarMateria(id, {
@@ -246,7 +231,7 @@ const desactivarMateria = async (req, res) => {
   try {
     const { id }    = req.params;
     const usuario   = req.user?.id_usuario;
-    const { confirmar_rechazo } = req.body || {}; // Evitamos error si el body viene vacío
+    const { confirmar_rechazo } = req.body || {}; 
 
     const materiaActual = await materiaModel.obtenerMateriaPorId(id);
     if (!materiaActual) return res.status(404).json({ error: "Materia no encontrada" });
