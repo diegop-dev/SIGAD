@@ -238,7 +238,7 @@ const deactivateDocente = async (req, res) => {
       });
     }
 
-    const asignaciones  = await assignmentModel.getAllAsignaciones({ docente_id: id });
+    const asignaciones  = await assignmentModel.obtenerTodasLasAsignaciones({ docente_id: id });
     const tieneEnviadas = asignaciones.some(a => a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion === 'ENVIADA');
 
     if (tieneEnviadas && !confirmar_rechazo) {
@@ -377,45 +377,16 @@ const reactivateDocente = async (req, res) => {
 const obtenerHistorialDocente = async (req, res) => {
   const { id_docente } = req.params;
   try {
-    const perfil = await pool.query(`
-      SELECT 
-        d.id_docente, d.matricula_empleado, d.nivel_academico, d.antiguedad_fecha,
-        u.nombres, u.apellido_paterno, u.apellido_materno,
-        TIMESTAMPDIFF(YEAR, d.antiguedad_fecha, CURDATE()) AS anos_antiguedad
-      FROM Docentes d
-      JOIN Usuarios u ON d.usuario_id = u.id_usuario
-      WHERE d.id_docente = ?
-    `, [id_docente]);
+    const data = await docenteModel.getHistorialCompleto(id_docente);
+    
+    if (!data) {
+      return res.status(404).json({ message: "Docente no encontrado." });
+    }
 
-    if (perfil.length === 0) return res.status(404).json({ message: 'Docente no encontrado.' });
-
-    const historial = await pool.query(`
-      SELECT 
-        p.codigo AS periodo, p.anio,
-        m.nombre AS materia,
-        m.nivel_academico,
-        m.tipo_asignatura,
-        COALESCE(g.identificador, 'N/A') AS grupo,
-        a.promedio_consolidado, a.estatus_acta
-      FROM Asignaciones a
-      INNER JOIN (
-        SELECT MIN(id_asignacion) AS min_id
-        FROM Asignaciones
-        GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
-      ) rep ON a.id_asignacion = rep.min_id
-      JOIN Materias m  ON a.materia_id = m.id_materia
-      LEFT JOIN Grupos g ON a.grupo_id = g.id_grupo
-      JOIN Periodos p  ON a.periodo_id = p.id_periodo
-      WHERE a.docente_id = ? AND a.estatus_acta IN ('CERRADA', 'HISTORIAL')
-      ORDER BY p.fecha_inicio DESC
-    `, [id_docente]);
-
-    if (perfil[0].anos_antiguedad !== undefined) perfil[0].anos_antiguedad = Number(perfil[0].anos_antiguedad);
-
-    res.status(200).json({ perfil: perfil[0], historial });
+    res.status(200).json(data);
   } catch (error) {
-    console.error('Error al obtener historial docente:', error);
-    res.status(500).json({ message: 'Error interno del servidor al consultar el historial.' });
+    console.error("Error al obtener historial docente:", error);
+    res.status(500).json({ message: "Error interno del servidor al consultar el historial." });
   }
 };
 
