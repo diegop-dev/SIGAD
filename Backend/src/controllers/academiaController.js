@@ -1,4 +1,5 @@
 const Academia = require('../models/academiaModels');
+const assignmentModel = require('../models/assignmentModel');
 const { logAudit, getClientIp } = require('../services/auditService');
 
 /* ── Mapa de roles (consistente con authController) ── */
@@ -129,6 +130,18 @@ exports.updateEstatus = async (req, res) => {
           detalles: 'No es posible desactivar esta academia porque existen materias de sus programas impartiéndose actualmente. Debe reasignar o cancelar estas clases antes de proceder.',
         });
       }
+
+      const tieneEnviadas = await Academia.checkDependenciasEnviadas(id);
+      if (tieneEnviadas && !req.body.confirmar_rechazo) {
+        return res.status(409).json({
+          action:  'WARN',
+          error:   'Advertencia de asignaciones pendientes',
+          detalles: 'Esta academia tiene asignaciones ENVIADAS pendientes de confirmación. Darla de baja rechazará automáticamente estas clases. ¿Deseas continuar?',
+        });
+      }
+      if (tieneEnviadas && req.body.confirmar_rechazo) {
+        await assignmentModel.rechazarAsignacionesPorAcademia(id, usuario);
+      }
     }
 
     await Academia.toggleAcademiaStatus(id, usuario);
@@ -166,6 +179,16 @@ exports.getAcademias = async (req, res) => {
   try {
     const academias = await Academia.getAcademias();
     res.json(academias);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getCarrerasByAcademia = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const carreras = await Academia.getCarrerasByAcademia(id);
+    res.json(carreras);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

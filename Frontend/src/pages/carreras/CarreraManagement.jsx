@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, RefreshCw } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, Loader2, Edit, Trash2, ChevronLeft, ChevronRight, Hash, Layers, RefreshCw, Eye } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { CarreraForm } from './CarreraForm';
 import { DesactivarCarreraModal } from './DesactivarCarreraModal';
 import { ReactivarCarreraModal } from './ReactivarCarreraModal';
+import { ViewCarreraModal } from './ViewCarreraModal';
 
 export const CarreraManagement = () => {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export const CarreraManagement = () => {
   // Estados para los modales separados
   const [carreraToDesactivar, setCarreraToDesactivar] = useState(null);
   const [carreraToReactivar, setCarreraToReactivar] = useState(null);
+  const [carreraToView, setCarreraToView] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [academiaFilter, setAcademiaFilter] = useState('');
@@ -272,7 +274,14 @@ export const CarreraManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
-                      <button 
+                        <button 
+                          title="Ver detalles" 
+                          onClick={() => setCarreraToView(carrera.id_carrera)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-95"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button 
                         title={carrera.estatus === 'INACTIVO' ? "No se puede editar un programa inactivo" : "Editar programa"}
                         onClick={() => handleEditarCarrera(carrera)}
                         disabled={carrera.estatus === 'INACTIVO'}
@@ -353,6 +362,11 @@ export const CarreraManagement = () => {
         carrera={carreraToReactivar}
         onClose={() => setCarreraToReactivar(null)}
         onSuccess={handleSuccessAction}
+      />
+
+      <ViewCarreraModal
+        carreraId={carreraToView}
+        onClose={() => setCarreraToView(null)}
       />
     </div>
   );

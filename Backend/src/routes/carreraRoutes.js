@@ -14,6 +14,7 @@ router.get('/sincronizacion', verifyToken, carreraController.obtenerCarrerasPara
 // Rutas originales para el consumo interno del frontend de SIGAD
 router.get('/academias-activas', verifyToken, carreraController.obtenerAcademiasDisponibles);
 router.get('/', verifyToken, carreraController.obtenerCarreras);
+router.get('/:id/detalles', verifyToken, carreraController.obtenerDetallesCarrera);
 router.post('/', verifyToken, validarCreacionCarrera, carreraController.crearCarrera);
 
 // Rutas para modificar y eliminar

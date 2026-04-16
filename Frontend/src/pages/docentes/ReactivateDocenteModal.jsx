@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RotateCcw, X, Loader2, User } from 'lucide-react';
+import { UserCheck, X, CheckCircle, Loader2, User } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -30,60 +30,54 @@ export const ReactivateDocenteModal = ({ docente, onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg mx-auto overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
         
-        <div className="flex justify-between items-center px-6 py-5 border-b border-emerald-100 bg-emerald-50">
-          <div className="flex items-center text-emerald-600">
-            <RotateCcw className="w-5 h-5 mr-2" />
-            <h3 className="text-lg font-black tracking-tight">Confirmar reactivación</h3>
+        <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+          <div className="flex items-center text-white">
+            <UserCheck className="w-6 h-6 mr-3" />
+            <h3 className="text-xl font-black tracking-tight">Reactivar docente</h3>
           </div>
-          <button 
-            onClick={onClose} disabled={isSubmitting}
-            className="text-slate-400 hover:text-slate-700 hover:bg-slate-200 p-1.5 rounded-lg transition-colors"
-          >
+          <button onClick={onClose} disabled={isSubmitting} className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95">
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        <div className="p-6">
-          <p className="text-slate-600 text-sm font-medium leading-relaxed mb-6">
+        
+        <div className="p-8 flex-1 text-center sm:text-left">
+          <p className="text-slate-600 text-sm font-medium mb-6">
             Estás a punto de reincorporar al siguiente docente al sistema activo:
           </p>
 
-          <div className="flex items-center space-x-6 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="h-16 w-16 rounded-full bg-white border-4 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0">
-              {profileImageUrl ? <img src={profileImageUrl} alt="Perfil" className="h-full w-full object-cover" /> : <User className="h-8 w-8 text-slate-400" />}
+          <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="h-16 w-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+              {profileImageUrl ? <img src={profileImageUrl} alt="Perfil" className="h-full w-full object-cover" /> : <User className="h-8 w-8 text-emerald-600" />}
             </div>
             <div>
-              <h4 className="text-lg font-bold text-slate-900">{docente.nombres} {docente.apellido_paterno}</h4>
-              <p className="text-sm font-medium text-slate-500">{docente.institutional_email}</p>
+              <h4 className="text-xl font-black text-[#0B1828] leading-tight">{docente.nombres} {docente.apellido_paterno}</h4>
+              <p className="text-sm font-bold text-slate-500 mt-1">{docente.institutional_email}</p>
             </div>
           </div>
 
-          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+          <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm">
             <p className="text-sm text-emerald-800 font-medium">
-              El docente recuperará su acceso a la plataforma de inmediato y podrá volver a recibir cargas académicas.
+              <strong className="font-black">Aviso de sistema:</strong> El docente recuperará su acceso a la plataforma de inmediato y podrá volver a recibir cargas académicas.
             </p>
           </div>
         </div>
-
-        <div className="bg-slate-50/50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
+        
+        <div className="bg-slate-50/80 px-6 py-5 border-t border-slate-100 flex justify-end gap-3 shrink-0">
           <button 
             onClick={onClose} disabled={isSubmitting}
-            className="px-5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition-all"
+            className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-[#0B1828] disabled:opacity-50 transition-all shadow-sm active:scale-95"
           >
             Cancelar
           </button>
           <button
             onClick={handleReactivate} disabled={isSubmitting}
-            className="flex items-center px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 rounded-xl transition-all disabled:opacity-50"
+            className="flex items-center justify-center px-6 py-3 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-md rounded-xl transition-all active:scale-95 disabled:opacity-50 w-full sm:w-auto"
           >
-            {isSubmitting ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Procesando...</>
-            ) : (
-              <><RotateCcw className="w-4 h-4 mr-2" /> Reactivar docente</>
-            )}
+            {isSubmitting ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-2" />}
+            Reactivar Docente
           </button>
         </div>
 

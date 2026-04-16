@@ -259,6 +259,9 @@ const deactivateDocente = async (req, res) => {
 
     if (affectedRows === 0) return res.status(404).json({ error: 'Docente no encontrado. No se pudo realizar la baja.' });
 
+    // Sincronizar la baja lógicamente con la cuenta de usuario para revocar acceso
+    await userModel.deactivateUser(docenteActual.usuario_id, eliminado_por);
+
     logAudit({
       modulo:            'DOCENTES',
       accion:            'BAJA',
@@ -344,7 +347,7 @@ const updateMiPerfil = async (req, res) => {
 
 /* ─────────────────────────────────────────────────── */
 
-const reactivateDocente = async (req, res) => {
+  const reactivateDocente = async (req, res) => {
   try {
     const { id }       = req.params;
     const usuario_id   = req.user?.id_usuario;
@@ -352,8 +355,11 @@ const reactivateDocente = async (req, res) => {
 
     if (affectedRows === 0) return res.status(404).json({ error: 'Docente no encontrado o no se pudo reactivar.' });
 
-    // Recuperar nombre para el log
+    // Recuperar usuario_id asociado al docente
     const docenteActual = await docenteModel.getDocenteById(id);
+    
+    // Devolverle el acceso al usuario subyacente
+    await userModel.activateUser(docenteActual.usuario_id, usuario_id);
 
     logAudit({
       modulo:            'DOCENTES',
