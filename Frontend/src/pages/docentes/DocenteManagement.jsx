@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, RotateCcw, GraduationCap, Mail } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Users, Loader2, RotateCcw, GraduationCap, Mail, History } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { AltaDocente } from './AltaDocente';
@@ -307,9 +307,9 @@ export const DocenteManagement = () => {
                           </button>
                           <button 
                             onClick={() => { setDocenteSeleccionado(d); setModalHistorial(true); }}
-                            className="p-2 text-purple-600 hover:bg-purple-100 rounded-xl transition-all active:scale-95" title="Ver Historial"
+                            className="p-2 text-slate-400 hover:bg-purple-100 rounded-xl transition-all active:scale-95" title="Ver Historial"
                           >
-                            <Eye className="w-4 h-4" />
+                            <History className="w-5 h-5" />
                           </button>
                             {d.estatus === 'ACTIVO' ? (
                               <button

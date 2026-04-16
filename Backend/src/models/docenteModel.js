@@ -288,7 +288,56 @@ const docenteModel = {
       LIMIT 1
     `, [id_usuario]);
     return rows[0] ?? null;
-  }
+  },
+
+  getHistorialCompleto: async (id_docente) => {
+
+    const perfilQuery = `
+      SELECT 
+        d.id_docente, d.matricula_empleado, d.nivel_academico, d.antiguedad_fecha,
+        u.nombres, u.apellido_paterno, u.apellido_materno,
+        TIMESTAMPDIFF(YEAR, d.antiguedad_fecha, CURDATE()) AS anos_antiguedad
+      FROM docentes d
+      JOIN usuarios u ON d.usuario_id = u.id_usuario
+      WHERE d.id_docente = ?
+    `;
+    const perfilRows = await db.query(perfilQuery, [id_docente]);
+    
+    if (perfilRows.length === 0) return null;
+
+    const perfil = perfilRows[0];
+    if (perfil.anos_antiguedad !== undefined) {
+      perfil.anos_antiguedad = Number(perfil.anos_antiguedad);
+    }
+
+const historialQuery = `
+      SELECT 
+        p.codigo AS periodo, p.anio,
+        m.nombre AS materia,
+        m.nivel_academico,
+        m.tipo_asignatura,
+        COALESCE(g.identificador, 'N/A') AS grupo,
+        a.promedio_consolidado, 
+        a.estatus_acta,
+        a.estatus_confirmacion
+      FROM asignaciones a
+      INNER JOIN (
+        SELECT MAX(id_asignacion) AS max_id
+        FROM asignaciones
+        GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id, estatus_acta, estatus_confirmacion
+      ) rep ON a.id_asignacion = rep.max_id
+      JOIN materias m  ON a.materia_id = m.id_materia
+      LEFT JOIN grupos g ON a.grupo_id = g.id_grupo
+      JOIN periodos p  ON a.periodo_id = p.id_periodo
+      WHERE a.docente_id = ?
+      ORDER BY p.fecha_inicio DESC, a.id_asignacion DESC
+    `;
+    
+    const historial = await db.query(historialQuery, [id_docente]);
+
+    return { perfil, historial };
+  },
+
 };
 
 module.exports = docenteModel;

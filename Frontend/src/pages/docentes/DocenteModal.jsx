@@ -3,106 +3,127 @@ import { X, User, Briefcase, MapPin, GraduationCap, ShieldCheck } from 'lucide-r
 export const DocenteModal = ({ docente, onClose }) => {
   if (!docente) return null;
 
-// AGREGAR ESTA LÍNEA PARA ESPIAR LOS DATOS 👀
-  console.log("Datos que llegan al modal:", docente);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mx-auto overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <User className="w-5 h-5 text-blue-700" />
-            </div>
+        {/* Header oscuro estilo SIGAD */}
+        <div className="flex justify-between items-center px-6 py-5 border-b bg-[#0B1828]">
+          <div className="flex items-center space-x-3">
+            <User className="w-6 h-6 text-white/90" />
             <div>
-              <h3 className="text-lg font-black text-slate-900">Expediente del Docente</h3>
-              <p className="text-sm text-slate-500 font-medium">Matrícula: {docente.matricula_empleado}</p>
+              <h2 className="text-xl font-black text-white">Expediente del Docente</h2>
+              <p className="text-sm font-medium text-white/60">Matrícula: {docente.matricula_empleado}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
+          <button 
+            onClick={onClose} 
+            className="p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="p-6 md:p-8 overflow-y-auto space-y-8">
           
           {/* Datos Personales */}
           <div>
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <User className="w-4 h-4" /> Datos Personales
+            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center border-b border-slate-100 pb-2">
+              Datos Personales
             </h4>
-            <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <span className="block text-slate-500 mb-1">Nombre Completo</span>
-                <span className="font-bold text-slate-900">{docente.nombres} {docente.apellido_paterno} {docente.apellido_materno}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Nombre Completo</p>
+                <p className="text-base font-black text-[#0B1828] bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                  {docente.nombres} {docente.apellido_paterno} {docente.apellido_materno}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">Correo Institucional</span>
-                <span className="font-bold text-slate-900">{docente.institutional_email}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Correo Institucional</p>
+                <p className="text-base font-black text-[#0B1828] bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">
+                  {docente.institutional_email}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">RFC</span>
-                <span className="font-bold text-slate-900 uppercase">{docente.rfc}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">RFC</p>
+                <p className="text-base font-black text-[#0B1828] uppercase">
+                  {docente.rfc}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">CURP</span>
-                <span className="font-bold text-slate-900 uppercase">{docente.curp}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">CURP</p>
+                <p className="text-base font-black text-[#0B1828] uppercase">
+                  {docente.curp}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Datos Académicos y Laborales */}
           <div>
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <GraduationCap className="w-4 h-4" /> Perfil Académico
+            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center border-b border-slate-100 pb-2">
+              Perfil Académico
             </h4>
-            <div className="bg-slate-50 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <span className="block text-slate-500 mb-1">Grado Máximo</span>
-                <span className="font-bold text-slate-900">{docente.nivel_academico}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Grado Máximo</p>
+                <p className="text-base font-black text-[#0B1828]">
+                  {docente.nivel_academico}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">Academia Asignada</span>
-                <span className="font-bold text-slate-900">{docente.nombre_academia || 'Sin asignar'}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Academia Asignada</p>
+                <p className="text-base font-black text-[#0B1828]">
+                  {docente.nombre_academia || 'Sin asignar'}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">Fecha de Ingreso</span>
-                <span className="font-bold text-slate-900">{new Date(docente.antiguedad_fecha).toLocaleDateString()}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Fecha de Ingreso</p>
+                <p className="text-base font-black text-[#0B1828]">
+                  {new Date(docente.antiguedad_fecha).toLocaleDateString()}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">Estatus</span>
-                <span className={`inline-flex px-2 py-1 text-xs font-bold uppercase rounded-md ${docente.estatus === 'ACTIVO' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                <p className="text-xs text-slate-500 font-bold mb-2">Estatus en el sistema</p>
+                <span className={`inline-block px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border ${
+                  docente.estatus === 'ACTIVO' 
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                    : 'bg-red-100 text-red-800 border-red-200'
+                }`}>
                   {docente.estatus}
                 </span>
               </div>
               
-              {/* Nuevo bloque para Motivo de Baja condicional */}
+              {/* Bloque para Motivo de Baja */}
               {docente.estatus === 'BAJA' && (
-                <div className="sm:col-span-2 bg-red-50 p-3 rounded-lg border border-red-100 mt-2">
-                  <span className="block text-red-800 font-bold mb-1">Motivo de la Baja</span>
-                  <span className="text-red-900 italic">{docente.motivo_baja || 'Motivo no registrado en el sistema.'}</span>
+                <div className="sm:col-span-2 bg-red-50 p-4 rounded-xl border border-red-100 mt-2">
+                  <p className="text-xs text-red-800 font-bold mb-1 uppercase tracking-wider">Motivo de la Baja</p>
+                  <p className="text-sm text-red-900 font-medium">
+                    {docente.motivo_baja || 'Motivo no registrado en el sistema.'}
+                  </p>
                 </div>
               )}
-
             </div>
           </div>
 
           {/* Contacto */}
           <div>
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4" /> Contacto y Domicilio
+            <h4 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center border-b border-slate-100 pb-2">
+              Contacto y Domicilio
             </h4>
-            <div className="bg-slate-50 rounded-xl p-4 text-sm">
-               <div className="mb-3">
-                <span className="block text-slate-500 mb-1">Celular</span>
-                <span className="font-bold text-slate-900">{docente.celular}</span>
+            <div className="grid grid-cols-1 gap-6">
+               <div>
+                <p className="text-xs text-slate-500 font-bold mb-1">Celular / Teléfono</p>
+                <p className="text-base font-black text-[#0B1828]">
+                  {docente.celular}
+                </p>
               </div>
               <div>
-                <span className="block text-slate-500 mb-1">Domicilio Registrado</span>
-                <span className="font-bold text-slate-900">{docente.domicilio}</span>
+                <p className="text-xs text-slate-500 font-bold mb-1">Domicilio Registrado</p>
+                <p className="text-sm font-bold text-slate-700 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 leading-relaxed">
+                  {docente.domicilio}
+                </p>
               </div>
             </div>
           </div>
@@ -110,9 +131,12 @@ export const DocenteModal = ({ docente, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-100 bg-slate-50 px-6 py-4 flex justify-end">
-          <button onClick={onClose} className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-            Cerrar
+        <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-5 flex justify-end">
+          <button 
+            onClick={onClose} 
+            className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-[#0B1828] transition-all shadow-sm active:scale-95"
+          >
+            Cerrar expediente
           </button>
         </div>
 
