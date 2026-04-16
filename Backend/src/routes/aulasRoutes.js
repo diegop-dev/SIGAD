@@ -2,14 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { actualizarAula, consultarAulas, registrarAula, desactivarAula, ObtenerAulas } = require('../controllers/aulaController');
 const { validarActualizacionAula } = require('../middlewares/aulaValidator');
+const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 
-// ─── EP-09 SESA: GET /aulas/catalogo ───────────────────────────────────────────────────
+// ─── EP-09 SESA: público, sin verifyToken ────────────────────────────────────
 router.get('/catalogo', ObtenerAulas);
-// ─────────────────────────────────────────────────────────────────────────────
 
-router.post('/registrar', registrarAula);
-router.get('/consultar', consultarAulas);
-router.patch('/actualizar/:id', validarActualizacionAula, actualizarAula);
-router.patch('/desactivar/:id', desactivarAula);
+// ─── Lectura interna ─────────────────────────────────────────────────────────
+router.get('/consultar', verifyToken, requireRole([1, 2]), consultarAulas);
+
+// ─── Escritura ───────────────────────────────────────────────────────────────
+router.post('/registrar',           verifyToken, requireRole([1, 2]), registrarAula);
+router.patch('/actualizar/:id',     verifyToken, requireRole([1, 2]), validarActualizacionAula, actualizarAula);
+router.patch('/desactivar/:id',     verifyToken, requireRole([1, 2]), desactivarAula);
 
 module.exports = router;
