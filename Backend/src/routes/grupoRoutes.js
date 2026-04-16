@@ -4,21 +4,21 @@ const grupoController = require('../controllers/grupoController');
 const { verifyToken, requireRole } = require('../middlewares/authMiddleware');
 const { validarCreacionGrupo } = require('../middlewares/grupoValidator');
 
-// ─── EP-05 SESA: GET /grupos/catalogo ──────────────────────────────────────────────────
-// Soporta query params opcionales: ?id_programa_academico=X&cuatrimestre_id=Y
+// ─── EP-05 SESA: público ─────────────────────────────────────────────────────
 router.get('/catalogo', grupoController.obtenerCatalogoGrupos);
-// ─────────────────────────────────────────────────────────────────────────────
 
-// Ruta exclusiva para la API de sincronización externa (HU-37 / API-04)
+// ─── Sincronización externa HU-37 / API-04 ───────────────────────────────────
 router.get('/sincronizacion', verifyToken, grupoController.obtenerGruposParaSincronizacion);
 
-// Rutas principales
-router.get('/', verifyToken, grupoController.obtenerTodosLosGrupos);
-router.post('/', validarCreacionGrupo, grupoController.crearGrupo);
-router.put('/:id', validarCreacionGrupo, grupoController.actualizarGrupo);
+// ─── Lectura interna ─────────────────────────────────────────────────────────
+router.get('/', verifyToken, requireRole([1, 2]), grupoController.obtenerTodosLosGrupos);
 
-// Rutas de cambio de estatus (Baja y Reactivación)
+// ─── Escritura ───────────────────────────────────────────────────────────────
+router.post('/', verifyToken, requireRole([1, 2]), validarCreacionGrupo, grupoController.crearGrupo);
+router.put('/:id', verifyToken, requireRole([1, 2]), validarCreacionGrupo, grupoController.actualizarGrupo);
+
+// ─── Cambio de estatus ───────────────────────────────────────────────────────
 router.patch('/:id/desactivar', verifyToken, requireRole([1, 2]), grupoController.desactivarGrupo);
-router.patch('/:id/reactivar', verifyToken, requireRole([1, 2]), grupoController.reactivarGrupo);
+router.patch('/:id/reactivar',  verifyToken, requireRole([1, 2]), grupoController.reactivarGrupo);
 
 module.exports = router;
