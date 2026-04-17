@@ -1,4 +1,6 @@
 const bcrypt = require('bcrypt');
+const fs = require('fs');           // ← NUEVO
+const path = require('path');       // ← NUEVO
 const crypto = require('crypto');
 const docenteModel = require('../models/docenteModel');
 const userModel = require('../models/userModel');
@@ -18,7 +20,6 @@ const rolNombre = (rol_id) => ROL_NOMBRES[rol_id] ?? 'Desconocido';
 
 /* ─────────────────────────────────────────────────── */
 
-// API DE SINCRONIZACIÓN EXTERNA (HU-37 / API-06)
 const getDocenteParaSincronizacion = async (req, res) => {
   try {
     const { id_docente } = req.query;
@@ -66,7 +67,6 @@ const registerDocente = async (req, res) => {
       clave_ine, fecha_ingreso, antiguedad_fecha, nivel_academico, academia_id,
     } = req.body;
 
-    // ← fix: creado_por del token, no del body
     const creado_por = req.user?.id_usuario;
 
     nombres             = nombres?.trim();
@@ -158,7 +158,6 @@ const updateDocente = async (req, res) => {
   try {
     const { id } = req.params;
     const { rfc, curp, celular, calle, numero, colonia, cp, clave_ine, nivel_academico, academia_id } = req.body;
-    // ← fix: modificado_por del token, no del body
     const modificado_por = req.user?.id_usuario;
 
     if (!rfc || !curp || !celular || !clave_ine || !nivel_academico || !academia_id) {
@@ -170,7 +169,7 @@ const updateDocente = async (req, res) => {
       return res.status(404).json({ error: 'El expediente del docente no fue encontrado.' });
     }
 
-    const intentoCambiarNivel   = nivel_academico && nivel_academico !== docenteActual.nivel_academico;
+    const intentoCambiarNivel    = nivel_academico && nivel_academico !== docenteActual.nivel_academico;
     const intentoCambiarAcademia = academia_id && Number(academia_id) !== Number(docenteActual.academia_id);
 
     if (intentoCambiarNivel || intentoCambiarAcademia) {
@@ -224,7 +223,6 @@ const deactivateDocente = async (req, res) => {
   try {
     const { id } = req.params;
     const { motivo_baja, confirmar_rechazo } = req.body;
-    // ← fix: eliminado_por del token, no del body
     const eliminado_por = req.user?.id_usuario;
 
     if (!eliminado_por) return res.status(401).json({ error: 'No autorizado. Se requiere sesión activa.' });
@@ -254,13 +252,11 @@ const deactivateDocente = async (req, res) => {
       await assignmentModel.rechazarAsignacionesPorDocente(id, eliminado_por);
     }
 
-    // Recuperar nombre antes del UPDATE para el log
     const docenteActual = await docenteModel.getDocenteById(id);
     const affectedRows  = await docenteModel.deactivateDocente(id, eliminado_por, motivo_baja);
 
     if (affectedRows === 0) return res.status(404).json({ error: 'Docente no encontrado. No se pudo realizar la baja.' });
 
-    // Sincronizar la baja lógicamente con la cuenta de usuario para revocar acceso
     await userModel.deactivateUser(docenteActual.usuario_id, eliminado_por);
 
     logAudit({
@@ -297,6 +293,9 @@ const getMiPerfil = async (req, res) => {
 
 /* ─────────────────────────────────────────────────── */
 
+// ─── CAMBIO 1: updateMiPerfil ahora solo permite celular + domicilio + documentos ───
+// nivel_academico, rfc, curp, clave_ine y academia_id se leen siempre del
+// expediente actual para que el docente no pueda alterarlos desde esta ruta.
 const updateMiPerfil = async (req, res) => {
   try {
     const id_usuario = req.user.id_usuario;
@@ -304,10 +303,13 @@ const updateMiPerfil = async (req, res) => {
     const miPerfil   = docentes.find(d => d.usuario_id === id_usuario);
     if (!miPerfil) return res.status(404).json({ error: 'No se encontró tu expediente.' });
 
-    const { celular, calle, numero, colonia, cp, nivel_academico } = req.body;
+    // Solo campos que el docente puede editar
+    const { celular, calle, numero, colonia, cp } = req.body;
 
     let domicilio_completo = miPerfil.domicilio;
-    if (calle && numero && colonia && cp) domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+    if (calle && numero && colonia && cp) {
+      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
+    }
 
     const documentosNuevos = [];
     if (req.files?.titulo)    documentosNuevos.push({ tipo: 'TITULO',                url: `/uploads/docentes/${req.files.titulo[0].filename}` });
@@ -318,12 +320,14 @@ const updateMiPerfil = async (req, res) => {
     if (req.files?.cv)        documentosNuevos.push({ tipo: 'CV',                    url: `/uploads/docentes/${req.files.cv[0].filename}` });
 
     await docenteModel.updateDocente(miPerfil.id_docente, {
+      // Campos inmutables para el docente: siempre vienen del expediente actual
       rfc:             miPerfil.rfc,
       curp:            miPerfil.curp,
       clave_ine:       miPerfil.clave_ine,
       academia_id:     miPerfil.academia_id,
-      celular:         celular         || miPerfil.celular,
-      nivel_academico: nivel_academico || miPerfil.nivel_academico,
+      nivel_academico: miPerfil.nivel_academico,
+      // Campos editables
+      celular:         celular || miPerfil.celular,
       modificado_por:  id_usuario,
       domicilio:       domicilio_completo,
       documentos:      documentosNuevos,
@@ -348,7 +352,54 @@ const updateMiPerfil = async (req, res) => {
 
 /* ─────────────────────────────────────────────────── */
 
-  const reactivateDocente = async (req, res) => {
+// ─── CAMBIO 2: updateMiFoto — el docente actualiza su propia foto de perfil ───
+// Actualiza foto_perfil_url en la tabla usuarios (igual que userController.updateMyPhoto)
+// pero registrando la auditoría en el módulo DOCENTES.
+const updateMiFoto = async (req, res) => {
+  try {
+    const id_usuario = req.user?.id_usuario;
+    if (!id_usuario) return res.status(401).json({ error: 'No se pudo identificar al usuario autenticado.' });
+    if (!req.file)   return res.status(400).json({ error: 'No se recibió ninguna imagen. Selecciona un archivo válido.' });
+
+    const existingUser = await userModel.findUserById(id_usuario);
+    if (!existingUser) return res.status(404).json({ error: 'Usuario no encontrado en el sistema.' });
+
+    // Eliminar foto anterior del disco si existe
+    if (existingUser.foto_perfil_url) {
+      const oldPhotoPath = path.join(__dirname, '..', existingUser.foto_perfil_url);
+      if (fs.existsSync(oldPhotoPath)) fs.unlinkSync(oldPhotoPath);
+    }
+
+    const foto_perfil_url = `/uploads/profiles/${req.file.filename}`;
+    const affectedRows    = await userModel.updateUser(id_usuario, {
+      foto_perfil_url,
+      modificado_por: id_usuario,
+    });
+
+    if (affectedRows === 0) {
+      return res.status(500).json({ error: 'No se pudo actualizar la fotografía. Intenta de nuevo.' });
+    }
+
+    logAudit({
+      modulo:            'DOCENTES',
+      accion:            'MODIFICACION',
+      registro_afectado: `Docente (usuario #${id_usuario}) — actualización de foto de perfil`,
+      detalle:           null,
+      usuario_id:        req.user?.id_usuario,
+      usuario_rol:       rolNombre(req.user?.rol_id),
+      ip_address:        getClientIp(req),
+    });
+
+    res.status(200).json({ message: 'Fotografía de perfil actualizada correctamente.', foto_perfil_url });
+  } catch (error) {
+    console.error('[Error en docenteController - updateMiFoto]:', error);
+    res.status(500).json({ error: 'Error interno del servidor al actualizar la fotografía.' });
+  }
+};
+
+/* ─────────────────────────────────────────────────── */
+
+const reactivateDocente = async (req, res) => {
   try {
     const { id }       = req.params;
     const usuario_id   = req.user?.id_usuario;
@@ -356,10 +407,7 @@ const updateMiPerfil = async (req, res) => {
 
     if (affectedRows === 0) return res.status(404).json({ error: 'Docente no encontrado o no se pudo reactivar.' });
 
-    // Recuperar usuario_id asociado al docente
     const docenteActual = await docenteModel.getDocenteById(id);
-    
-    // Devolverle el acceso al usuario subyacente
     await userModel.activateUser(docenteActual.usuario_id, usuario_id);
 
     logAudit({
@@ -388,10 +436,12 @@ const obtenerHistorialDocente = async (req, res) => {
     if (!data) return res.status(404).json({ message: "Docente no encontrado." });
     res.status(200).json(data);
   } catch (error) {
-    console.error("Error al obtener historial docente:", error);
-    res.status(500).json({ message: "Error interno del servidor al consultar el historial." });
+    console.error('Error al obtener historial docente:', error);
+    res.status(500).json({ message: 'Error interno del servidor al consultar el historial.' });
   }
 };
+
+/* ─────────────────────────────────────────────────── */
 
 const ObtenerDocentes = async (req, res) => {
   try {
@@ -625,9 +675,10 @@ module.exports = {
   deactivateDocente,
   getMiPerfil,
   updateMiPerfil,
+  updateMiFoto,          // ← NUEVO
   reactivateDocente,
   obtenerHistorialDocente,
   ObtenerDocentes,
   ObtenerUsuarioPorId,
   exportarHistorialDocentePDF,
-};
+};

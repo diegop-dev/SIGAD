@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { AltaDocente } from "./AltaDocente";
-import { UserProfile } from "../users/UserProfile";
+import { DocenteProfile } from "./DocenteProfile";   // ← reemplaza AltaDocente
+import { UserProfile }    from "../users/UserProfile";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -16,8 +16,19 @@ export const MiPerfil = () => {
     const cargarMiPerfil = async () => {
       try {
         if (user?.rol_id === 3) {
-          const response = await api.get(`/docentes/${user.id_usuario}`);
-          setMiExpediente(response.data.data || response.data);
+          // ← Corrección: el endpoint correcto es /docentes/mi-perfil (protegido por token).
+          //   La ruta anterior /docentes/:id_usuario no existe como GET → causaba 404
+          //   y el componente caía silenciosamente al fallback del catch.
+          //
+          // Se hace también una segunda llamada para obtener personal_email, que no
+          // está incluido en el SELECT de getAllDocentes() del modelo.
+          const [expRes, userRes] = await Promise.all([
+            api.get("/docentes/mi-perfil"),
+            api.get(`/users/${user.id_usuario}`),
+          ]);
+          const expediente = expRes.data.data  || expRes.data;
+          const userData   = userRes.data.data || userRes.data;
+          setMiExpediente({ ...expediente, personal_email: userData?.personal_email });
         } else {
           const response = await api.get(`/users/${user.id_usuario}`);
           setMiExpediente(response.data.data || response.data);
@@ -30,14 +41,9 @@ export const MiPerfil = () => {
       }
     };
 
-    if (user) {
-      cargarMiPerfil();
-    }
+    if (user) cargarMiPerfil();
   }, [user]);
 
-  // Callback que recibe UserProfile tras una subida exitosa.
-  // Actualiza el contexto de auth para que el sidebar refleje la nueva foto
-  // sin necesidad de recargar la página.
   const handlePhotoUpdate = (newRelativeUrl) => {
     updateUserData({ foto_perfil_url: newRelativeUrl });
   };
@@ -63,10 +69,10 @@ export const MiPerfil = () => {
   return (
     <div className="max-w-5xl mx-auto">
       {user?.rol_id === 3 ? (
-        <AltaDocente
-          docenteToEdit={miExpediente}
+        <DocenteProfile
+          expediente={miExpediente}
           onBack={() => navigate("/dashboard")}
-          onSuccess={() => navigate("/dashboard")}
+          onPhotoUpdate={handlePhotoUpdate}
         />
       ) : (
         <UserProfile
