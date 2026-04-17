@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, BookOpen, UserCheck, FileText, Loader2, Save, RefreshCw, Info } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
+import { REGEX } from '../../utils/regex';
 
 // Helper para construir el nombre completo de un coordinador de forma segura
 const getNombreCompleto = (c) => {
@@ -87,12 +88,21 @@ export const AcademiaForm = ({ academiaToEdit, onBack, onSuccess }) => {
     let sanitizedValue = value;
 
     if (name === 'nombre') {
-      // Solo letras, espacios y tildes (Uppercase automático para consistencia)
-      sanitizedValue = sanitizedValue
-        .replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d1\s]/g, '')
+      // Solo letras y espacios, sin espacios al inicio ni dobles espacios
+      const clean = sanitizedValue
         .replace(/^\s+/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .toUpperCase();
+        .replace(/\s{2,}/g, ' ');
+      if (clean !== '' && !REGEX.LETRAS_Y_ESPACIOS.test(clean)) return;
+      // Bloquear triple letra consecutiva
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(clean)) return;
+      sanitizedValue = clean.toUpperCase();
+    }
+
+    if (name === 'descripcion') {
+      // Limpiar espacios iniciales dobles en el textarea
+      sanitizedValue = sanitizedValue
+        .replace(/^\s+/g, '')
+        .replace(/\s{3,}/g, '  '); // Máximo 2 espacios/saltos consecutivos
     }
 
     setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
@@ -107,8 +117,29 @@ export const AcademiaForm = ({ academiaToEdit, onBack, onSuccess }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.nombre.trim()) newErrors.nombre = "El nombre de la academia es obligatorio.";
-    if (!formData.usuario_id) newErrors.usuario_id = "Debe asignar un coordinador.";
+    const nombreLimpio = formData.nombre.trim();
+
+    // Validaciones del campo NOMBRE
+    if (!nombreLimpio) {
+      newErrors.nombre = "El nombre de la academia es obligatorio.";
+    } else if (nombreLimpio.length < 3) {
+      newErrors.nombre = "El nombre debe tener al menos 3 caracteres.";
+    } else if (!REGEX.LETRAS_Y_ESPACIOS.test(nombreLimpio)) {
+      newErrors.nombre = "El nombre solo puede contener letras y espacios.";
+    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombreLimpio)) {
+      newErrors.nombre = "El nombre no puede contener tres o más letras iguales consecutivas.";
+    }
+
+    // Validaciones del campo DESCRIPCIÓN (opcional, pero si se llena tiene reglas)
+    const descLimpia = formData.descripcion.trim();
+    if (descLimpia.length > 0 && descLimpia.length < 10) {
+      newErrors.descripcion = "La descripción debe tener al menos 10 caracteres o dejarse en blanco.";
+    }
+
+    // Validación del COORDINADOR
+    if (!formData.usuario_id) {
+      newErrors.usuario_id = "Debe asignar un coordinador.";
+    }
     
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -243,11 +274,17 @@ export const AcademiaForm = ({ academiaToEdit, onBack, onSuccess }) => {
                   value={formData.descripcion} 
                   onChange={handleChange} 
                   placeholder="Detalles adicionales sobre los objetivos o funciones de esta academia..."
-                  className={`${inputBaseClass} ${getValidationClass(false)} resize-none`}
+                  className={`${inputBaseClass} ${getValidationClass(errores.descripcion)} resize-none`}
                 />
-                <p className="text-xs font-medium text-slate-500 text-right">
-                  {formData.descripcion.length} / 500 caracteres
-                </p>
+                <div className="flex justify-between items-center mt-1.5">
+                  {errores.descripcion
+                    ? <p className="text-xs font-bold text-red-500">{errores.descripcion}</p>
+                    : <span />
+                  }
+                  <p className="text-xs font-medium text-slate-500 text-right">
+                    {formData.descripcion.length} / 500 caracteres
+                  </p>
+                </div>
               </div>
             </div>
 

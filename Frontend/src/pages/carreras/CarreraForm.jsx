@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Save, ArrowLeft, BookOpen, Loader2, Layers, RefreshCw, GraduationCap, AlertTriangle, Ban } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { REGEX } from "../../utils/regex";
 
 export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
@@ -41,17 +42,44 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === 'nombre_carrera') {
+      // Limpiar espacios iniciales y dobles antes de validar
+      const clean = value
+        .replace(/^\s+/g, '')
+        .replace(/\s{2,}/g, ' ');
+      // Bloquear si contiene caracteres no permitidos (solo letras y espacios)
+      if (clean !== '' && !REGEX.LETRAS_Y_ESPACIOS.test(clean)) return;
+      // Bloquear triple letra consecutiva
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(clean)) return;
+
+      setFormData({ ...formData, [name]: clean });
+      setServerAction(null);
+      if (errores[name]) setErrores({ ...errores, [name]: null });
+      return;
+    }
+
     setFormData({ ...formData, [name]: value });
-    setServerAction(null); 
+    setServerAction(null);
     if (errores[name]) setErrores({ ...errores, [name]: null });
   };
 
   const validate = () => {
     const newErrors = {};
     const { nombre_carrera, modalidad, academia_id, nivel_academico } = formData;
-    
     const nombreLimpio = nombre_carrera.trim();
-    if (nombreLimpio.length < 5) newErrors.nombre_carrera = "El nombre debe tener al menos 5 caracteres";
+
+    // Validaciones del nombre del programa
+    if (!nombreLimpio) {
+      newErrors.nombre_carrera = "El nombre del programa es obligatorio";
+    } else if (nombreLimpio.replace(REGEX.SOLO_LETRAS, '').length < 5) {
+      newErrors.nombre_carrera = "El nombre debe contener al menos 5 letras";
+    } else if (!REGEX.LETRAS_Y_ESPACIOS.test(nombreLimpio)) {
+      newErrors.nombre_carrera = "El nombre solo puede contener letras y espacios";
+    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombreLimpio)) {
+      newErrors.nombre_carrera = "El nombre no puede contener tres o más letras iguales consecutivas";
+    }
+
     if (!nivel_academico) newErrors.nivel_academico = "El nivel académico es obligatorio";
     if (!modalidad) newErrors.modalidad = "La modalidad es obligatoria";
     if (!academia_id) newErrors.academia_id = "Selecciona una academia";

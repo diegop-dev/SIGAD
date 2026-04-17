@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Save, ArrowLeft, Loader2, Calendar, RefreshCw, Ban } from "lucide-react";
 import api from "../../services/api";
+import { REGEX } from "../../utils/regex";
 
 const formatearFechaParaInput = (cadenaFecha) => {
   if (!cadenaFecha) return "";
@@ -159,6 +160,12 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     if (!fecha_inicio) newErrors.fecha_inicio = "Fecha de inicio obligatoria";
     if (!fecha_fin) newErrors.fecha_fin = "Fecha de fin obligatoria";
     if (!fecha_limite_calif) newErrors.fecha_limite_calif = "Fecha límite obligatoria";
+
+    // Validar que el año extraído tenga exactamente 4 dígitos numéricos
+    if (fecha_inicio) {
+      const anio = fecha_inicio.split('-')[0];
+      if (!REGEX.ANIO.test(anio)) newErrors.fecha_inicio = "El año de la fecha de inicio no es válido.";
+    }
 
     if (fecha_inicio && fecha_fin) {
       const inicio = new Date(fecha_inicio);
