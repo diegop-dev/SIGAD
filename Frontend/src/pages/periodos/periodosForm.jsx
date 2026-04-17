@@ -135,10 +135,9 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
       const inicio = new Date(value);
       // Se utiliza UTC para evitar desfases al sumar días
       const fechaFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000)); // +12 semanas
-      const fechaLimite = new Date(fechaFin.getTime() - (15 * 24 * 60 * 60 * 1000)); // -15 días
 
       updatedData.fecha_fin = fechaFin.toISOString().split("T")[0];
-      updatedData.fecha_limite_calif = fechaLimite.toISOString().split("T")[0];
+      updatedData.fecha_limite_calif = new Date(fechaFin.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString().split("T")[0]; // -30 días del fin
     }
 
     setFormData(updatedData);
@@ -184,10 +183,14 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     if (fecha_fin && fecha_limite_calif) {
       const fin = new Date(fecha_fin);
       const limite = new Date(fecha_limite_calif);
-      const maxLimite = new Date(fin.getTime() - (15 * 24 * 60 * 60 * 1000));
+      // La fecha límite debe estar entre fecha_inicio+1 día y fecha_fin-30 días
+      const minLimite = fecha_inicio ? new Date(new Date(fecha_inicio).getTime() + (1 * 24 * 60 * 60 * 1000)) : null;
+      const maxLimite = new Date(fin.getTime() - (30 * 24 * 60 * 60 * 1000));
 
-      if (limite > maxLimite) {
-        newErrors.fecha_limite_calif = "Debe ser al menos 15 días antes de la fecha final";
+      if (minLimite && limite <= new Date(fecha_inicio)) {
+        newErrors.fecha_limite_calif = "La fecha límite debe ser posterior a la fecha de inicio del periodo";
+      } else if (limite > maxLimite) {
+        newErrors.fecha_limite_calif = "Debe ser al menos 30 días antes de la fecha de fin del periodo";
       }
     }
 
@@ -349,7 +352,11 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
                     value={formData.fecha_limite_calif}
                     onChange={handleChange}
                     disabled={serverAction === 'BLOCK'}
-                    max={formData.fecha_fin}
+                    min={formData.fecha_inicio || undefined}
+                    max={formData.fecha_fin
+                      ? new Date(new Date(formData.fecha_fin).getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString().split('T')[0]
+                      : undefined
+                    }
                     className={`${inputBaseClass} ${getValidationClass(errores.fecha_limite_calif)}`}
                   />
                   {errores.fecha_limite_calif && (
