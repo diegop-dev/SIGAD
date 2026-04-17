@@ -36,7 +36,7 @@ export const AssignmentManagement = () => {
   const itemsPerPage = 10;
 
   const [confirmModal, setConfirmModal] = useState({
-    isOpen: false, isCanceling: false, asignacion: null
+    isOpen: false, isCanceling: false, asignacion: null, isLoading: false, error: null
   });
 
   const [syncModal, setSyncModal] = useState({
@@ -287,21 +287,32 @@ export const AssignmentManagement = () => {
   const handleSuccessAction = () => { setShowForm(false); setAsignacionToEdit(null); fetchAsignaciones(); };
   const handleEdit = (asignacion) => { setAsignacionToEdit(asignacion); setShowForm(true); };
   const openConfirmModal = (asignacion, isCanceling) => setConfirmModal({ isOpen: true, isCanceling, asignacion });
-  const closeConfirmModal = () => setConfirmModal({ isOpen: false, isCanceling: false, asignacion: null });
+  const closeConfirmModal = () => setConfirmModal({ isOpen: false, isCanceling: false, asignacion: null, isLoading: false, error: null });
 
   const executeToggleStatus = async () => {
     const { isCanceling, asignacion } = confirmModal;
     const endpoint = isCanceling ? "/asignaciones" : "/asignaciones/reactivar";
     const httpMethod = isCanceling ? api.delete : api.patch;
-    closeConfirmModal();
+
+    setConfirmModal(prev => ({ ...prev, isLoading: true, error: null }));
     const toastId = toast.loading('Procesando solicitud de actualización...');
+
     try {
       const payload = { data: { periodo_id: asignacion.periodo_id, materia_id: asignacion.materia_id, docente_id: asignacion.docente_id, grupo_id: asignacion.grupo_id } };
-      isCanceling ? await httpMethod(endpoint, payload) : await httpMethod(endpoint, payload.data);
+      
+      if (isCanceling) {
+        await httpMethod(endpoint, payload);
+      } else {
+        await httpMethod(endpoint, payload.data);
+      }
+
       toast.success(`Asignación ${isCanceling ? 'cancelada' : 'reactivada'} exitosamente.`, { id: toastId });
+      closeConfirmModal();
       fetchAsignaciones();
     } catch (error) {
-      toast.error(error.response?.data?.error || `Ocurrió un error al procesar el estatus de la asignación.`, { id: toastId });
+      const errMsg = error.response?.data?.error || `Ocurrió un error al procesar el estatus de la asignación.`;
+      toast.dismiss(toastId);
+      setConfirmModal(prev => ({ ...prev, isLoading: false, error: errMsg }));
     }
   };
 
@@ -863,6 +874,16 @@ export const AssignmentManagement = () => {
               <button onClick={closeConfirmModal} className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-8">
+              {confirmModal.error && (
+                <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-black text-red-800 uppercase tracking-tight">Error de validación</p>
+                    <p className="text-sm text-red-700 font-medium leading-tight mt-0.5">{confirmModal.error}</p>
+                  </div>
+                </div>
+              )}
+
               <p className="text-slate-600 text-sm mb-6 font-medium leading-relaxed">
                 A continuación, se detalla la asignación docente que estás a punto de {confirmModal.isCanceling ? <strong className="text-red-600 font-black">cancelar</strong> : <strong className="text-emerald-600 font-black">reactivar</strong>}:
               </p>
@@ -891,9 +912,17 @@ export const AssignmentManagement = () => {
               )}
             </div>
             <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
-              <button onClick={executeToggleStatus} className={`px-6 py-3 text-sm font-black text-white rounded-xl transition-all shadow-md active:scale-[0.98] w-full sm:w-auto flex justify-center items-center ${confirmModal.isCanceling ? 'bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-200 hover:shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 hover:shadow-emerald-200'}`}>
-                {confirmModal.isCanceling ? <Trash2 className="w-5 h-5 mr-2" /> : <UserCheck className="w-5 h-5 mr-2" />}
-                {confirmModal.isCanceling ? 'Desactivar Asignación' : 'Reactivar Asignación'}
+              <button 
+                onClick={executeToggleStatus} 
+                disabled={confirmModal.isLoading}
+                className={`px-6 py-3 text-sm font-black text-white rounded-xl transition-all shadow-md active:scale-[0.98] w-full sm:w-auto flex justify-center items-center ${confirmModal.isCanceling ? 'bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-200 hover:shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 hover:shadow-emerald-200'} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {confirmModal.isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                ) : (
+                  confirmModal.isCanceling ? <Trash2 className="w-5 h-5 mr-2" /> : <UserCheck className="w-5 h-5 mr-2" />
+                )}
+                {confirmModal.isLoading ? 'Procesando...' : (confirmModal.isCanceling ? 'Desactivar Asignación' : 'Reactivar Asignación')}
               </button>
             </div>
           </div>

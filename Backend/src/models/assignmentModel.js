@@ -561,6 +561,31 @@ const resolverPeriodoActual = async () => {
   `);
   return rows[0] ?? null;
 };
+// Verifica que las entidades vinculadas (Periodo, Materia, Docente, Grupo) estén ACTIVAS.
+const checkLinkedEntitiesStatus = async (periodo_id, materia_id, docente_id, grupo_id) => {
+  const gId = (grupo_id === '' || grupo_id === undefined) ? null : grupo_id;
+  const query = `
+    SELECT 
+      (SELECT estatus FROM periodos WHERE id_periodo = ?) AS periodo_status,
+      (SELECT estatus FROM materias WHERE id_materia = ?) AS materia_status,
+      (SELECT estatus FROM docentes WHERE id_docente = ?) AS docente_status,
+      ${gId ? `(SELECT estatus FROM grupos WHERE id_grupo = ?) AS grupo_status` : "'ACTIVO' AS grupo_status"}
+  `;
+  const params = gId ? [periodo_id, materia_id, docente_id, gId] : [periodo_id, materia_id, docente_id];
+  const rows = await pool.query(query, params);
+  return rows[0];
+};
+
+// Verifica el estatus de un conjunto de aulas.
+const checkAulasStatus = async (aulaIds) => {
+  if (!aulaIds || aulaIds.length === 0) return [];
+  const rows = await pool.query(
+    `SELECT nombre_codigo, estatus FROM aulas WHERE id_aula IN (?)`,
+    [aulaIds]
+  );
+  return rows;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -571,5 +596,5 @@ module.exports = {
   actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
   ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo,
   rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia,
-  resolverPeriodoActual,
+  resolverPeriodoActual, checkLinkedEntitiesStatus, checkAulasStatus,
 };
