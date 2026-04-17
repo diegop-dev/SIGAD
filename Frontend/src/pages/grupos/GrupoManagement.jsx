@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Filter, Users, Loader2, Edit, 
   Trash2, ChevronLeft, ChevronRight, Hash, 
-  BookOpen, Calendar, RotateCcw 
+  BookOpen, Calendar, RotateCcw, Eye 
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 import { DesactivarGrupoModal } from './DesactivarGrupoModal';
 import { ReactivarGrupoModal } from './ReactivarGrupoModal';
+import { GrupoModal } from './GrupoModal';
 
 export const GrupoManagement = () => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export const GrupoManagement = () => {
 
   const [grupoToDesactivar, setGrupoToDesactivar] = useState(null);
   const [grupoToReactivar, setGrupoToReactivar] = useState(null);
+  const [grupoInfoModal, setGrupoInfoModal] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [carreraFilter, setCarreraFilter] = useState('');
@@ -304,6 +306,13 @@ export const GrupoManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-2">
+                        <button
+                          title="Ver detalles"
+                          onClick={() => setGrupoInfoModal(grupo)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-95"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
                       <button 
                         title={grupo.estatus === 'INACTIVO' ? "No se puede editar un grupo inactivo" : "Editar grupo"}
                         onClick={() => handleEditarGrupo(grupo)}
@@ -385,6 +394,12 @@ export const GrupoManagement = () => {
         onClose={() => setGrupoToReactivar(null)} 
         onSuccess={handleSuccessAction} 
       />
+      {grupoInfoModal && (
+        <GrupoModal 
+          grupo={grupoInfoModal} 
+          onClose={() => setGrupoInfoModal(null)} 
+        />
+      )}
     </div>
   );
 };

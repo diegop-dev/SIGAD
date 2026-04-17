@@ -408,6 +408,15 @@ const rechazarAsignacionesPorGrupo = async (grupo_id, usuario_id) => {
   return result.affectedRows;
 };
 
+const rechazarAsignacionesPorAula = async (aula_id, usuario_id) => {
+  const result = await pool.query(`
+    UPDATE asignaciones
+    SET estatus_confirmacion = 'RECHAZADA', modificado_por = ?, fecha_modificacion = NOW()
+    WHERE aula_id = ? AND estatus_confirmacion = 'ENVIADA' AND estatus_acta = 'ABIERTA'
+  `, [usuario_id, aula_id]);
+  return result.affectedRows;
+};
+
 const rechazarAsignacionesPorMateria = async (materia_id, usuario_id) => {
   const result = await pool.query(`
     UPDATE asignaciones
@@ -541,6 +550,6 @@ module.exports = {
   checkMateriaDuplicadaGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
   createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
-  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo,
+  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
   ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo, rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia
 };

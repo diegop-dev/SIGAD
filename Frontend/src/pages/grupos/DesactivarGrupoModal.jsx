@@ -64,12 +64,12 @@ export const DesactivarGrupoModal = ({ grupo, onClose, onSuccess }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className={`flex justify-between items-center px-6 py-5 border-b ${serverAction === 'BLOCK' ? 'border-amber-100 bg-amber-50' : 'border-red-100 bg-red-50'}`}>
-          <div className={`flex items-center ${serverAction === 'BLOCK' ? 'text-amber-600' : 'text-red-600'}`}>
-            {serverAction === 'BLOCK' ? <Ban className="w-5 h-5 mr-2" /> : <AlertTriangle className="w-5 h-5 mr-2" />}
-            <h3 className="text-lg font-black tracking-tight">{serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar baja de grupo'}</h3>
+        <div className={`flex justify-between items-center px-6 py-5 shrink-0 border-b border-transparent ${serverAction === 'BLOCK' ? 'bg-amber-500' : 'bg-[#0B1828]'}`}>
+          <div className="flex items-center text-white">
+            {serverAction === 'BLOCK' ? <Ban className="w-6 h-6 mr-3" /> : <AlertTriangle className="w-6 h-6 mr-3" />}
+            <h3 className="text-xl font-black tracking-tight">{serverAction === 'BLOCK' ? 'Acción bloqueada' : 'Confirmar baja de grupo'}</h3>
           </div>
-          <button onClick={handleCloseModal} disabled={isSubmitting} className="text-slate-400 hover:text-[#0B1828] hover:bg-slate-200 p-2 rounded-xl disabled:opacity-50 transition-colors active:scale-95">
+          <button onClick={handleCloseModal} disabled={isSubmitting} className="p-2.5 bg-white/10 text-white hover:bg-black/20 rounded-full transition-all active:scale-95 disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
