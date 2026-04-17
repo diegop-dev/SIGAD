@@ -15,7 +15,8 @@ router.get('/sincronizacion', verifyToken, docenteController.getDocenteParaSincr
 // Rutas internas SIGAD
 router.get('/disponibles', verifyToken, requireRole([1, 2]), docenteController.getUsuariosDisponibles);
 router.get('/mi-perfil', verifyToken, requireRole([3]), docenteController.getMiPerfil);
-router.get('/historial/:id_docente', verifyToken, obtenerHistorialDocente);
+router.get('/historial/:id_docente', verifyToken, docenteController.obtenerHistorialDocente);
+router.get('/historial/exportar-pdf/:id_docente', verifyToken, docenteController.exportarHistorialDocentePDF);
 router.get('/', verifyToken, docenteController.getDocentes);
 
 router.post('/registrar', verifyToken, requireRole([1, 2]), upload.fields([

@@ -6,6 +6,7 @@ const assignmentModel = require('../models/assignmentModel');
 const { enviarPasswordTemporal } = require('../services/emailService');
 const pool = require('../config/database');
 const { logAudit, getClientIp } = require('../services/auditService');
+const PDFDocument = require('pdfkit');
 
 /* ── Mapa de roles ── */
 const ROL_NOMBRES = {
@@ -384,11 +385,7 @@ const obtenerHistorialDocente = async (req, res) => {
   const { id_docente } = req.params;
   try {
     const data = await docenteModel.getHistorialCompleto(id_docente);
-    
-    if (!data) {
-      return res.status(404).json({ message: "Docente no encontrado." });
-    }
-
+    if (!data) return res.status(404).json({ message: "Docente no encontrado." });
     res.status(200).json(data);
   } catch (error) {
     console.error("Error al obtener historial docente:", error);
@@ -396,9 +393,6 @@ const obtenerHistorialDocente = async (req, res) => {
   }
 };
 
-/* ─────────────────────────────────────────────────── */
-
-// EP-07 SESA: público, sin auditoría
 const ObtenerDocentes = async (req, res) => {
   try {
     const docentes = await docenteModel.ObtenerDocentes();
@@ -409,7 +403,6 @@ const ObtenerDocentes = async (req, res) => {
   }
 };
 
-// EP-08 SESA: público, sin auditoría
 const ObtenerUsuarioPorId = async (req, res) => {
   try {
     const { id_usuario } = req.params;
@@ -424,6 +417,205 @@ const ObtenerUsuarioPorId = async (req, res) => {
 
 /* ─────────────────────────────────────────────────── */
 
+const exportarHistorialDocentePDF = async (req, res) => {
+  const { id_docente } = req.params;
+  try {
+    const data = await docenteModel.getHistorialCompleto(id_docente);
+    if (!data) return res.status(404).json({ message: "Docente no encontrado." });
+
+    const { perfil, historial } = data;
+
+    const doc = new PDFDocument({
+      margin: 0,
+      size: 'A4',
+      layout: 'portrait',
+      autoFirstPage: false,
+    });
+
+    const now = new Date();
+    const fecha = now.toISOString().split('T')[0];
+    const hora = now.toTimeString().split(' ')[0].replace(/:/g, '-').substring(0, 5);
+    const nombreDocente = `${perfil.nombres}_${perfil.apellido_paterno}`.replace(/\s+/g, '_');
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="historial_${fecha}_${hora}_${nombreDocente}.pdf"`
+    );
+    doc.pipe(res);
+
+    /* ── Paleta ── */
+    const NAVY  = '#0B1828';
+    const NAVY2 = '#1E3A5F';
+    const WHITE = '#FFFFFF';
+    const GRAY1 = '#F8FAFC';
+    const GRAY2 = '#E2E8F0';
+    const TEXT  = '#1E293B';
+    const MUTED = '#64748B';
+
+    const BADGE = {
+      OBLIGATORIA:  { text: '#065F46', bg: '#D1FAE5' },
+      OPTATIVA:     { text: '#5B21B6', bg: '#EDE9FE' },
+      TRONCO_COMUN: { text: '#334155', bg: '#F1F5F9' },
+      MAESTRIA:     { text: '#92400E', bg: '#FEF3C7' },
+      LICENCIATURA: { text: '#1E40AF', bg: '#DBEAFE' },
+    };
+
+    const PAGE_W      = 595.28; 
+    const PAGE_H      = 841.89;
+    const MARGIN      = 40;
+    const CONTENT_W   = PAGE_W - MARGIN * 2;
+    const HEADER_H    = 70;
+    const FOOTER_H    = 24;
+    const COL_HDR_H   = 22;
+    const ROW_H       = 32; 
+    const SECTION_H   = 24;
+    const TABLE_TOP   = HEADER_H + 4;
+    const SAFE_BOTTOM = PAGE_H - FOOTER_H - 10;
+
+    let pageNum = 0;
+
+    const drawPageHeader = () => {
+      doc.rect(0, 0, PAGE_W, HEADER_H).fill(NAVY);
+      doc.fontSize(14).fillColor(WHITE).font('Helvetica-Bold')
+         .text('Historial Académico del Docente', MARGIN, 18);
+      doc.fontSize(8).fillColor('rgba(255,255,255,0.6)').font('Helvetica')
+         .text('SIGAD · Sistema de Gestión Académica Digital', MARGIN, 38);
+      
+      const fecha = new Date().toLocaleDateString('es-MX', { day:'2-digit', month:'2-digit', year:'numeric' });
+      doc.fontSize(8).fillColor('rgba(255,255,255,0.4)').font('Helvetica')
+         .text(`Emisión: ${fecha}`, PAGE_W - MARGIN - 120, 38, { width: 120, align: 'right' });
+    };
+
+    const drawPageFooter = () => {
+      doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill(NAVY);
+      doc.fontSize(7).fillColor('rgba(255,255,255,0.45)').font('Helvetica')
+         .text(`Pág. ${pageNum} · Docente: ${perfil.nombres} ${perfil.apellido_paterno}`, MARGIN, PAGE_H - FOOTER_H + 8, { width: CONTENT_W, align: 'center' });
+    };
+
+    const drawProfileCard = (yPos) => {
+      doc.rect(MARGIN, yPos, CONTENT_W, 60).fill(GRAY1);
+      doc.rect(MARGIN, yPos, CONTENT_W, 60).lineWidth(0.5).stroke(GRAY2);
+
+      doc.fontSize(11).fillColor(NAVY).font('Helvetica-Bold')
+         .text(`${perfil.nombres} ${perfil.apellido_paterno} ${perfil.apellido_materno}`, MARGIN + 15, yPos + 12);
+      
+      doc.fontSize(8).fillColor(MUTED).font('Helvetica')
+         .text(`Matrícula: ${perfil.matricula_empleado}`, MARGIN + 15, yPos + 28);
+      doc.text(`Nivel: ${perfil.nivel_academico || 'N/A'}`, MARGIN + 15, yPos + 40);
+      
+      doc.text(`Antigüedad: ${perfil.anos_antiguedad} años`, PAGE_W - MARGIN - 150, yPos + 40, { width: 135, align: 'right' });
+      return yPos + 75;
+    };
+
+    const drawSectionTitle = (yPos, title, color = '#2563EB') => {
+      doc.rect(MARGIN, yPos, 4, SECTION_H).fill(color);
+      doc.fontSize(10).fillColor(NAVY).font('Helvetica-Bold')
+         .text(title.toUpperCase(), MARGIN + 12, yPos + 7);
+      return yPos + SECTION_H + 5;
+    };
+
+    const drawTableHeader = (yPos) => {
+      doc.rect(MARGIN, yPos, CONTENT_W, COL_HDR_H).fill(NAVY2);
+      const cols = [
+        { l: 'PERIODO', w: 0.18 },
+        { l: 'MATERIA', w: 0.52 },
+        { l: 'GRUPO',   w: 0.12 },
+        { l: 'PROM',    w: 0.18 }
+      ];
+      let x = MARGIN;
+      cols.forEach(c => {
+        doc.fontSize(7).fillColor(WHITE).font('Helvetica-Bold').text(c.l, x + 6, yPos + 7);
+        x += Math.floor(c.w * CONTENT_W);
+      });
+      return yPos + COL_HDR_H;
+    };
+
+    doc.on('pageAdded', () => {
+      pageNum++;
+      drawPageHeader();
+      drawPageFooter();
+    });
+
+    doc.addPage();
+    let y = drawProfileCard(85);
+
+    /* ── Categorías ── */
+    const categorias = [
+      { id: 'ACTUALES',   t: 'Clases Actuales / Cursando', color: '#3B82F6' },
+      { id: 'PENDIENTES', t: 'Pendientes por confirmar',   color: '#F59E0B' },
+      { id: 'CONCLUIDAS', t: 'Clases Concluidas',          color: '#10B981' },
+      { id: 'RECHAZADAS', t: 'Asignaciones Rechazadas',    color: '#EF4444' }
+    ];
+
+    categorias.forEach(cat => {
+      // Filtrar data
+      let items = [];
+      historial.forEach(h => {
+        const conf = (h.estatus_confirmacion || '').toUpperCase();
+        const acta = (h.estatus_acta || '').toUpperCase();
+        if (cat.id === 'PENDIENTES' && conf === 'ENVIADA' && acta === 'ABIERTA') items.push(h);
+        else if (cat.id === 'ACTUALES' && conf === 'ACEPTADA' && acta === 'ABIERTA') items.push(h);
+        else if (cat.id === 'CONCLUIDAS' && conf === 'ACEPTADA' && acta === 'CERRADA') items.push(h);
+        else if (cat.id === 'RECHAZADAS' && conf === 'RECHAZADA') items.push(h);
+      });
+
+      if (items.length === 0) return;
+
+      // Header de Sección
+      if (y + 60 > SAFE_BOTTOM) { doc.addPage(); y = 85; }
+      y = drawSectionTitle(y, cat.t, cat.color);
+      y = drawTableHeader(y);
+
+      items.forEach((item, i) => {
+        if (y + ROW_H > SAFE_BOTTOM) {
+          doc.addPage();
+          y = drawTableHeader(85);
+        }
+
+        doc.rect(MARGIN, y, CONTENT_W, ROW_H).fill(i % 2 === 0 ? WHITE : GRAY1);
+        doc.moveTo(MARGIN, y + ROW_H).lineTo(MARGIN + CONTENT_W, y + ROW_H).strokeColor(GRAY2).lineWidth(0.3).stroke();
+
+        let x = MARGIN;
+        const colWs = [0.18, 0.52, 0.12, 0.18].map(w => Math.floor(w * CONTENT_W));
+
+        // Col 1: Periodo
+        doc.fontSize(7.5).fillColor(TEXT).font('Helvetica-Bold').text(item.periodo, x + 6, y + 12);
+        x += colWs[0];
+
+        // Col 2: Materia + Badges
+        doc.fontSize(8.5).fillColor(TEXT).font('Helvetica-Bold')
+           .text(item.materia || '—', x + 6, y + 8, { width: colWs[1] - 80, ellipsis: true });
+        
+        const lvlBadge = BADGE[item.nivel_academico] || BADGE.LICENCIATURA;
+        doc.rect(x + colWs[1] - 70, y + 11, 65, 10).fill(lvlBadge.bg);
+        doc.fontSize(6).fillColor(lvlBadge.text).font('Helvetica-Bold')
+           .text(item.nivel_academico || 'LIC', x + colWs[1] - 70, y + 13, { width: 65, align: 'center' });
+
+        x += colWs[1];
+
+        // Col 3: Grupo
+        const grp = item.grupo === 'N/A' || !item.grupo ? '—' : item.grupo;
+        doc.fontSize(8.5).fillColor(TEXT).font('Helvetica').text(grp, x + 6, y + 12, { width: colWs[2], align: 'center' });
+        x += colWs[2];
+
+        // Col 4: Promedio
+        const prom = item.promedio_consolidado ? Number(item.promedio_consolidado).toFixed(2) : '--';
+        doc.fontSize(8).fillColor(NAVY).font('Helvetica-Bold').text(prom, x, y + 12, { width: colWs[3], align: 'center' });
+
+        y += ROW_H;
+      });
+
+      y += 15; // Espacio entre secciones
+    });
+
+    doc.end();
+  } catch (error) {
+    console.error('[Error en exportarHistorialDocentePDF]:', error);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar el PDF.' });
+  }
+};
+
 module.exports = {
   getDocenteParaSincronizacion,
   registerDocente,
@@ -437,4 +629,5 @@ module.exports = {
   obtenerHistorialDocente,
   ObtenerDocentes,
   ObtenerUsuarioPorId,
-};
+  exportarHistorialDocentePDF,
+};
