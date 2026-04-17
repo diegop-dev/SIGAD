@@ -322,8 +322,8 @@ const createAsignacion = async (req, res) => {
 // Consultar asignaciones docente (HU-34)
 const getAsignaciones = async (req, res) => {
   try {
-    const { periodo_id, docente_id, grupo_id } = req.query;
-    const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ periodo_id, docente_id, grupo_id });
+    const { periodo_id, docente_id, grupo_id, materia_id } = req.query;
+    const asignaciones = await assignmentModel.obtenerTodasLasAsignaciones({ periodo_id, docente_id, grupo_id, materia_id });
     res.status(200).json({ data: asignaciones });
   } catch (error) {
     console.error('[Error en assignmentController - getAsignaciones]:', error);

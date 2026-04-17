@@ -21,4 +21,6 @@ router.put('/:id', verifyToken, requireRole([1, 2]), validarCreacionGrupo, grupo
 router.patch('/:id/desactivar', verifyToken, requireRole([1, 2]), grupoController.desactivarGrupo);
 router.patch('/:id/reactivar',  verifyToken, requireRole([1, 2]), grupoController.reactivarGrupo);
 
+router.get('/:id/asignaciones', verifyToken, requireRole([1, 2, 3]), grupoController.obtenerAsignacionesRelacionadas);
+
 module.exports = router;

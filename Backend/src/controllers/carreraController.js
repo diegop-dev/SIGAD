@@ -1,6 +1,7 @@
 const carreraModel = require('../models/carreraModel');
 const grupoModel = require('../models/grupoModel');
 const assignmentModel = require('../models/assignmentModel');
+const pool = require('../config/database');
 const { logAudit, getClientIp } = require('../services/auditService');
 
 /* ── Mapa de roles ── */
@@ -324,6 +325,53 @@ const carreraController = {
     } catch (error) {
       console.error('Error al reactivar:', error);
       return res.status(500).json({ success: false, message: 'Error interno al reactivar.' });
+    }
+  },
+
+  obtenerDetallesCarrera: async (req, res) => {
+    let conn;
+    try {
+      const { id } = req.params;
+      conn = await pool.getConnection();
+      
+      const carreraRows = await conn.query(`
+        SELECT c.*, a.nombre AS nombre_academia
+        FROM carreras c
+        LEFT JOIN academias a ON c.academia_id = a.id_academia
+        WHERE c.id_carrera = ?
+      `, [id]);
+      
+      const carrera = carreraRows[0];
+      if (!carrera) return res.status(404).json({ success: false, message: 'Carrera no encontrada' });
+      
+      const materias = await conn.query(`
+        SELECT m.*, p.codigo as periodo
+        FROM materias m
+        LEFT JOIN periodos p ON m.periodo_id = p.id_periodo
+        WHERE m.carrera_id = ? AND m.estatus = 'ACTIVO'
+        ORDER BY m.nombre ASC
+      `, [id]);
+      
+      let docentes = [];
+      if (carrera.academia_id) {
+        docentes = await conn.query(`
+          SELECT d.*, 
+                 u.nombres, u.apellido_paterno, u.apellido_materno, u.institutional_email, u.foto_perfil_url, u.estatus as user_estatus,
+                 a.nombre as nombre_academia
+          FROM docentes d
+          JOIN usuarios u ON d.usuario_id = u.id_usuario
+          LEFT JOIN academias a ON d.academia_id = a.id_academia
+          WHERE d.academia_id = ? AND d.estatus = 'ACTIVO' AND u.estatus = 'ACTIVO'
+          ORDER BY u.nombres ASC
+        `, [carrera.academia_id]);
+      }
+      
+      return res.status(200).json({ success: true, data: { carrera, materias, docentes } });
+    } catch (error) {
+      console.error('Error al obtener detalles de carrera:', error);
+      return res.status(500).json({ success: false, message: 'Error interno al consultar detalles.' });
+    } finally {
+      if (conn) conn.release();
     }
   },
 

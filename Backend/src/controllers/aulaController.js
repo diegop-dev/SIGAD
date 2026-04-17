@@ -1,4 +1,5 @@
-const pool = require('../config/database');
+const aulaModel = require('../models/aulaModel');
+const assignmentModel = require('../models/assignmentModel');
 const { logAudit, getClientIp } = require('../services/auditService');
 
 /* ── Mapa de roles ── */
@@ -11,60 +12,22 @@ const rolNombre = (rol_id) => ROL_NOMBRES[rol_id] ?? 'Desconocido';
 
 /* ─────────────────────────────────────────────────── */
 
-// Regla de negocio: restringe mutaciones si el aula tiene clases activas
-const verificarDependenciasAula = async (id_aula) => {
-  const query = `
-    SELECT COUNT(DISTINCT rep.min_id) AS dependencias_activas
-    FROM Aulas au
-    INNER JOIN Asignaciones a ON au.id_aula = a.aula_id
-    INNER JOIN Periodos p ON a.periodo_id = p.id_periodo
-    INNER JOIN (
-      SELECT 
-        MIN(id_asignacion) AS min_id,
-        grupo_id, materia_id, docente_id, periodo_id, aula_id
-      FROM Asignaciones
-      GROUP BY grupo_id, materia_id, docente_id, periodo_id, aula_id
-    ) rep ON a.grupo_id <=> rep.grupo_id 
-         AND a.materia_id = rep.materia_id 
-         AND a.docente_id = rep.docente_id 
-         AND a.periodo_id = rep.periodo_id 
-         AND a.aula_id    = rep.aula_id
-    WHERE au.id_aula           = ? 
-      AND au.estatus            = 'ACTIVO'
-      AND a.estatus_acta        = 'ABIERTA'
-      AND a.estatus_confirmacion = 'ACEPTADA'
-      AND p.estatus             = 'ACTIVO'
-  `;
-  const resultado = await pool.query(query, [id_aula]);
-  return resultado[0].dependencias_activas > 0;
-};
-
-/* ─────────────────────────────────────────────────── */
-
 const registrarAula = async (req, res) => {
   const { nombre, tipo, capacidad, ubicacion } = req.body;
-  // ← creado_por viene del token, no del body
   const creado_por = req.user?.id_usuario;
 
   try {
-    const existente = await pool.query(
-      'SELECT id_aula FROM Aulas WHERE nombre_codigo = ?',
-      [nombre]
-    );
+    const existente = await aulaModel.findByNombreCodigo(nombre);
     if (existente.length > 0) {
       return res.status(409).json({ message: 'Ya existe un aula o laboratorio con ese nombre.' });
     }
 
-    const resultado = await pool.query(
-      `INSERT INTO Aulas (nombre_codigo, tipo, capacidad, ubicacion, estatus, creado_por, fecha_creacion) 
-       VALUES (?, ?, ?, ?, 'ACTIVO', ?, NOW())`,
-      [nombre, tipo, capacidad, ubicacion, creado_por]
-    );
+    const insertId = await aulaModel.createAula(nombre, tipo, capacidad, ubicacion, creado_por);
 
     logAudit({
       modulo:            'AULAS',
       accion:            'CREACION',
-      registro_afectado: `Aula "${nombre}" #${resultado.insertId}`,
+      registro_afectado: `Aula "${nombre}" #${insertId}`,
       detalle:           null,
       usuario_id:        req.user?.id_usuario,
       usuario_rol:       rolNombre(req.user?.rol_id),
@@ -73,7 +36,7 @@ const registrarAula = async (req, res) => {
 
     res.status(201).json({
       message: 'Espacio académico registrado con éxito.',
-      id_aula: resultado.insertId,
+      id_aula: insertId,
     });
   } catch (error) {
     console.error('Error al registrar aula:', error);
@@ -85,11 +48,7 @@ const registrarAula = async (req, res) => {
 
 const consultarAulas = async (req, res) => {
   try {
-    const resultados = await pool.query(`
-      SELECT id_aula, nombre_codigo, tipo, capacidad, ubicacion, estatus 
-      FROM Aulas
-      ORDER BY nombre_codigo ASC
-    `);
+    const resultados = await aulaModel.getTodasAulas();
     res.status(200).json(resultados);
   } catch (error) {
     console.error('Error al consultar el catálogo de aulas:', error);
@@ -102,57 +61,58 @@ const consultarAulas = async (req, res) => {
 const actualizarAula = async (req, res) => {
   const { id } = req.params;
   const { nombre, tipo, capacidad, ubicacion, estatus } = req.body;
-  // ← modificado_por viene del token, no del body
   const modificado_por = req.user?.id_usuario;
 
   try {
-    const aulaActual = await pool.query(
-      'SELECT nombre_codigo, tipo, ubicacion FROM Aulas WHERE id_aula = ?',
-      [id]
-    );
-    if (aulaActual.length === 0) {
+    const aulaActual = await aulaModel.getAulaById(id);
+    if (!aulaActual) {
       return res.status(404).json({ message: 'Aula no encontrada.' });
     }
 
     const intentoCambioEstructural =
-      (tipo      !== undefined && tipo      !== aulaActual[0].tipo)      ||
-      (ubicacion !== undefined && ubicacion !== aulaActual[0].ubicacion);
+      (tipo      !== undefined && tipo      !== aulaActual.tipo)      ||
+      (ubicacion !== undefined && ubicacion !== aulaActual.ubicacion);
+
+    const confirmar_rechazo = req.body.confirmar_rechazo === true || req.body.confirmar_rechazo === 'true';
 
     if (intentoCambioEstructural) {
-      const tieneAsignaciones = await verificarDependenciasAula(id);
+      const tieneAsignaciones = await aulaModel.verificarDependenciasAula(id);
       if (tieneAsignaciones) {
         return res.status(409).json({
           action:  'BLOCK',
           error:   'Conflicto de integridad relacional',
-          detalles: 'No es posible modificar el tipo ni la ubicación de este espacio porque ya cuenta con clases asignadas. Debe reubicar las clases previamente en el módulo de asignaciones.',
+          detalles: 'No es posible modificar el tipo ni la ubicación de este espacio porque ya cuenta con clases ACEPTADAS vigentes. Debe reubicar las clases previamente en el módulo de asignaciones.',
         });
+      }
+
+      const tieneEnviadas = await aulaModel.checkDependenciasEnviadas(id);
+      if (tieneEnviadas && !confirmar_rechazo) {
+        return res.status(409).json({
+          action:  'WARN',
+          error:   'Advertencia de asignaciones pendientes',
+          detalles: 'Este espacio tiene asignaciones ENVIADAS pendientes de confirmación. Cambiar su estructura rechazará automáticamente estas clases. ¿Deseas continuar?'
+        });
+      }
+      if (tieneEnviadas && confirmar_rechazo) {
+        await assignmentModel.rechazarAsignacionesPorAula(id, modificado_por);
       }
     }
 
-    const existente = await pool.query(
-      'SELECT id_aula FROM Aulas WHERE nombre_codigo = ? AND id_aula != ?',
-      [nombre, id]
-    );
+    const existente = await aulaModel.findByNombreCodigo(nombre, id);
     if (existente.length > 0) {
       return res.status(409).json({ message: 'Ya existe otra aula/laboratorio con ese nombre.' });
     }
 
-    const resultado = await pool.query(
-      `UPDATE Aulas 
-       SET nombre_codigo = ?, tipo = ?, capacidad = ?, ubicacion = ?, estatus = ?,
-           modificado_por = ?, fecha_modificacion = NOW()
-       WHERE id_aula = ?`,
-      [nombre, tipo, capacidad, ubicacion, estatus, modificado_por, id]
-    );
+    const actualizado = await aulaModel.updateAula(id, nombre, tipo, capacidad, ubicacion, estatus, modificado_por);
 
-    if (resultado.affectedRows === 0) {
+    if (!actualizado) {
       return res.status(404).json({ message: 'Aula no encontrada.' });
     }
 
     logAudit({
       modulo:            'AULAS',
       accion:            'MODIFICACION',
-      registro_afectado: `Aula "${aulaActual[0].nombre_codigo}" #${id}`,
+      registro_afectado: `Aula "${aulaActual.nombre_codigo}" #${id}`,
       detalle:           null,
       usuario_id:        req.user?.id_usuario,
       usuario_rol:       rolNombre(req.user?.rol_id),
@@ -170,40 +130,43 @@ const actualizarAula = async (req, res) => {
 
 const desactivarAula = async (req, res) => {
   const { id } = req.params;
-  // ← eliminado_por viene del token, no del body
   const eliminado_por = req.user?.id_usuario;
+  const confirmar_rechazo = req.body.confirmar_rechazo === true || req.body.confirmar_rechazo === 'true';
 
   try {
-    const tieneAsignaciones = await verificarDependenciasAula(id);
+    const tieneAsignaciones = await aulaModel.verificarDependenciasAula(id);
     if (tieneAsignaciones) {
       return res.status(409).json({
         action:  'BLOCK',
         error:   'Conflicto de integridad relacional',
-        detalles: 'No es posible desactivar esta aula porque cuenta con clases asignadas actualmente. Debe reubicar o cancelar estas clases antes de proceder.',
+        detalles: 'No es posible desactivar esta aula porque cuenta con clases ACEPTADAS actualmente. Debe reubicar o cancelar estas clases antes de proceder.',
       });
     }
 
-    // Recuperar nombre antes del UPDATE para usarlo en el log
-    const aulaActual = await pool.query(
-      'SELECT nombre_codigo FROM Aulas WHERE id_aula = ?',
-      [id]
-    );
+    const tieneEnviadas = await aulaModel.checkDependenciasEnviadas(id);
+    if (tieneEnviadas && !confirmar_rechazo) {
+      return res.status(409).json({
+        action:  'WARN',
+        error:   'Advertencia de asignaciones pendientes',
+        detalles: 'Este aula tiene asignaciones ENVIADAS pendientes de confirmación. Darla de baja rechazará automáticamente estas clases. ¿Deseas continuar?'
+      });
+    }
+    if (tieneEnviadas && confirmar_rechazo) {
+      await assignmentModel.rechazarAsignacionesPorAula(id, eliminado_por);
+    }
 
-    const resultado = await pool.query(
-      `UPDATE Aulas 
-       SET estatus = 'INACTIVO', eliminado_por = ?, fecha_eliminacion = NOW() 
-       WHERE id_aula = ?`,
-      [eliminado_por, id]
-    );
+    const nombreAnterior = await aulaModel.getNombreForAudit(id);
 
-    if (resultado.affectedRows === 0) {
+    const desactivado = await aulaModel.setEstatusInactivo(id, eliminado_por);
+
+    if (!desactivado) {
       return res.status(404).json({ message: 'Aula o laboratorio no encontrado.' });
     }
 
     logAudit({
       modulo:            'AULAS',
       accion:            'BAJA',
-      registro_afectado: `Aula "${aulaActual[0]?.nombre_codigo}" #${id}`,
+      registro_afectado: `Aula "${nombreAnterior}" #${id}`,
       detalle:           null,
       usuario_id:        req.user?.id_usuario,
       usuario_rol:       rolNombre(req.user?.rol_id),
@@ -222,12 +185,7 @@ const desactivarAula = async (req, res) => {
 // EP-09 SESA: endpoint público, sin auditoría
 const ObtenerAulas = async (req, res) => {
   try {
-    const aulas = await pool.query(`
-      SELECT id_aula, nombre_codigo, capacidad, tipo
-      FROM Aulas
-      WHERE estatus = 'ACTIVO'
-      ORDER BY nombre_codigo ASC
-    `);
+    const aulas = await aulaModel.getAulasActivas();
     res.status(200).json(aulas);
   } catch (error) {
     console.error('[Error ObtenerAulas]:', error);
@@ -237,4 +195,19 @@ const ObtenerAulas = async (req, res) => {
 
 /* ─────────────────────────────────────────────────── */
 
-module.exports = { registrarAula, consultarAulas, actualizarAula, desactivarAula, ObtenerAulas };
+const obtenerAsignacionesRelacionadas = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const asignaciones = await aulaModel.getAsignacionesByAulaId(id);
+    
+    // Group them or just return directly. Returning directly is nice since UI handles it well
+    res.status(200).json({ data: asignaciones });
+  } catch (error) {
+    console.error('Error al obtener asignaciones de la aula:', error);
+    res.status(500).json({ message: 'Error interno al consultar las ocupaciones del espacio.' });
+  }
+};
+
+/* ─────────────────────────────────────────────────── */
+
+module.exports = { registrarAula, consultarAulas, actualizarAula, desactivarAula, ObtenerAulas, obtenerAsignacionesRelacionadas };

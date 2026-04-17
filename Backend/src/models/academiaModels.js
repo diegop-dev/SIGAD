@@ -87,6 +87,28 @@ const Academia = {
     }
   },
 
+  checkDependenciasEnviadas: async (id_academia) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(`
+        SELECT COUNT(a.id_asignacion) AS dependencias_enviadas
+        FROM academias ac
+        INNER JOIN carreras c ON ac.id_academia = c.academia_id
+        INNER JOIN materias m ON c.id_carrera = m.carrera_id
+        INNER JOIN asignaciones a ON m.id_materia = a.materia_id
+        INNER JOIN periodos p ON a.periodo_id = p.id_periodo
+        WHERE ac.id_academia = ? 
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ENVIADA'
+          AND p.estatus = 'ACTIVO'
+      `, [id_academia]);
+      return rows[0].dependencias_enviadas > 0;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   registrar: async (data) => {
     let conn;
     try {
@@ -179,6 +201,22 @@ const Academia = {
         LEFT JOIN usuarios u ON a.usuario_id = u.id_usuario
         ORDER BY a.fecha_creacion DESC
       `);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
+  getCarrerasByAcademia: async (id_academia) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(`
+        SELECT id_carrera, codigo_unico, nombre_carrera, modalidad, nivel_academico, estatus 
+        FROM carreras 
+        WHERE academia_id = ?
+        ORDER BY nivel_academico ASC, nombre_carrera ASC
+      `, [id_academia]);
       return rows;
     } finally {
       if (conn) conn.release();

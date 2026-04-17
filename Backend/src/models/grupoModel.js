@@ -145,7 +145,7 @@ const grupoModel = {
           AND a.estatus_confirmacion = 'ACEPTADA'
           AND p.estatus = 'ACTIVO'
       `, [id_grupo]);
-      
+
       return rows[0].dependencias_activas > 0;
     } finally {
       if (conn) conn.release();
@@ -164,7 +164,7 @@ const grupoModel = {
         'modificado_por = ?',
         'fecha_modificacion = NOW()'
       ];
-      
+
       let queryParams = [
         identificador,
         modificado_por
@@ -252,7 +252,7 @@ const grupoModel = {
       conn = await pool.getConnection();
 
       const filtros = [`g.estatus = 'ACTIVO'`];
-      const params  = [];
+      const params = [];
 
       if (id_programa_academico) {
         filtros.push(`g.carrera_id = ?`);
@@ -283,6 +283,40 @@ const grupoModel = {
     }
   },
   // ─────────────────────────────────────────────────────────────────────────────
+  getAsignacionesByGrupoId: async (id_grupo) => {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const rows = await conn.query(`
+        SELECT 
+          a.id_asignacion,
+          m.nombre AS materia,
+          CONCAT(u.nombres, ' ', u.apellido_paterno, ' ', IFNULL(u.apellido_materno, '')) AS docente,
+          au.nombre_codigo AS aula,
+          c.nombre_carrera AS carrera,
+          a.dia_semana,
+          a.hora_inicio,
+          a.hora_fin,
+          p.codigo AS nombre_periodo
+        FROM asignaciones a
+        JOIN materias m ON a.materia_id = m.id_materia
+        JOIN docentes d ON a.docente_id = d.id_docente
+        JOIN usuarios u ON d.usuario_id = u.id_usuario
+        JOIN aulas au ON a.aula_id = au.id_aula
+        LEFT JOIN grupos g ON a.grupo_id = g.id_grupo
+        LEFT JOIN carreras c ON g.carrera_id = c.id_carrera
+        JOIN periodos p ON a.periodo_id = p.id_periodo
+        WHERE a.grupo_id <=> ?
+          AND a.estatus_acta = 'ABIERTA'
+          AND a.estatus_confirmacion = 'ACEPTADA'
+          AND p.estatus = 'ACTIVO'
+        ORDER BY a.dia_semana ASC, a.hora_inicio ASC
+      `, [id_grupo]);
+      return rows;
+    } finally {
+      if (conn) conn.release();
+    }
+  },
 };
 
 module.exports = grupoModel;

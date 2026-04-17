@@ -271,6 +271,17 @@ const grupoController = {
       res.status(500).json({ error: 'Error al consultar los grupos' });
     }
   },
+
+  obtenerAsignacionesRelacionadas: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const asignaciones = await grupoModel.getAsignacionesByGrupoId(id === 'null' ? null : id);
+      res.status(200).json({ data: asignaciones });
+    } catch (error) {
+      console.error('Error al obtener asignaciones correlacionadas de grupo:', error);
+      res.status(500).json({ error: 'Error interno al consultar las ocupaciones del grupo.' });
+    }
+  },
 };
 
 module.exports = grupoController;

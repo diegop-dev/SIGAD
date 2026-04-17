@@ -408,6 +408,15 @@ const rechazarAsignacionesPorGrupo = async (grupo_id, usuario_id) => {
   return result.affectedRows;
 };
 
+const rechazarAsignacionesPorAula = async (aula_id, usuario_id) => {
+  const result = await pool.query(`
+    UPDATE asignaciones
+    SET estatus_confirmacion = 'RECHAZADA', modificado_por = ?, fecha_modificacion = NOW()
+    WHERE aula_id = ? AND estatus_confirmacion = 'ENVIADA' AND estatus_acta = 'ABIERTA'
+  `, [usuario_id, aula_id]);
+  return result.affectedRows;
+};
+
 const rechazarAsignacionesPorMateria = async (materia_id, usuario_id) => {
   const result = await pool.query(`
     UPDATE asignaciones
@@ -429,6 +438,19 @@ const rechazarAsignacionesPorCarrera = async (carrera_id, usuario_id) => {
   `, [usuario_id, carrera_id, carrera_id]);
   return result.affectedRows;
 };
+const rechazarAsignacionesPorAcademia = async (academia_id, usuario_id) => {
+  const result = await pool.query(`
+    UPDATE asignaciones a
+    INNER JOIN materias m ON a.materia_id = m.id_materia
+    INNER JOIN carreras c ON m.carrera_id = c.id_carrera
+    SET a.estatus_confirmacion = 'RECHAZADA', a.modificado_por = ?, a.fecha_modificacion = NOW()
+    WHERE c.academia_id = ?
+      AND a.estatus_confirmacion = 'ENVIADA' 
+      AND a.estatus_acta = 'ABIERTA'
+  `, [usuario_id, academia_id]);
+  return result.affectedRows;
+};
+
 // ─── EP-06 SESA: GET /asignaciones/catalogo ───────────────────────────────────────────
 // Filtros implícitos: periodo activo + estatus_acta = ABIERTA + estatus_confirmacion = ACEPTADA.
 // Filtros opcionales: grupo_id, materia_id, docente_id.
@@ -528,6 +550,6 @@ module.exports = {
   checkMateriaDuplicadaGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
   createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
-  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo,
-  ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo, rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera
+  actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
+  ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo, rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia
 };
