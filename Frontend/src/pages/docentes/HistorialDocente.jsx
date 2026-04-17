@@ -9,15 +9,15 @@ import {
 const HistorialDocente = ({ docenteId, alCerrar }) => {
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
-  const [filtroActivo, setFiltroActivo] = useState('todos'); // Nuevo estado para los filtros
+  const [exportando, setExportando] = useState(false);
+  const [filtroActivo, setFiltroActivo] = useState('todos');
 
   useEffect(() => {
     const cargarHistorial = async () => {
       setCargando(true);
       try {
         const response = await api.get(`/docentes/historial/${docenteId}`);
-        const dataExtraida = response.data.data || response.data;
-        setDatos(dataExtraida);
+        setDatos(response.data.data || response.data);
       } catch (error) {
         console.error("Error en la petición:", error);
         toast.error("Error al cargar el historial del docente");
@@ -29,6 +29,38 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
 
     if (docenteId) cargarHistorial();
   }, [docenteId]);
+
+  const handleExportarPDF = async () => {
+    if (!datos || !docenteId) return;
+    setExportando(true);
+    try {
+      const response = await api.get(`/docentes/historial/exportar-pdf/${docenteId}`, {
+        responseType: 'blob',
+      });
+
+      const now = new Date();
+      const fecha = now.toISOString().split('T')[0];
+      const hora = now.toTimeString().split(' ')[0].replace(/:/g, '-').substring(0, 5);
+      const nombreDocente = `${datos.perfil.nombres}_${datos.perfil.apellido_paterno}`.replace(/\s+/g, '_');
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `historial_${fecha}_${hora}_${nombreDocente}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      
+      toast.success('Historial exportado correctamente');
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+      toast.error('Error al generar el PDF del historial');
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const getTipoAsignaturaStyles = (tipo) => {
     const mapping = {
@@ -67,7 +99,6 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
       }
     });
 
-    // Filtramos para mostrar solo los grupos con datos y aplicamos el filtro activo
     return grupos
       .filter(g => g.data.length > 0)
       .filter(g => filtroActivo === 'todos' || g.id === filtroActivo);
@@ -77,7 +108,6 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1828]/60 p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
         
-        {/* Header oscuro */}
         <div className="flex justify-between items-center px-6 py-5 border-b bg-[#0B1828] shrink-0">
           <div className="flex items-center space-x-3">
             <BookOpen className="w-6 h-6 text-white/90" />
@@ -86,15 +116,30 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
               <p className="text-sm font-medium text-white/60">Consulta de clases y rendimiento</p>
             </div>
           </div>
-          <button 
-            onClick={alCerrar} 
-            className="p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <button
+               onClick={handleExportarPDF}
+               disabled={exportando || cargando || !datos}
+               className="flex items-center px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all active:scale-95 disabled:opacity-50 text-sm font-bold border border-white/10 shadow-sm"
+             >
+               {exportando ? (
+                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+               ) : (
+                 <Award className="w-4 h-4 mr-2" />
+               )}
+               {exportando ? "Preparando..." : "Exportar PDF"}
+            </button>
+
+            <button 
+              onClick={alCerrar} 
+              className="p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all active:scale-95"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto bg-white p-6 md:p-8">
           {cargando ? (
             <div className="flex flex-col items-center justify-center py-20">
@@ -109,9 +154,8 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
               <p className="text-lg font-black text-[#0B1828]">No se pudo cargar la información</p>
             </div>
           ) : (
-            <div className="space-y-6"> {/* Reducido el espacio a space-y-6 para acomodar filtros */}
+            <div className="space-y-6">
               
-              {/* Tarjeta de Resumen Docente */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
                 <div className="h-16 w-16 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center shrink-0">
                   <Award className="w-8 h-8 text-slate-300" />
@@ -137,7 +181,6 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
                 </div>
               </div>
 
-              {/* Barra de Filtros interactiva */}
               {datos.historial && datos.historial.length > 0 && (
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
                   <div className="flex items-center text-slate-400 mr-2 shrink-0">
@@ -167,7 +210,6 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
                 </div>
               )}
 
-              {/* Tablas de Historial */}
               {!datos.historial || datos.historial.length === 0 ? (
                 <div className="bg-slate-50 rounded-3xl border border-slate-100 text-center py-16 mt-4">
                   <div className="bg-white shadow-sm w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -178,7 +220,6 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
                 </div>
               ) : (
                 agruparHistorial(datos.historial).length === 0 ? (
-                  // Mensaje cuando un filtro específico no tiene resultados
                   <div className="bg-slate-50 rounded-3xl border border-slate-100 text-center py-16 mt-4 animate-in fade-in duration-300">
                     <div className="bg-white shadow-sm w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Filter className="w-8 h-8 text-slate-300" />
@@ -249,19 +290,15 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
                                       </span>
                                     </td>
 
-                                    <td className="px-6 py-5 whitespace-nowrap">
-                                      <div className="flex flex-col items-center justify-center">
-                                        {clase.promedio_consolidado ? (
-                                          <div className="flex items-center px-4 py-2 rounded-xl bg-slate-50 text-[#0B1828] border border-slate-200 text-xs font-black shadow-sm">
-                                            <BarChart2 className="w-4 h-4 mr-2 text-slate-400" />
-                                            Prom: {Number(clase.promedio_consolidado).toFixed(2)}
-                                          </div>
-                                        ) : (
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                                            Sin calificar
-                                          </span>
-                                        )}
-                                      </div>
+                                    <td className="px-6 py-5 whitespace-nowrap text-center">
+                                      {clase.promedio_consolidado ? (
+                                        <div className="inline-flex items-center px-4 py-2 rounded-xl bg-slate-50 text-[#0B1828] border border-slate-200 text-xs font-black shadow-sm">
+                                          <BarChart2 className="w-4 h-4 mr-2 text-slate-400" />
+                                          {Number(clase.promedio_consolidado).toFixed(2)}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">PENDIENTE</span>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -278,13 +315,12 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
           )}
         </div>
 
-        {/* Footer */}
         <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-5 flex justify-end shrink-0">
           <button 
             onClick={alCerrar}
             className="px-8 py-3 bg-[#0B1828] text-white rounded-xl text-sm font-black hover:bg-[#162840] hover:shadow-[#0B1828]/30 transition-all active:scale-95 shadow-lg"
           >
-            Finalizar revisión
+            Cerrar historial
           </button>
         </div>
 

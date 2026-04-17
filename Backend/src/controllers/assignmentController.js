@@ -535,6 +535,30 @@ const reactivarAsignacion = async (req, res) => {
       return res.status(404).json({ error: 'Historial no encontrado: No existen registros de horarios para reactivar esta clase.' });
     }
 
+    // ─── VALIDACIÓN DE ESTATUS DE ENTIDADES VINCULADAS ────────────────────
+    const status = await assignmentModel.checkLinkedEntitiesStatus(periodo_id, materia_id, docente_id, grupo_id);
+    
+    if (status.periodo_status !== 'ACTIVO') {
+      return res.status(422).json({ error: 'Operación denegada: El periodo seleccionado se encuentra INACTIVO.' });
+    }
+    if (status.materia_status !== 'ACTIVO') {
+      return res.status(422).json({ error: 'Operación denegada: La materia vinculada se encuentra INACTIVA.' });
+    }
+    if (status.docente_status !== 'ACTIVO') {
+      return res.status(422).json({ error: 'Operación denegada: El docente vinculado tiene estatus de BAJA o INACTIVO.' });
+    }
+    if (status.grupo_status && status.grupo_status !== 'ACTIVO') {
+      return res.status(422).json({ error: 'Operación denegada: El grupo vinculado se encuentra INACTIVO.' });
+    }
+
+    const aulaIds = [...new Set(horariosCerrados.map(h => h.aula_id))];
+    const aulasStatus = await assignmentModel.checkAulasStatus(aulaIds);
+    const aulaInactiva = aulasStatus.find(a => a.estatus !== 'ACTIVO');
+    if (aulaInactiva) {
+      return res.status(422).json({ error: `Operación denegada: El aula "${aulaInactiva.nombre_codigo}" se encuentra INACTIVA.` });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     for (const bloque of horariosCerrados) {
       const { dia_semana, hora_inicio, hora_fin, aula_id } = bloque;
       const nombreDia = diasMap[dia_semana] || 'ese día';
