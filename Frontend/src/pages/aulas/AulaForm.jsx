@@ -3,6 +3,7 @@ import { Save, ArrowLeft, Loader2, Home, AlertCircle, RefreshCw } from 'lucide-r
 import api from '../../services/api'; 
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
+import { REGEX } from '../../utils/regex';
 
 const EDIFICIOS_DISPONIBLES = [
   "Edificio A",
@@ -46,7 +47,13 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
   }, [aulaToEdit]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    // Standard Regex validation
+    if (name === 'nombre' && value !== '' && !REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(value)) return;
+    if (name === 'capacidad' && value !== '' && !REGEX.NUMEROS.test(value)) return;
+
+    setFormData({ ...formData, [name]: value });
     setError(null);
     setServerAction(null);
   };
@@ -190,12 +197,14 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
                     Capacidad Máxima <span className="text-[#0B1828] ml-1">*</span>
                   </label>
                   <input 
-                    type="number" 
+                    type="text"
+                    inputMode="numeric"
                     name="capacidad" 
                     value={formData.capacidad} 
                     onChange={handleChange} 
-                    min="1" max="200" required 
+                    required 
                     placeholder="Ej. 40"
+                    maxLength={3}
                     className={inputBaseClass}
                   />
                 </div>

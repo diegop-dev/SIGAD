@@ -2,6 +2,7 @@ import { X, BookOpen, UserCheck, Calendar, FileText, Shield, Loader2, Bookmark, 
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 
+
 export const AcademiaModal = ({ academia, onClose }) => {
   const [carreras, setCarreras] = useState([]);
   const [isLoadingCarreras, setIsLoadingCarreras] = useState(false);
@@ -105,9 +106,7 @@ export const AcademiaModal = ({ academia, onClose }) => {
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-[#0B1828] mb-0.5">Fecha de registro</span> 
                 <span className="text-slate-600 font-medium">
-                  {academia.fecha_creacion ? new Date(academia.fecha_creacion).toLocaleDateString('es-MX', {
-                    year: 'numeric', month: 'long', day: 'numeric'
-                  }) : '---'}
+                  {academia.fecha_creacion || '---'}
                 </span>
               </div>
             </div>

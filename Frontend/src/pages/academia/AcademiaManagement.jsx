@@ -10,6 +10,7 @@ import { DeactivateAcademiaModal } from './DeactivateAcademiaModal';
 import { ActivateAcademiaModal } from './ActivateAcademiaModal';
 import { useAuth } from '../../hooks/useAuth';
 
+
 export const AcademiaManagement = () => {
   const { user: currentUser } = useAuth(); 
   
@@ -264,7 +265,7 @@ export const AcademiaManagement = () => {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-medium">
-                      {a.fecha_creacion ? new Date(a.fecha_creacion).toLocaleDateString('es-MX') : '---'}
+                      {a.fecha_creacion || '---'}
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -4,6 +4,7 @@ import { Save, ArrowLeft, User, RefreshCw, Copy, CheckCircle, Mail, KeyRound, Sh
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { TOAST_USUARIOS, TOAST_COMMON } from "../../../constants/toastMessages";
+import { REGEX } from "../../utils/regex";
 
 export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const { user } = useAuth();
@@ -99,18 +100,24 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
     let sanitizedValue = value;
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
+      // Permitir solo letras (con acentos/eñe) y espacios simples intermedios
       sanitizedValue = sanitizedValue
-        .replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d1\s]/g, '') 
-        .replace(/^\s+/g, '') 
-        .replace(/\s{2,}/g, ' '); 
+        .replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d1\s]/g, '')
+        .replace(/^\s+/g, '')
+        .replace(/\s{2,}/g, ' ');
+      // Bloquear si contiene 3+ letras iguales consecutivas
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue)) return;
     } else if (['personal_email', 'institutional_email'].includes(name)) {
+      // Permitir solo caracteres válidos para email, evitar doble '@'
       sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._%-+]/g, '');
       const parts = sanitizedValue.split('@');
       if (parts.length > 2) {
         sanitizedValue = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
       }
     } else if (name === 'password_raw') {
-      sanitizedValue = sanitizedValue.replace(/\s/g, '');
+      // REGEX.SIN_ESPACIOS: no permite ningún tipo de espacio en la contraseña
+      if (value !== '' && !REGEX.SIN_ESPACIOS.test(value)) return;
+      sanitizedValue = value;
     }
 
     setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
@@ -150,29 +157,29 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
 
   const validateForm = () => {
     const newErrors = {};
-    const nameRegex = /^[a-zA-ZÀ-ÿ\u00f1\u00d1]+(\s[a-zA-ZÀ-ÿ\u00f1\u00d1]+)*$/;
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-    
+
     if (!formData.nombres) newErrors.nombres = "El nombre es un campo obligatorio.";
-    else if (!nameRegex.test(formData.nombres)) newErrors.nombres = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (!REGEX.NOMBRES.test(formData.nombres)) newErrors.nombres = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.nombres)) newErrors.nombres = "El nombre no puede contener tres o más letras iguales consecutivas.";
 
     if (!formData.apellido_paterno) newErrors.apellido_paterno = "El apellido paterno es un campo obligatorio.";
-    else if (!nameRegex.test(formData.apellido_paterno)) newErrors.apellido_paterno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (!REGEX.NOMBRES.test(formData.apellido_paterno)) newErrors.apellido_paterno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_paterno)) newErrors.apellido_paterno = "El apellido no puede contener tres o más letras iguales consecutivas.";
 
     if (!formData.apellido_materno) newErrors.apellido_materno = "El apellido materno es un campo obligatorio.";
-    else if (!nameRegex.test(formData.apellido_materno)) newErrors.apellido_materno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (!REGEX.NOMBRES.test(formData.apellido_materno)) newErrors.apellido_materno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_materno)) newErrors.apellido_materno = "El apellido no puede contener tres o más letras iguales consecutivas.";
 
     if (!formData.personal_email) newErrors.personal_email = "El correo personal es un campo obligatorio.";
-    else if (!emailRegex.test(formData.personal_email)) newErrors.personal_email = "El formato del correo ingresado no es válido.";
+    else if (!REGEX.EMAIL.test(formData.personal_email)) newErrors.personal_email = "El formato del correo ingresado no es válido.";
 
     if (!formData.institutional_email) newErrors.institutional_email = "El correo institucional es un campo obligatorio.";
-    else if (!emailRegex.test(formData.institutional_email)) newErrors.institutional_email = "El formato del correo ingresado no es válido.";
+    else if (!REGEX.EMAIL.test(formData.institutional_email)) newErrors.institutional_email = "El formato del correo ingresado no es válido.";
 
     if (!formData.rol_id) newErrors.rol_id = "Debe seleccionar un rol para el usuario.";
 
-    if (isEditing && formData.password_raw && !passwordRegex.test(formData.password_raw)) {
-      newErrors.password_raw = "La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula y un número.";
+    if (isEditing && formData.password_raw && !REGEX.PASSWORD_FUERTE_SIN_ESPACIOS.test(formData.password_raw)) {
+      newErrors.password_raw = "La contraseña debe tener al menos 8 caracteres, incluyendo una mayúscula y un número, sin espacios.";
     }
 
     if (errores.personal_email?.includes('registrado')) newErrors.personal_email = errores.personal_email;

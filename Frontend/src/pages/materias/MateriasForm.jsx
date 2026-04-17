@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Award, RefreshCw, GraduationCap } from "lucide-react";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { REGEX } from "../../utils/regex";
 
 export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
@@ -64,6 +65,11 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     
+    // Regex validation
+    if (name === "nombre" && value !== '' && !REGEX.NOMBRE_MATERIA.test(value)) return;
+    if (name === "nombre" && REGEX.TRIPLE_LETRA_REPETIDA.test(value)) return;
+    if ((name === "creditos" || name === "cupo_maximo") && value !== '' && !REGEX.NUMEROS.test(value)) return;
+
     if (name === "tipo_asignatura") {
       if (value === "TRONCO_COMUN") {
         setFormData(prev => ({ ...prev, tipo_asignatura: value, carrera_id: "" }));
@@ -78,7 +84,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
       let finalValue = value;
       if (name === 'codigo_unico') {
         finalValue = value.toUpperCase().slice(0, 15);
-      } else if (type === 'number') {
+      } else if (name === 'creditos' || name === 'cupo_maximo') {
         finalValue = value !== "" ? Number(value) : "";
       }
       setFormData(prev => ({ ...prev, [name]: finalValue }));
@@ -91,7 +97,15 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     const newErrors = {};
     const { nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, tipo_asignatura, carrera_id, nivel_academico } = formData;
 
-    if (!nombre?.trim()) newErrors.nombre = "El nombre de la materia es obligatorio";
+    if (!nombre?.trim()) {
+      newErrors.nombre = "El nombre de la materia es obligatorio";
+    } else if (nombre.trim().replace(REGEX.SOLO_LETRAS, '').length < 3) {
+      newErrors.nombre = "El nombre debe contener al menos 3 letras";
+    } else if (!REGEX.NOMBRE_MATERIA.test(nombre.trim())) {
+      newErrors.nombre = "El nombre solo puede contener letras, espacios, puntos, guiones y un dígito aislado";
+    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombre.trim())) {
+      newErrors.nombre = "El nombre no puede contener tres o más letras iguales consecutivas";
+    }
     if (!creditos || creditos < 1) newErrors.creditos = "Debe asignar al menos 1 crédito";
     if (!cupo_maximo || cupo_maximo < 1) newErrors.cupo_maximo = "El cupo debe ser mayor a 0";
     if (!periodo_id) newErrors.periodo_id = "Seleccione el periodo escolar";
@@ -322,12 +336,12 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
                   <Award className="w-4 h-4 mr-2" /> Créditos académicos <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="creditos"
                   value={formData.creditos}
                   onChange={handleChange}
-                  min="1"
-                  max="30"
+                  maxLength={2}
                   className={`${inputBaseClass} ${getValidationClass(errores.creditos)} cursor-text`}
                 />
                 {errores.creditos && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.creditos}</p>}
@@ -338,12 +352,12 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
                   <Users className="w-4 h-4 mr-2" /> Cupo máximo <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="cupo_maximo"
                   value={formData.cupo_maximo}
                   onChange={handleChange}
-                  min="1"
-                  max="100"
+                  maxLength={3}
                   className={`${inputBaseClass} ${getValidationClass(errores.cupo_maximo)} cursor-text`}
                 />
                 {errores.cupo_maximo && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.cupo_maximo}</p>}
