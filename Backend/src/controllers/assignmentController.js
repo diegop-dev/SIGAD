@@ -183,8 +183,25 @@ const sincronizarReportesExternos = async (req, res) => {
 // Crear asignación docente (HU-33)
 const createAsignacion = async (req, res) => {
   try {
-    const { periodo_id, materia_id, docente_id, grupo_id, horarios } = req.body;
+    const { materia_id, docente_id, grupo_id, horarios } = req.body;
+    let { periodo_id } = req.body;
     const creado_por = req.user?.id_usuario;
+
+    // ── Resolución robusta del periodo ───────────────────────────────────────
+    // Si el frontend no envía periodo_id, o lo omite, se determina desde la BD
+    // usando vigencias (fecha_inicio..fecha_fin) sin depender del campo estatus.
+    // Esto corrige el bug donde un periodo nuevo con ID mayor (aunque INACTIVO)
+    // desplazaba al periodo correcto en el auto-detect del frontend.
+    if (!periodo_id) {
+      const periodoActual = await assignmentModel.resolverPeriodoActual();
+      if (!periodoActual) {
+        return res.status(422).json({
+          error: 'Sin periodo vigente: No existe ningún periodo cuyas fechas de inicio y fin cubran el día de hoy. Verifica la configuración de periodos.',
+        });
+      }
+      periodo_id = periodoActual.id_periodo;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (!periodo_id || !materia_id || !docente_id || !horarios || horarios.length === 0) {
       return res.status(400).json({ error: 'Datos incompletos: Completa todos los campos requeridos y añade al menos un horario.' });
@@ -788,7 +805,24 @@ const sincronizarPromedios = async (req, res) => {
 // Validar borrador de asignación (Pre-flight Validation)
 const validarBorrador = async (req, res) => {
   try {
-    const { periodo_id, materia_id, docente_id, grupo_id, horarios, es_edicion } = req.body;
+    const { materia_id, docente_id, grupo_id, horarios, es_edicion } = req.body;
+    let { periodo_id } = req.body;
+
+    // ── Resolución robusta del periodo ───────────────────────────────────────
+    // Misma lógica que en createAsignacion: si el frontend no envía periodo_id
+    // (o lo omite), se determina desde la BD usando vigencias sin depender del
+    // campo estatus. Evita el 422 falso causado por un periodo INACTIVO con
+    // ID mayor que desplazaba al periodo real en el auto-detect del frontend.
+    if (!periodo_id) {
+      const periodoActual = await assignmentModel.resolverPeriodoActual();
+      if (!periodoActual) {
+        return res.status(422).json({
+          error: 'Sin periodo vigente: No existe ningún periodo cuyas fechas de inicio y fin cubran el día de hoy. Verifica la configuración de periodos.',
+        });
+      }
+      periodo_id = periodoActual.id_periodo;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (!periodo_id || !materia_id || !docente_id || !horarios || horarios.length === 0) {
       return res.status(400).json({ error: 'Datos incompletos: Faltan parámetros para validar el borrador. Completa el formulario.' });

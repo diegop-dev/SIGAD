@@ -438,6 +438,7 @@ const rechazarAsignacionesPorCarrera = async (carrera_id, usuario_id) => {
   `, [usuario_id, carrera_id, carrera_id]);
   return result.affectedRows;
 };
+
 const rechazarAsignacionesPorAcademia = async (academia_id, usuario_id) => {
   const result = await pool.query(`
     UPDATE asignaciones a
@@ -545,11 +546,30 @@ const cerrarAsignacionConPromedio = async (grupo_id, materia_id, promedio, usuar
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Resolución robusta del periodo actual ────────────────────────────────────
+// Criterio: periodo cuya vigencia (fecha_inicio..fecha_fin) contenga la fecha
+// actual, sin filtrar por estatus. Si hay solapamiento toma el de mayor id.
+// Esto evita que un periodo INACTIVO recién creado con ID mayor desplace al
+// periodo vigente que el frontend tenía seleccionado como "activo".
+const resolverPeriodoActual = async () => {
+  const rows = await pool.query(`
+    SELECT id_periodo, codigo, anio, fecha_inicio, fecha_fin, estatus
+    FROM periodos
+    WHERE fecha_inicio <= CURDATE() AND fecha_fin >= CURDATE()
+    ORDER BY id_periodo DESC
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
   checkMateriaDuplicadaGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
   createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
   actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
-  ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo, rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia
+  ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo,
+  rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia,
+  resolverPeriodoActual,
 };

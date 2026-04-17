@@ -149,27 +149,53 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   useEffect(() => {
     const fetchCatalogs = async () => {
       try {
-        const [resPeriodos, resDocentes, resMaterias, resGrupos, resAulas, resCarreras] = await Promise.all([
-          api.get('/periodos').catch(() => ({ data: [] })),
-          api.get('/docentes').catch(() => ({ data: [] })),
-          api.get('/materias').catch(() => ({ data: [] })),
-          api.get('/grupos').catch(() => ({ data: [] })),
-          api.get('/aulas/consultar').catch(() => ({ data: [] })),
-          api.get('/carreras').catch(() => ({ data: [] })),
+        const [
+          resPeriodos,
+          resDocentes,
+          resMaterias,
+          resGrupos,
+          resAulas,
+          resCarreras,
+        ] = await Promise.all([
+          api.get("/periodos").catch(() => ({ data: [] })),
+          api.get("/docentes").catch(() => ({ data: [] })),
+          api.get("/materias").catch(() => ({ data: [] })),
+          api.get("/grupos").catch(() => ({ data: [] })),
+          api.get("/aulas/consultar").catch(() => ({ data: [] })),
+          api.get("/carreras").catch(() => ({ data: [] })),
         ]);
-        
-        // Determinar e inyectar el periodo activo silenciosamente
+
+        // Determinar e inyectar el periodo vigente silenciosamente.
+        // Criterio: mismo que el backend (resolverPeriodoActual) — busca el periodo
+        // cuya fecha_inicio..fecha_fin contenga hoy, sin importar el campo estatus.
+        // Si hay solapamiento, gana el de mayor id_periodo. Así un periodo INACTIVO
+        // recién creado con ID mayor no desplaza al periodo real en curso.
         const loadedPeriodos = resPeriodos.data?.data || resPeriodos.data || [];
         if (!isEditing) {
           if (loadedPeriodos.length > 0) {
-            // Busca la propiedad que defina si está activo, o toma el primero/último por defecto
-            const periodoActivo = loadedPeriodos.find(p => 
-              p.activo === 1 || p.activo === true || p.estado === 'ACTIVO' || p.estatus === 1
-            ) || loadedPeriodos[0];
-            
-            setFormData(prev => ({ ...prev, periodo_id: periodoActivo.id_periodo }));
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+
+            const candidatos = loadedPeriodos.filter((p) => {
+              const inicio = new Date(p.fecha_inicio);
+              const fin = new Date(p.fecha_fin);
+              inicio.setHours(0, 0, 0, 0);
+              fin.setHours(23, 59, 59, 999);
+              return inicio <= hoy && fin >= hoy;
+            });
+
+            // Si ningún periodo cubre hoy (caso extremo), cae al de mayor ID
+            const periodoVigente =
+              candidatos.length > 0
+                ? candidatos.sort((a, b) => b.id_periodo - a.id_periodo)[0]
+                : loadedPeriodos.sort((a, b) => b.id_periodo - a.id_periodo)[0];
+
+            setFormData((prev) => ({
+              ...prev,
+              periodo_id: periodoVigente.id_periodo,
+            }));
           } else {
-            toast.error("Atención: No hay periodos activos registrados.");
+            toast.error("Atención: No hay periodos registrados en el sistema.");
           }
         }
 
@@ -180,14 +206,18 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         setGrupos(loadedGrupos);
         setAulas(resAulas.data?.data || resAulas.data || []);
         setCarreras(resCarreras.data?.data || resCarreras.data || []);
-        
+
         if (isEditing && initialData?.materia_id) {
-          const mat = loadedMaterias.find(m => Number(m.id_materia) === Number(initialData.materia_id));
-          if (mat && mat.tipo_asignatura === 'TRONCO_COMUN') {
+          const mat = loadedMaterias.find(
+            (m) => Number(m.id_materia) === Number(initialData.materia_id),
+          );
+          if (mat && mat.tipo_asignatura === "TRONCO_COMUN") {
             setIsTroncoComunFlow(true);
           } else if (initialData?.grupo_id) {
-            const g = loadedGrupos.find(x => Number(x.id_grupo) === Number(initialData.grupo_id));
-            if (g) setFormData(p => ({ ...p, carrera_id: g.carrera_id }));
+            const g = loadedGrupos.find(
+              (x) => Number(x.id_grupo) === Number(initialData.grupo_id),
+            );
+            if (g) setFormData((p) => ({ ...p, carrera_id: g.carrera_id }));
           }
         }
       } catch {
