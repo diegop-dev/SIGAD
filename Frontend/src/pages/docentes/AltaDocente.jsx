@@ -4,6 +4,8 @@ import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, Use
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth"; 
 import { TOAST_DOCENTES, TOAST_COMMON } from "../../../constants/toastMessages";
+import { formatToGlobalUppercase } from "../../utils/textFormatter";
+import { REGEX } from "../../utils/regex";
 
 const calcularRaizRFC = (nombres, paterno, materno) => {
   if (!nombres || !paterno) return "";
@@ -101,7 +103,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
   const regexRFC  = /^([A-ZÑ&]{4})\d{6}([A-Z0-9]{3})$/;
   const regexCURP = /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z]\d$/;
-  const regexEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   useEffect(() => {
     const fetchCatalogos = async () => {
@@ -188,19 +189,22 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const handleKeyDownStrict = (e) => { if (e.key === " ") e.preventDefault(); };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    let sanitizedValue = value;
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
+    let sanitizedValue = formattedValue;
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').replace(/\s{2,}/g, ' '); 
+      sanitizedValue = sanitizedValue
+        .replace(/[^a-zA-ZÀ-ÿ\u00f1\u00d1\s]/g, '')
+        .replace(/^\s+/g, '')
+        .replace(/\s{2,}/g, ' ');
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue)) return;
     } else if (['personal_email', 'institutional_email'].includes(name)) {
-      sanitizedValue = sanitizedValue.replace(/\s/g, '').toLowerCase(); 
-      const atCount = (sanitizedValue.match(/@/g) || []).length;
-      if (atCount > 1) {
-        const parts = sanitizedValue.split('@');
+      sanitizedValue = sanitizedValue.replace(/[^a-zA-Z0-9@._%-+]/g, '');
+      const parts = sanitizedValue.split('@');
+      if (parts.length > 2) {
         sanitizedValue = parts[0] + '@' + parts.slice(1).join('').replace(/@/g, '');
       }
-      sanitizedValue = sanitizedValue.replace(/\.{2,}/g, '.');
     } else if (name === "rfc" || name === "curp" || name === "clave_ine") {
       sanitizedValue = sanitizedValue.toUpperCase().replace(/[^A-Z0-9Ñ]/g, "");
       
@@ -220,7 +224,37 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     }
 
     setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
-    if (errores[name] && !['rfc', 'curp'].includes(name)) setErrores({ ...errores, [name]: null });
+    if (errores[name] && !['rfc', 'curp'].includes(name)) {
+      const newErrors = { ...errores };
+      delete newErrors[name];
+      setErrores(newErrors);
+    }
+  };
+
+  const handleBlur = async (e) => {
+    const { name, value } = e.target;
+    let finalValue = value.trim();
+
+    if (['personal_email', 'institutional_email'].includes(name)) {
+      finalValue = finalValue.toLowerCase();
+      
+      if (finalValue && (!isEditing || finalValue !== docenteToEdit[name])) {
+        try {
+          const response = await api.get(`/users/check-email?email=${finalValue}`);
+          if (response.data.exists) {
+            const fieldMatch = response.data.field === 'personal_email' ? 'Personal' : 'Institucional';
+            setErrores(prev => ({
+              ...prev,
+              [name]: `Este correo ya se encuentra registrado como correo ${fieldMatch.toLowerCase()}.`
+            }));
+          }
+        } catch (error) {
+          console.error("Error al validar el correo", error);
+        }
+      }
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: finalValue }));
   };
 
   const handleFileChange = (e) => {
@@ -241,19 +275,32 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
   const validarPaso1 = () => {
     const newErrors = {};
-    if (!formData.nombres.trim()) newErrors.nombres = "Requerido";
-    if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "Requerido";
-    if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "Requerido";
+    if (!formData.nombres.trim()) newErrors.nombres = "El nombre es un campo obligatorio.";
+    else if (!REGEX.NOMBRES.test(formData.nombres)) newErrors.nombres = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.nombres)) newErrors.nombres = "El nombre no puede contener tres o más letras iguales consecutivas.";
+
+    if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "El apellido paterno es un campo obligatorio.";
+    else if (!REGEX.NOMBRES.test(formData.apellido_paterno)) newErrors.apellido_paterno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_paterno)) newErrors.apellido_paterno = "El apellido no puede contener tres o más letras iguales consecutivas.";
+
+    if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "El apellido materno es un campo obligatorio.";
+    else if (!REGEX.NOMBRES.test(formData.apellido_materno)) newErrors.apellido_materno = "Solo se permiten letras y un espacio simple entre palabras.";
+    else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_materno)) newErrors.apellido_materno = "El apellido no puede contener tres o más letras iguales consecutivas.";
     
     if (!formData.personal_email) {
-      newErrors.personal_email = "Requerido";
-    } else if (!regexEmail.test(formData.personal_email)) {
-      newErrors.personal_email = "Correo inválido";
+      newErrors.personal_email = "El correo personal es un campo obligatorio.";
+    } else if (!REGEX.EMAIL.test(formData.personal_email)) {
+      newErrors.personal_email = "El formato del correo ingresado no es válido.";
     }
 
-    if (formData.institutional_email && !regexEmail.test(formData.institutional_email)) {
-      newErrors.institutional_email = "Correo inválido";
+    if (!formData.institutional_email) {
+      newErrors.institutional_email = "El correo institucional es un campo obligatorio.";
+    } else if (!REGEX.EMAIL.test(formData.institutional_email)) {
+      newErrors.institutional_email = "El formato del correo ingresado no es válido.";
     }
+
+    if (errores.personal_email?.includes('registrado')) newErrors.personal_email = errores.personal_email;
+    if (errores.institutional_email?.includes('registrado')) newErrors.institutional_email = errores.institutional_email;
     
     setErrores(newErrors);
     if (Object.keys(newErrors).length === 0) setPaso(2);
@@ -395,33 +442,33 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   <User className="w-4 h-4 mr-2" /> Nombres <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="text" name="nombres" value={formData.nombres} onChange={handleChange}
+                  type="text" name="nombres" maxLength="50" value={formData.nombres} onChange={handleChange} onBlur={handleBlur}
                   placeholder="Ej. Juan Carlos"
                   className={`${inputBaseClass} ${getValidationClass(errores.nombres)}`}
                 />
-                {errores.nombres && <p className="text-xs font-bold text-red-500">{errores.nombres}</p>}
+                {errores.nombres && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.nombres}</p>}
               </div>
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828]">
                   <User className="w-4 h-4 mr-2 opacity-0" /> Apellido paterno <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="text" name="apellido_paterno" value={formData.apellido_paterno} onChange={handleChange}
+                  type="text" name="apellido_paterno" maxLength="50" value={formData.apellido_paterno} onChange={handleChange} onBlur={handleBlur}
                   placeholder="Ej. Pérez"
                   className={`${inputBaseClass} ${getValidationClass(errores.apellido_paterno)}`}
                 />
-                {errores.apellido_paterno && <p className="text-xs font-bold text-red-500">{errores.apellido_paterno}</p>}
+                {errores.apellido_paterno && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.apellido_paterno}</p>}
               </div>
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828]">
                   <User className="w-4 h-4 mr-2 opacity-0" /> Apellido materno <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="text" name="apellido_materno" value={formData.apellido_materno} onChange={handleChange}
+                  type="text" name="apellido_materno" maxLength="50" value={formData.apellido_materno} onChange={handleChange} onBlur={handleBlur}
                   placeholder="Ej. López"
                   className={`${inputBaseClass} ${getValidationClass(errores.apellido_materno)}`}
                 />
-                {errores.apellido_materno && <p className="text-xs font-bold text-red-500">{errores.apellido_materno}</p>}
+                {errores.apellido_materno && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.apellido_materno}</p>}
               </div>
             </div>
 
@@ -431,22 +478,22 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   <Mail className="w-4 h-4 mr-2" /> Correo personal <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="email" name="personal_email" value={formData.personal_email} onChange={handleChange}
+                  type="email" name="personal_email" maxLength="100" value={formData.personal_email} onChange={handleChange} onBlur={handleBlur} onKeyDown={handleKeyDownStrict}
                   placeholder="juan@gmail.com"
                   className={`${inputBaseClass} ${getValidationClass(errores.personal_email)}`}
                 />
-                {errores.personal_email && <p className="text-xs font-bold text-red-500">{errores.personal_email}</p>}
+                {errores.personal_email && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.personal_email}</p>}
               </div>
               <div className="space-y-2">
                 <label className="flex items-center text-sm font-bold text-[#0B1828]">
                   <Mail className="w-4 h-4 mr-2" /> Correo institucional <span className="text-[#0B1828] ml-1">*</span>
                 </label>
                 <input
-                  type="email" name="institutional_email" value={formData.institutional_email} onChange={handleChange}
+                  type="email" name="institutional_email" maxLength="100" value={formData.institutional_email} onChange={handleChange} onBlur={handleBlur} onKeyDown={handleKeyDownStrict}
                   placeholder="j.perez@red.unid.mx"
                   className={`${inputBaseClass} ${getValidationClass(errores.institutional_email)}`}
                 />
-                {errores.institutional_email && <p className="text-xs font-bold text-red-500">{errores.institutional_email}</p>}
+                {errores.institutional_email && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.institutional_email}</p>}
               </div>
             </div>
 

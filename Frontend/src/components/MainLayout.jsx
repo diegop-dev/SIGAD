@@ -167,8 +167,8 @@ export const MainLayout = () => {
                 <p className="text-sm font-bold text-white truncate group-hover:text-slate-200 transition-colors leading-tight">
                   {user?.nombres.split(' ')[0]} {user?.apellido_paterno}
                 </p>
-                <p className="text-[11px] text-slate-400 font-bold truncate group-hover:text-slate-300 transition-colors mt-0.5 uppercase tracking-wider">
-                  {user?.rol_id === 1 ? 'Superadmin' : user?.rol_id === 2 ? 'Admin' : 'Docente'}
+                <p className="text-[11px] text-slate-400 font-bold truncate group-hover:text-slate-300 transition-colors mt-0.5 tracking-wider">
+                  {user?.rol_id === 1 ? 'Superadministrador' : user?.rol_id === 2 ? 'Administrador' : 'Docente'}
                 </p>
               </div>
             )}

@@ -177,7 +177,6 @@ export const HorariosManagement = () => {
 
   return (
     <div className="space-y-6">
-
       {/* ════════════════════════════════════════════════════════════════
           FIX 4 — Header responsivo
           • En móvil: título arriba, controles abajo apilados en columna
@@ -185,7 +184,6 @@ export const HorariosManagement = () => {
          ════════════════════════════════════════════════════════════════ */}
       <div className="bg-[#0B1828] p-6 md:p-8 rounded-3xl shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
-
           {/* Título */}
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
@@ -200,20 +198,20 @@ export const HorariosManagement = () => {
           {/* Controles — solo cuando hay datos */}
           {!isLoading && periodos.length > 0 && (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-
               {/* Selector compacto */}
               <div className="relative">
                 <select
-                  value={periodo?.id_periodo ?? ''}
+                  value={periodo?.id_periodo ?? ""}
                   onChange={handleCambioPeriodo}
                   className="w-full sm:w-auto appearance-none pl-3 pr-8 py-2 text-sm font-semibold
                              text-[#0B1828] bg-white rounded-xl border border-white/20 shadow-sm
                              focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer
                              transition-all duration-200"
                 >
-                  {periodos.map(p => (
+                  {periodos.map((p) => (
                     <option key={p.id_periodo} value={p.id_periodo}>
-                      {p.codigo} · {p.anio}{p.estatus === 'ACTIVO' ? ' (activo)' : ''}
+                      {p.codigo} · {p.anio}
+                      {p.estatus === "ACTIVO" ? " (activo)" : ""}
                     </option>
                   ))}
                 </select>
@@ -236,15 +234,16 @@ export const HorariosManagement = () => {
                            disabled:opacity-50 disabled:cursor-not-allowed
                            w-full sm:w-auto"
               >
-                {isDownloading
-                  ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin shrink-0" />
-                  : <Download className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                }
+                {isDownloading ? (
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin shrink-0" />
+                ) : (
+                  <Download className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                )}
                 <span className="sm:hidden text-sm">
-                  {isDownloading ? 'Generando…' : 'Descargar PDF'}
+                  {isDownloading ? "Generando…" : "Descargar PDF"}
                 </span>
                 <span className="hidden sm:inline text-sm">
-                  {isDownloading ? 'Generando…' : 'Descargar PDF oficial'}
+                  {isDownloading ? "Generando…" : "Descargar PDF oficial"}
                 </span>
               </button>
             </div>
@@ -256,32 +255,35 @@ export const HorariosManagement = () => {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm">
           <Loader2 className="h-10 w-10 text-[#0B1828] animate-spin mb-4" />
-          <p className="text-sm text-slate-500 font-medium">Cargando tu horario...</p>
+          <p className="text-sm text-slate-500 font-medium">
+            Cargando tu horario...
+          </p>
         </div>
-
       ) : sinPeriodos ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm">
           <div className="bg-slate-50 p-5 rounded-full mb-4 border border-slate-100">
             <AlertCircle className="h-8 w-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-black text-[#0B1828] mb-1">Sin horario asignado</h3>
+          <h3 className="text-lg font-black text-[#0B1828] mb-1">
+            Sin horario asignado
+          </h3>
           <p className="text-sm text-slate-500 font-medium max-w-sm text-center">
-            No tienes asignaciones confirmadas en ningún periodo escolar.
-            La coordinación te notificará cuando tu horario esté disponible.
+            No tienes asignaciones confirmadas en ningún periodo escolar. La
+            coordinación te notificará cuando tu horario esté disponible.
           </p>
         </div>
-
       ) : horarios.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
           <div className="bg-slate-50 p-5 rounded-full mb-4 border border-slate-100">
             <AlertCircle className="h-8 w-8 text-slate-400" />
           </div>
-          <h3 className="text-lg font-black text-[#0B1828] mb-1">Sin clases en este periodo</h3>
+          <h3 className="text-lg font-black text-[#0B1828] mb-1">
+            Sin clases en este periodo
+          </h3>
           <p className="text-sm text-slate-500 font-medium max-w-sm text-center">
             Selecciona otro periodo en el selector superior.
           </p>
         </div>
-
       ) : (
         <>
           {/* ════════════════════════════════════════════════════════════
@@ -291,12 +293,15 @@ export const HorariosManagement = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5">
             {resumen.map((asig, i) => {
               const sesiones = horarios.filter(
-                h => h.nombre_materia === asig.nombre_materia &&
-                     h.nombre_grupo  === asig.nombre_grupo
+                (h) =>
+                  h.nombre_materia === asig.nombre_materia &&
+                  h.nombre_grupo === asig.nombre_grupo,
               );
-              const esTroncoComun = asig.nombre_grupo === 'TRONCO COMÚN';
-              const nivelStr      = (asig.nivel_academico || 'LICENCIATURA').toUpperCase();
-              const tipoStr       = asig.tipo_asignatura  || 'OBLIGATORIA';
+              const esTroncoComun = asig.nombre_grupo === "TRONCO COMÚN";
+              const nivelStr = (
+                asig.nivel_academico || "LICENCIATURA"
+              ).toUpperCase();
+              const tipoStr = asig.tipo_asignatura || "OBLIGATORIA";
 
               return (
                 <div
@@ -307,14 +312,18 @@ export const HorariosManagement = () => {
                   {/* ── Cabecera navy ── */}
                   <div className="bg-[#0B1828] p-5 rounded-t-3xl border-b border-slate-800 flex flex-col gap-3">
                     <div className="flex justify-between items-start gap-2 w-full">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black
-                                       bg-white/10 text-white border border-white/10 uppercase tracking-wider shrink-0">
+                      <span
+                        className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black
+                                       bg-white/10 text-white border border-white/10 uppercase tracking-wider shrink-0"
+                      >
                         <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-white/70" />
                         {asig.codigo_periodo}
                       </span>
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black
+                      <span
+                        className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black
                                        uppercase tracking-wider bg-emerald-500/20 text-emerald-400
-                                       border border-emerald-500/30 shrink-0">
+                                       border border-emerald-500/30 shrink-0"
+                      >
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                         Aceptada
                       </span>
@@ -326,24 +335,29 @@ export const HorariosManagement = () => {
 
                   {/* ── Cuerpo ── */}
                   <div className="p-5 flex-1 flex flex-col gap-4">
-
                     {/*
                       FIX 1 — Fila de badges técnicos, igual que TeacherAssignments:
                       código único | nivel académico | tipo asignatura
                     */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex items-center text-xs font-black text-slate-500
+                      <span
+                        className="flex items-center text-xs font-black text-slate-500
                                        bg-white px-2.5 py-1.5 rounded-lg border border-slate-200
-                                       shadow-sm uppercase tracking-wider">
-                        {asig.codigo_unico || 'SIN CÓDIGO'}
+                                       shadow-sm uppercase tracking-wider"
+                      >
+                        {asig.codigo_unico || "SIN CÓDIGO"}
                       </span>
-                      <span className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black
-                                        text-[10px] uppercase tracking-wider ${getNivelStyles(nivelStr)}`}>
+                      <span
+                        className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black
+                                        text-[10px] uppercase tracking-wider ${getNivelStyles(nivelStr)}`}
+                      >
                         {nivelStr}
                       </span>
-                      <span className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black
-                                        text-[10px] uppercase tracking-wider ${getTipoStyles(tipoStr)}`}>
-                        {tipoStr.replace(/_/g, ' ')}
+                      <span
+                        className={`px-2.5 py-1.5 rounded-lg border shadow-sm font-black
+                                        text-[10px] uppercase tracking-wider ${getTipoStyles(tipoStr)}`}
+                      >
+                        {tipoStr.replace(/_/g, " ")}
                       </span>
                     </div>
 
@@ -352,13 +366,15 @@ export const HorariosManagement = () => {
                       <Users className="w-5 h-5 text-slate-400 mr-3 shrink-0" />
                       <p className="text-sm font-medium text-slate-600">
                         {esTroncoComun ? (
-                          <>Modalidad:
+                          <>
+                            Modalidad:
                             <span className="text-[#0B1828] font-black text-sm block mt-0.5">
                               Tronco Común (Multidisciplinar)
                             </span>
                           </>
                         ) : (
-                          <>Grupo asignado:
+                          <>
+                            Grupo asignado:
                             <span className="text-[#0B1828] font-black text-sm block mt-0.5">
                               {asig.nombre_grupo}
                             </span>
@@ -380,24 +396,33 @@ export const HorariosManagement = () => {
                                        bg-white border border-slate-200 shadow-sm gap-3"
                           >
                             <div className="flex items-center text-sm font-black text-[#0B1828] min-w-0">
-                              <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100
+                              <div
+                                className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100
                                               flex items-center justify-center mr-3 shrink-0
-                                              text-xs font-black text-[#0B1828]">
-                                {DAYS.find(d => d.idx === Number(s.dia_semana))?.short ?? '—'}
+                                              text-xs font-black text-[#0B1828]"
+                              >
+                                {DAYS.find(
+                                  (d) => d.idx === Number(s.dia_semana),
+                                )?.short ?? "—"}
                               </div>
                               <div className="flex flex-col min-w-0">
                                 <span className="text-sm truncate">
-                                  {DAYS.find(d => d.idx === Number(s.dia_semana))?.label ?? '—'}
+                                  {DAYS.find(
+                                    (d) => d.idx === Number(s.dia_semana),
+                                  )?.label ?? "—"}
                                 </span>
                                 <span className="text-xs font-bold text-slate-500 flex items-center mt-0.5 whitespace-nowrap">
                                   <Clock className="w-3 h-3 mr-1 text-slate-400 shrink-0" />
-                                  {formatAMPM(s.hora_inicio)} – {formatAMPM(s.hora_fin)}
+                                  {formatAMPM(s.hora_inicio)} –{" "}
+                                  {formatAMPM(s.hora_fin)}
                                 </span>
                               </div>
                             </div>
-                            <div className="text-xs font-black text-[#0B1828] flex items-center
+                            <div
+                              className="text-xs font-black text-[#0B1828] flex items-center
                                             bg-slate-50 px-3 py-2 rounded-xl border border-slate-100
-                                            whitespace-nowrap shrink-0">
+                                            whitespace-nowrap shrink-0"
+                            >
                               <MapPin className="w-3.5 h-3.5 mr-1.5 text-blue-600 shrink-0" />
                               {s.nombre_aula}
                             </div>
@@ -413,182 +438,185 @@ export const HorariosManagement = () => {
 
           {/* ── Cuadrícula semanal ───────────────────────────────────────── */}
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-
-            <div className="px-6 py-4 bg-[#0B1828] rounded-t-3xl flex items-center justify-between">
+            <div className="px-6 py-4 bg-[#0B1828] rounded-t-3xl flex items-center">
               <h2 className="text-base font-black text-white flex items-center">
                 <FileText className="w-4 h-4 mr-2 text-white/70" />
                 Vista semanal — 07:00 a 22:00
               </h2>
-              <span className="text-xs text-white/50 font-medium hidden sm:block">
-                Desplázate para ver todas las horas
-              </span>
             </div>
 
-            {/* scroll-x en el wrapper; scroll-y solo en el cuerpo */}
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: '600px' }}>
-
-                {/* Header de días — fuera del scroll vertical */}
-                <div className="flex border-b-2 border-slate-200 bg-white">
-                  <div className="shrink-0 bg-white border-r border-slate-200" style={{ width: '52px' }} />
-                  {DAYS.map(day => (
-                    <div
-                      key={day.idx}
-                      style={{ minWidth: '88px' }}
-                      className={`flex-1 py-3 text-center text-xs font-black tracking-wider
-                                  border-r border-slate-200 last:border-r-0 ${
-                        day.idx === 6 ? 'bg-slate-50 text-slate-400' : 'bg-white text-[#0B1828]'
-                      }`}
-                    >
-                      <span className="hidden sm:block">{day.label}</span>
-                      <span className="sm:hidden">{day.short}</span>
-                    </div>
-                  ))}
+            {/* Header de días */}
+            <div className="flex border-b-2 border-slate-200 bg-white">
+              {/* Espaciado de columna-hora — responsivo */}
+              <div className="shrink-0 bg-white border-r border-slate-200 w-10 sm:w-14" />
+              {DAYS.map((day) => (
+                <div
+                  key={day.idx}
+                  className={`flex-1 py-3 text-center text-xs font-black tracking-wider
+                    border-r border-slate-200 last:border-r-0 ${
+                      day.idx === 6
+                        ? "bg-slate-50 text-slate-400"
+                        : "bg-white text-[#0B1828]"
+                    }`}
+                >
+                  <span className="hidden md:block">{day.label}</span>
+                  <span className="md:hidden">{day.short}</span>
                 </div>
+              ))}
+            </div>
 
-                {/* Cuerpo con scroll vertical acotado */}
-                <div className="overflow-y-auto" style={{ maxHeight: '540px' }}>
-                  <div className="flex">
-
-                    {/* Columna de horas (slot 30 = 22:00) */}
+            {/* Cuerpo — sin scrollbars */}
+            <div className="flex">
+              {/* Columna de horas */}
+              <div
+                className="shrink-0 border-r border-slate-200 bg-slate-50 w-10 sm:w-14"
+                style={{
+                  height: `${SLOT_H_PX * (TOTAL_SLOTS + 1)}px`,
+                  position: "relative",
+                }}
+              >
+                {Array.from({ length: TOTAL_SLOTS + 1 }, (_, slot) => {
+                  const totalMin = START_MIN + slot * 30;
+                  const isHour = slot % 2 === 0;
+                  const h = Math.floor(totalMin / 60)
+                    .toString()
+                    .padStart(2, "0");
+                  const m = (totalMin % 60).toString().padStart(2, "0");
+                  return (
                     <div
-                      className="shrink-0 border-r border-slate-200 bg-slate-50"
-                      style={{ width: '52px', height: `${SLOT_H_PX * (TOTAL_SLOTS + 1)}px`, position: 'relative' }}
+                      key={slot}
+                      style={{ top: slot * SLOT_H_PX, height: SLOT_H_PX }}
+                      className="absolute w-full flex items-center justify-center border-b border-slate-100"
                     >
-                      {Array.from({ length: TOTAL_SLOTS + 1 }, (_, slot) => {
-                        const totalMin = START_MIN + slot * 30;
-                        const isHour   = slot % 2 === 0;
-                        const h = Math.floor(totalMin / 60).toString().padStart(2, '0');
-                        const m = (totalMin % 60).toString().padStart(2, '0');
+                      {isHour && (
+                        <span className="text-[10px] font-medium text-slate-400 leading-none">
+                          {h}:{m}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Columnas de días */}
+              {DAYS.map((day) => {
+                const isWeekend = day.idx === 6;
+                const bloques = bloquesPorDia[day.idx] || [];
+                return (
+                  <div
+                    key={day.idx}
+                    className="flex-1 border-r border-slate-200 last:border-r-0"
+                  >
+                    <div
+                      style={{
+                        height: `${TOTAL_GRID_H}px`,
+                        position: "relative",
+                      }}
+                      className={isWeekend ? "bg-slate-50/60" : "bg-white"}
+                    >
+                      {/* Líneas de fondo */}
+                      {Array.from({ length: TOTAL_SLOTS }, (_, slot) => (
+                        <div
+                          key={slot}
+                          style={{ top: slot * SLOT_H_PX, height: SLOT_H_PX }}
+                          className={`absolute w-full border-b ${
+                            slot % 2 === 0
+                              ? "border-slate-200"
+                              : "border-slate-100"
+                          }`}
+                        />
+                      ))}
+
+                      {/* Bloques */}
+                      {bloques.map((bloque, bi) => {
+                        const { topPx, heightPx, color } = bloque;
+                        const nivelStr = (
+                          bloque.nivel_academico || "LICENCIATURA"
+                        ).toUpperCase();
+                        const tipoStr = bloque.tipo_asignatura || "OBLIGATORIA";
+
+                        const showAula = heightPx >= 46;
+                        const showNivel = heightPx >= 66;
+                        const showTipo = heightPx >= 86;
+                        const showTime = heightPx >= 106;
+
+                        const nivelGridStyle =
+                          nivelStr === "DOCTORADO"
+                            ? "bg-purple-200 text-purple-900"
+                            : nivelStr === "MAESTRIA"
+                              ? "bg-amber-200  text-amber-900"
+                              : "bg-blue-200   text-blue-900";
+
+                        const tipoGridStyle =
+                          tipoStr === "TRONCO_COMUN"
+                            ? "bg-slate-200   text-slate-700"
+                            : tipoStr === "OBLIGATORIA"
+                              ? "bg-emerald-200 text-emerald-900"
+                              : tipoStr === "OPTATIVA"
+                                ? "bg-purple-200  text-purple-900"
+                                : "bg-slate-200   text-slate-700";
+
                         return (
                           <div
-                            key={slot}
-                            style={{ top: slot * SLOT_H_PX, height: SLOT_H_PX }}
-                            className="absolute w-full flex items-center justify-center border-b border-slate-100"
+                            key={bi}
+                            title={`${bloque.nombre_materia} · ${bloque.nombre_grupo} · ${bloque.nombre_aula} · ${nivelStr} · ${tipoStr.replace(/_/g, " ")} · ${formatTime(bloque.hora_inicio)}–${formatTime(bloque.hora_fin)}`}
+                            style={{
+                              top: topPx + 1,
+                              height: heightPx - 2,
+                              left: 2,
+                              right: 2,
+                            }}
+                            className={`absolute rounded-md border overflow-hidden ${color.bg} ${color.border}`}
                           >
-                            {isHour && (
-                              <span className="text-[10px] font-medium text-slate-400 leading-none">
-                                {h}:{m}
-                              </span>
-                            )}
+                            <div
+                              className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-sm ${color.accentBg}`}
+                            />
+
+                            <div className="pl-2.5 pr-1.5 py-0.5 h-full flex flex-col justify-center overflow-hidden gap-px">
+                              <p
+                                className={`text-[9px] font-black leading-tight truncate ${color.text}`}
+                              >
+                                {bloque.nombre_materia}
+                              </p>
+                              {showAula && (
+                                <p
+                                  className={`text-[8px] font-semibold leading-tight whitespace-nowrap overflow-hidden ${color.text} opacity-80`}
+                                >
+                                  {bloque.nombre_aula}
+                                </p>
+                              )}
+                              {showNivel && (
+                                <span
+                                  className={`self-start text-[7px] font-black leading-none px-1 py-px rounded-sm ${nivelGridStyle}`}
+                                >
+                                  {nivelAbrev(nivelStr)}
+                                </span>
+                              )}
+                              {showTipo && (
+                                <span
+                                  className={`self-start text-[7px] font-black leading-none px-1 py-px rounded-sm ${tipoGridStyle}`}
+                                >
+                                  {tipoStr === "TRONCO_COMUN"
+                                    ? "T.COM"
+                                    : tipoStr.slice(0, 3)}
+                                </span>
+                              )}
+                              {showTime && (
+                                <p
+                                  className={`text-[8px] font-medium leading-tight whitespace-nowrap ${color.text} opacity-60`}
+                                >
+                                  {formatTime(bloque.hora_inicio)}–
+                                  {formatTime(bloque.hora_fin)}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-
-                    {/* Columnas de días */}
-                    {DAYS.map(day => {
-                      const isWeekend = day.idx === 6;
-                      const bloques   = bloquesPorDia[day.idx] || [];
-                      return (
-                        <div
-                          key={day.idx}
-                          className="flex-1 border-r border-slate-200 last:border-r-0"
-                          style={{ minWidth: '88px' }}
-                        >
-                          <div
-                            style={{ height: `${TOTAL_GRID_H}px`, position: 'relative' }}
-                            className={isWeekend ? 'bg-slate-50/60' : 'bg-white'}
-                          >
-                            {/* Líneas de fondo */}
-                            {Array.from({ length: TOTAL_SLOTS }, (_, slot) => (
-                              <div
-                                key={slot}
-                                style={{ top: slot * SLOT_H_PX, height: SLOT_H_PX }}
-                                className={`absolute w-full border-b ${
-                                  slot % 2 === 0 ? 'border-slate-200' : 'border-slate-100'
-                                }`}
-                              />
-                            ))}
-
-                            {/*
-                              FIX 2 — Bloques de la cuadrícula con información
-                              progresiva según la altura disponible.
-
-                              Umbrales:
-                              ≥ 26px  → nombre materia (siempre)
-                              ≥ 46px  → aula (whitespace-nowrap)
-                              ≥ 66px  → nivel académico abreviado (LIC / MAE / DOC)
-                              ≥ 86px  → tipo asignatura abreviado
-                              ≥ 106px → horario HH:MM
-                            */}
-                            {bloques.map((bloque, bi) => {
-                              const { topPx, heightPx, color } = bloque;
-                              const nivelStr = (bloque.nivel_academico || 'LICENCIATURA').toUpperCase();
-                              const tipoStr  = bloque.tipo_asignatura || 'OBLIGATORIA';
-
-                              const showAula  = heightPx >= 46;
-                              const showNivel = heightPx >= 66;
-                              const showTipo  = heightPx >= 86;
-                              const showTime  = heightPx >= 106;
-
-                              // Mini-badge de nivel para el grid
-                              const nivelGridStyle =
-                                nivelStr === 'DOCTORADO' ? 'bg-purple-200 text-purple-900' :
-                                nivelStr === 'MAESTRIA'  ? 'bg-amber-200  text-amber-900'  :
-                                                           'bg-blue-200   text-blue-900';
-
-                              const tipoGridStyle =
-                                tipoStr === 'TRONCO_COMUN' ? 'bg-slate-200   text-slate-700'   :
-                                tipoStr === 'OBLIGATORIA'  ? 'bg-emerald-200 text-emerald-900' :
-                                tipoStr === 'OPTATIVA'     ? 'bg-purple-200  text-purple-900'  :
-                                                             'bg-slate-200   text-slate-700';
-
-                              return (
-                                <div
-                                  key={bi}
-                                  title={`${bloque.nombre_materia} · ${bloque.nombre_grupo} · ${bloque.nombre_aula} · ${nivelStr} · ${tipoStr.replace(/_/g, ' ')} · ${formatTime(bloque.hora_inicio)}–${formatTime(bloque.hora_fin)}`}
-                                  style={{ top: topPx + 1, height: heightPx - 2, left: 2, right: 2 }}
-                                  className={`absolute rounded-md border overflow-hidden ${color.bg} ${color.border}`}
-                                >
-                                  {/* Barra de acento */}
-                                  <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-sm ${color.accentBg}`} />
-
-                                  <div className="pl-2.5 pr-1.5 py-0.5 h-full flex flex-col justify-center overflow-hidden gap-px">
-
-                                    {/* Nombre materia — siempre */}
-                                    <p className={`text-[9px] font-black leading-tight truncate ${color.text}`}>
-                                      {bloque.nombre_materia}
-                                    </p>
-
-                                    {/* Aula */}
-                                    {showAula && (
-                                      <p className={`text-[8px] font-semibold leading-tight whitespace-nowrap overflow-hidden ${color.text} opacity-80`}>
-                                        {bloque.nombre_aula}
-                                      </p>
-                                    )}
-
-                                    {/* Nivel — mini badge pill */}
-                                    {showNivel && (
-                                      <span className={`self-start text-[7px] font-black leading-none px-1 py-px rounded-sm ${nivelGridStyle}`}>
-                                        {nivelAbrev(nivelStr)}
-                                      </span>
-                                    )}
-
-                                    {/* Tipo asignatura — mini badge pill */}
-                                    {showTipo && (
-                                      <span className={`self-start text-[7px] font-black leading-none px-1 py-px rounded-sm ${tipoGridStyle}`}>
-                                        {tipoStr === 'TRONCO_COMUN' ? 'T.COM' : tipoStr.slice(0, 3)}
-                                      </span>
-                                    )}
-
-                                    {/* Horario */}
-                                    {showTime && (
-                                      <p className={`text-[8px] font-medium leading-tight whitespace-nowrap ${color.text} opacity-60`}>
-                                        {formatTime(bloque.hora_inicio)}–{formatTime(bloque.hora_fin)}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         </>

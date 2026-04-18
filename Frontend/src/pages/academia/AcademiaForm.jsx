@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, UserCheck, FileText, Loader2, Save, RefreshCw, Inf
 import api from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { REGEX } from '../../utils/regex';
+import { formatToGlobalUppercase } from '../../utils/textFormatter';
 
 // Helper para construir el nombre completo de un coordinador de forma segura
 const getNombreCompleto = (c) => {
@@ -84,8 +85,9 @@ export const AcademiaForm = ({ academiaToEdit, onBack, onSuccess }) => {
   }, [formData, academiaToEdit, isEditing]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    let sanitizedValue = value;
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
+    let sanitizedValue = formattedValue;
 
     if (name === 'nombre') {
       // Solo letras y espacios, sin espacios al inicio ni dobles espacios

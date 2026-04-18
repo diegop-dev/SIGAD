@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import api from "../../services/api";
 import { TOAST_COMMON } from "../../../constants/toastMessages";
+import { formatToGlobalUppercase } from "../../utils/textFormatter";
+import { REGEX } from "../../utils/regex";
 
 /* ─────────────────────────────────────────────────── */
 /* Constantes de módulo                                */
@@ -308,9 +310,15 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
   /* ─── Handlers: expediente ─── */
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    let v = value;
-    if (name === "celular" || name === "cp") v = v.replace(/\D/g, "");
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
+    let v = formattedValue;
+    
+    if (name === "celular" || name === "cp") {
+      // Remover todo lo que no sea dígito
+      v = v.replace(/\D/g, "");
+    }
+    
     setFormData((prev) => ({ ...prev, [name]: v }));
     if (errores[name]) setErrores((prev) => ({ ...prev, [name]: null }));
   };

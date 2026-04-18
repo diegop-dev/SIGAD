@@ -4,6 +4,7 @@ import { Save, ArrowLeft, Loader2, Hash, BookOpen, Layers, Calendar, Users, Awar
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { REGEX } from "../../utils/regex";
+import { formatToGlobalUppercase } from "../../utils/textFormatter";
 
 export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
@@ -64,24 +65,25 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
     
     // Regex validation
-    if (name === "nombre" && value !== '' && !REGEX.NOMBRE_MATERIA.test(value)) return;
-    if (name === "nombre" && REGEX.TRIPLE_LETRA_REPETIDA.test(value)) return;
-    if ((name === "creditos" || name === "cupo_maximo") && value !== '' && !REGEX.NUMEROS.test(value)) return;
+    if (name === "nombre" && formattedValue !== '' && !REGEX.NOMBRE_MATERIA.test(formattedValue)) return;
+    if (name === "nombre" && REGEX.TRIPLE_LETRA_REPETIDA.test(formattedValue)) return;
+    if ((name === "creditos" || name === "cupo_maximo") && formattedValue !== '' && !REGEX.NUMEROS.test(formattedValue)) return;
 
     if (name === "tipo_asignatura") {
-      if (value === "TRONCO_COMUN") {
-        setFormData(prev => ({ ...prev, tipo_asignatura: value, carrera_id: "" }));
+      if (formattedValue === "TRONCO_COMUN") {
+        setFormData(prev => ({ ...prev, tipo_asignatura: formattedValue, carrera_id: "" }));
       } else {
-        setFormData(prev => ({ ...prev, tipo_asignatura: value }));
+        setFormData(prev => ({ ...prev, tipo_asignatura: formattedValue }));
       }
     } 
     else if (name === "nivel_academico") {
-      setFormData(prev => ({ ...prev, nivel_academico: value, carrera_id: "" }));
+      setFormData(prev => ({ ...prev, nivel_academico: formattedValue, carrera_id: "" }));
     }
     else {
-      let finalValue = value;
+      let finalValue = formattedValue;
       if (name === 'codigo_unico') {
         finalValue = value.toUpperCase().slice(0, 15);
       } else if (name === 'creditos' || name === 'cupo_maximo') {

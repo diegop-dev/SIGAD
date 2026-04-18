@@ -4,12 +4,17 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { REGEX } from '../../utils/regex';
+import { formatToGlobalUppercase } from '../../utils/textFormatter';
 
 const EDIFICIOS_DISPONIBLES = [
   "Edificio A",
   "Edificio B",
   "Edificio C",
   "Edificio D",
+  "Edificio E",
+  "Edificio F",
+  "Edificio G",
+  "Edificio H",
   "Planta Baja",
   "Planta Alta"
 ];
@@ -47,13 +52,15 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
   }, [aulaToEdit]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
 
     // Standard Regex validation
-    if (name === 'nombre' && value !== '' && !REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(value)) return;
-    if (name === 'capacidad' && value !== '' && !REGEX.NUMEROS.test(value)) return;
+    if (name === 'nombre' && formattedValue !== '' && !REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(formattedValue)) return;
+    if (name === 'nombre' && REGEX.TRIPLE_LETRA_REPETIDA.test(formattedValue)) return;
+    if (name === 'capacidad' && formattedValue !== '' && !REGEX.NUMEROS.test(formattedValue)) return;
 
-    setFormData({ ...formData, [name]: value });
+    setFormData({ ...formData, [name]: formattedValue });
     setError(null);
     setServerAction(null);
   };

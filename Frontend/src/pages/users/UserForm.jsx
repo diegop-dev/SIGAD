@@ -5,6 +5,7 @@ import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { TOAST_USUARIOS, TOAST_COMMON } from "../../../constants/toastMessages";
 import { REGEX } from "../../utils/regex";
+import { formatToGlobalUppercase } from "../../utils/textFormatter";
 
 export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   const { user } = useAuth();
@@ -96,8 +97,9 @@ export const UserForm = ({ userToEdit, onBack, onSuccess }) => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    let sanitizedValue = value;
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
+    let sanitizedValue = formattedValue;
 
     if (['nombres', 'apellido_paterno', 'apellido_materno'].includes(name)) {
       // Permitir solo letras (con acentos/eñe) y espacios simples intermedios

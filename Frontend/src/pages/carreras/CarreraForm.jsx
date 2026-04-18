@@ -4,6 +4,7 @@ import { Save, ArrowLeft, BookOpen, Loader2, Layers, RefreshCw, GraduationCap, A
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { REGEX } from "../../utils/regex";
+import { formatToGlobalUppercase } from "../../utils/textFormatter";
 
 export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
   const { user } = useAuth();
@@ -41,11 +42,12 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
   }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
+    const formattedValue = formatToGlobalUppercase(value, name, type);
 
     if (name === 'nombre_carrera') {
       // Limpiar espacios iniciales y dobles antes de validar
-      const clean = value
+      const clean = formattedValue
         .replace(/^\s+/g, '')
         .replace(/\s{2,}/g, ' ');
       // Bloquear si contiene caracteres no permitidos (solo letras y espacios)
@@ -59,7 +61,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
       return;
     }
 
-    setFormData({ ...formData, [name]: value });
+    setFormData({ ...formData, [name]: formattedValue });
     setServerAction(null);
     if (errores[name]) setErrores({ ...errores, [name]: null });
   };
