@@ -14,14 +14,11 @@ const formatTimeForInput = (timeString) => {
   return timeString.substring(0, 5);
 };
 
-// Generador de bloques de media hora (07:00 a 22:00)
+// Generador de bloques por hora (07:00 a 22:00)
 const generateTimeSlots = () => {
   const slots = [];
   for (let h = 7; h <= 22; h++) {
-    ['00', '30'].forEach(m => {
-      if (h === 22 && m === '30') return;
-      slots.push(`${h.toString().padStart(2, '0')}:${m}`);
-    });
+    slots.push(`${h.toString().padStart(2, '0')}:00`);
   }
   return slots;
 };

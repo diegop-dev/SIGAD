@@ -26,6 +26,11 @@ export const TeacherAssignments = () => {
     asignacion: null
   });
 
+  const [aceptarModal, setAceptarModal] = useState({
+    isOpen: false,
+    asignacion: null
+  });
+
   const diasSemanaMapa = {
     1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado"
   };
@@ -118,14 +123,15 @@ export const TeacherAssignments = () => {
       );
       
       setRechazoModal({ isOpen: false, asignacion: null }); 
+      setAceptarModal({ isOpen: false, asignacion: null });
       fetchMisAsignaciones();
     } catch (error) {
       toast.error(error.response?.data?.error || "Ocurrió un error inesperado al procesar tu respuesta. Intenta nuevamente.", { id: toastId, duration: 5000 });
     }
   };
 
-  const handleAceptar = (asignacion) => {
-    procesarPeticion(asignacion, 'ACEPTADA');
+  const handleAceptarIntento = (asignacion) => {
+    setAceptarModal({ isOpen: true, asignacion });
   };
 
   const handleRechazarIntento = (asignacion) => {
@@ -285,7 +291,7 @@ export const TeacherAssignments = () => {
                 {isEnviada && (
                   <div className="p-6 border-t border-slate-100 bg-slate-50/80 rounded-b-3xl flex gap-3">
                     <button
-                      onClick={() => handleAceptar(asignacion)}
+                      onClick={() => handleAceptarIntento(asignacion)}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 px-4 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center text-sm"
                     >
                       <CheckCircle2 className="w-5 h-5 mr-2" /> Aceptar asignación
@@ -357,6 +363,66 @@ export const TeacherAssignments = () => {
                 className="flex items-center justify-center px-6 py-3.5 text-sm font-black text-white bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-200 rounded-xl transition-all shadow-md active:scale-95 w-full sm:w-auto"
               >
                 <XCircle className="w-5 h-5 mr-2" /> Sí, Rechazar Asignación
+              </button>
+            </div>
+            
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Aceptación Estandarizado */}
+      {aceptarModal.isOpen && aceptarModal.asignacion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md mx-auto overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
+              <div className="flex items-center text-white">
+                <CheckCircle2 className="w-6 h-6 mr-3 text-white" />
+                <h3 className="text-xl font-black tracking-tight">Aceptar asignación</h3>
+              </div>
+              <button 
+                onClick={() => setAceptarModal({ isOpen: false, asignacion: null })} 
+                className="p-2.5 bg-white/10 text-white hover:bg-emerald-500 rounded-full transition-all active:scale-95"
+                title="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-8 overflow-y-auto flex-1">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed mb-6">
+                A continuación, se presenta la información de la asignatura que estás aceptando impartir para el periodo actual:
+              </p>
+
+              <div className="flex flex-col bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm mb-6">
+                <span className="font-black text-[#0B1828] text-lg leading-tight mb-2">
+                  {aceptarModal.asignacion.nombre_materia}
+                </span>
+                {(!aceptarModal.asignacion.grupo_id || aceptarModal.asignacion.nombre_grupo === 'TRONCO COMÚN / GLOBAL') ? (
+                  <span className="text-sm font-bold text-slate-500">
+                    Modalidad: <span className="text-slate-700">Tronco Común (Multidisciplinar)</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-slate-500">
+                    Grupo asignado: <span className="text-slate-700">{aceptarModal.asignacion.nombre_grupo}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 shadow-sm">
+                <p className="text-sm text-emerald-800 font-medium">
+                  <strong className="font-black">Aviso institucional:</strong> Al confirmar esta acción, notificarás formalmente a la coordinación académica de tu disponibilidad para impartir esta materia en el horario indicado.
+                </p>
+              </div>
+            </div>
+
+            {/* Solo botón de acción principal */}
+            <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
+              <button 
+                onClick={() => procesarPeticion(aceptarModal.asignacion, 'ACEPTADA')}
+                className="flex items-center justify-center px-6 py-3.5 text-sm font-black text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-200 rounded-xl transition-all shadow-md active:scale-95 w-full sm:w-auto"
+              >
+                <CheckCircle2 className="w-5 h-5 mr-2" /> Sí, Aceptar Asignación
               </button>
             </div>
             

@@ -217,6 +217,11 @@ const createAsignacion = async (req, res) => {
       return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia equivalente en el periodo actual.' });
     }
 
+    const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id);
+    if (materiaMismasCaracteristicas) {
+      return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia con el mismo nombre y características en el periodo actual.' });
+    }
+
     const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id);
     if (materiaEnOtroGrupo) {
       return res.status(409).json({ error: 'Materia no disponible: Esta instancia de materia ya fue asignada a otro grupo en este periodo. Selecciona la materia correspondiente a este grupo.' });
@@ -387,6 +392,11 @@ const updateAsignacion = async (req, res) => {
     const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id, excludeIds);
     if (materiaEnOtroGrupo) {
       return res.status(409).json({ error: 'Materia no disponible: Los cambios no se pueden guardar porque esta materia física ya pertenece a otro grupo distinto.' });
+    }
+
+    const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id, excludeIds);
+    if (materiaMismasCaracteristicas) {
+      return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia con el mismo nombre y características en el periodo actual.' });
     }
 
     const { total_horas, limite_horas, max_horas_continuas } =
@@ -867,7 +877,7 @@ const validarBorrador = async (req, res) => {
     if (!es_edicion) {
       const materiaDuplicada = await assignmentModel.checkMateriaDuplicadaGrupo(grupo_id, materia_id, periodo_id);
       if (materiaDuplicada) {
-        return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa esta materia (o una equivalente) en el ciclo escolar activo.' });
+        return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa esta materia en el ciclo escolar activo.' });
       }
     }
 
@@ -894,6 +904,11 @@ const validarBorrador = async (req, res) => {
     const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id, excludeIds);
     if (materiaEnOtroGrupo) {
       return res.status(409).json({ error: 'Materia no disponible: Esta materia específica ya fue tomada por otro grupo en este periodo.' });
+    }
+
+    const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id, excludeIds);
+    if (materiaMismasCaracteristicas) {
+      return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia con el mismo nombre y características en el periodo actual.' });
     }
 
     const {

@@ -106,6 +106,37 @@ const checkMateriaDuplicadaGrupo = async (grupo_id, materia_id, periodo_id, excl
   return rows.length > 0;
 };
 
+// Helper: Validar si la misma materia o una con idénticas características ya fue asignada al grupo
+const checkMateriaMismasCaracteristicasGrupo = async (grupo_id, materia_id, periodo_id, excludeIds = []) => {
+  const gId = nullify(grupo_id);
+  if (!gId) return false; 
+
+  let query = `
+    SELECT a.id_asignacion 
+    FROM asignaciones a
+    INNER JOIN materias m_asignada ON a.materia_id = m_asignada.id_materia
+    CROSS JOIN materias m_nueva 
+    WHERE a.periodo_id = ? 
+      AND a.grupo_id = ?
+      AND m_nueva.id_materia = ?
+      AND a.estatus_acta = 'ABIERTA'
+      AND m_asignada.nombre <=> m_nueva.nombre
+      AND m_asignada.nivel_academico <=> m_nueva.nivel_academico
+      AND m_asignada.tipo_asignatura <=> m_nueva.tipo_asignatura
+      AND m_asignada.carrera_id <=> m_nueva.carrera_id
+      AND m_asignada.cuatrimestre_id <=> m_nueva.cuatrimestre_id
+  `;
+  const params = [periodo_id, gId, materia_id];
+  
+  if (excludeIds && excludeIds.length > 0) {
+    query += ` AND a.id_asignacion NOT IN (${excludeIds.map(() => '?').join(',')})`;
+    params.push(...excludeIds);
+  }
+  
+  const rows = await pool.query(query, params);
+  return rows.length > 0;
+};
+
 // Helper: Validar si la materia ya fue asignada a un grupo diferente
 const checkMateriaAsignadaAOtroGrupo = async (materia_id, grupo_id, periodo_id, excludeIds = []) => {
   const gId = nullify(grupo_id);
@@ -590,7 +621,7 @@ const checkAulasStatus = async (aulaIds) => {
 
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
-  checkMateriaDuplicadaGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
+  checkMateriaDuplicadaGrupo, checkMateriaMismasCaracteristicasGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
   createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
   getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
   actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
