@@ -11,7 +11,7 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
   const [isFetchingCarreras, setIsFetchingCarreras] = useState(false);
 
   const [formData, setFormData] = useState({
-    periodo_id: '',
+    periodo_id: periodos && periodos.length === 1 ? periodos[0].id_periodo : '',
     nivel_academico: 'LICENCIATURA',
     carrera_id: '',
     total_inscritos: '',

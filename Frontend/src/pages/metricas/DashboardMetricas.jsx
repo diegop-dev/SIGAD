@@ -37,8 +37,30 @@ export const DashboardMetricas = () => {
       const rawC = resCarreras.data?.data || resCarreras.data;
 
       const metricasDataRaw = Array.isArray(rawM) ? rawM : [];
-      const periodosData = Array.isArray(rawP) ? rawP : [];
+      let periodosData = Array.isArray(rawP) ? rawP : [];
       const carrerasData = Array.isArray(rawC) ? rawC : [];
+
+      // Determinar el periodo vigente (igual que AssignmentForm)
+      if (periodosData.length > 0) {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const candidatos = periodosData.filter((p) => {
+          const inicio = new Date(p.fecha_inicio);
+          const fin = new Date(p.fecha_fin);
+          inicio.setHours(0, 0, 0, 0);
+          fin.setHours(23, 59, 59, 999);
+          return inicio <= hoy && fin >= hoy;
+        });
+
+        // Si ningún periodo cubre hoy, cae al de mayor ID
+        const periodoVigente = candidatos.length > 0
+          ? candidatos.sort((a, b) => b.id_periodo - a.id_periodo)[0]
+          : periodosData.sort((a, b) => b.id_periodo - a.id_periodo)[0];
+
+        // Mantenemos solo el periodo vigente para los select de filtro
+        periodosData = periodoVigente ? [periodoVigente] : [];
+      }
 
       const metricasEnriquecidas = metricasDataRaw.map(m => {
         const carreraAsociada = carrerasData.find(c => Number(c.id_carrera) === Number(m.carrera_id));
