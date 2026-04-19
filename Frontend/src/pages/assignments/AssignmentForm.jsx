@@ -111,6 +111,7 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   const [grupos,   setGrupos]   = useState([]);
   const [aulas,    setAulas]    = useState([]);
   const [carreras, setCarreras] = useState([]);
+  const [materiasAsignadasIds, setMateriasAsignadasIds] = useState(new Set());
 
   const [formData, setFormData] = useState(() => {
     if (isEditing) {
@@ -168,6 +169,8 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         // Si hay solapamiento, gana el de mayor id_periodo. Así un periodo INACTIVO
         // recién creado con ID mayor no desplaza al periodo real en curso.
         const loadedPeriodos = resPeriodos.data?.data || resPeriodos.data || [];
+        let periodoVigenteId = isEditing ? initialData?.periodo_id : null;
+
         if (!isEditing) {
           if (loadedPeriodos.length > 0) {
             const hoy = new Date();
@@ -187,13 +190,21 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
                 ? candidatos.sort((a, b) => b.id_periodo - a.id_periodo)[0]
                 : loadedPeriodos.sort((a, b) => b.id_periodo - a.id_periodo)[0];
 
+            periodoVigenteId = periodoVigente.id_periodo;
             setFormData((prev) => ({
               ...prev,
-              periodo_id: periodoVigente.id_periodo,
+              periodo_id: periodoVigenteId,
             }));
           } else {
             toast.error("Atención: No hay periodos registrados en el sistema.");
           }
+        }
+
+        // Cargar materias ya vinculadas a una asignación activa para excluirlas del selector
+        if (periodoVigenteId) {
+          const resAsig = await api.get(`/asignaciones?periodo_id=${periodoVigenteId}`).catch(() => ({ data: { data: [] } }));
+          const asigs = resAsig.data?.data || [];
+          setMateriasAsignadasIds(new Set(asigs.map(a => Number(a.materia_id))));
         }
 
         setDocentes(resDocentes.data?.data || resDocentes.data || []);
@@ -241,14 +252,19 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
   [grupos, formData.grupo_id]);
 
   const materiasFiltradas = useMemo(() => {
-    if (isTroncoComunFlow) return materias.filter(m => m.tipo_asignatura === 'TRONCO_COMUN');
+    const estaAsignada = (id) =>
+      materiasAsignadasIds.has(Number(id)) && Number(id) !== Number(formData.materia_id);
+    if (isTroncoComunFlow) return materias.filter(m =>
+      m.tipo_asignatura === 'TRONCO_COMUN' && !estaAsignada(m.id_materia)
+    );
     if (!formData.carrera_id || !grupoSeleccionado) return [];
     return materias.filter(m =>
       Number(m.carrera_id) === Number(formData.carrera_id) &&
       m.tipo_asignatura !== 'TRONCO_COMUN' &&
-      Number(m.cuatrimestre_id) === Number(grupoSeleccionado.cuatrimestre_id)
+      Number(m.cuatrimestre_id) === Number(grupoSeleccionado.cuatrimestre_id) &&
+      !estaAsignada(m.id_materia)
     );
-  }, [materias, isTroncoComunFlow, formData.carrera_id, grupoSeleccionado]);
+  }, [materias, isTroncoComunFlow, formData.carrera_id, formData.materia_id, grupoSeleccionado, materiasAsignadasIds]);
 
   const materiaSeleccionada = useMemo(() =>
     materias.find(m => Number(m.id_materia) === Number(formData.materia_id)),

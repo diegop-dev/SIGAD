@@ -227,6 +227,16 @@ const createAsignacion = async (req, res) => {
       return res.status(409).json({ error: 'Materia no disponible: Esta instancia de materia ya fue asignada a otro grupo en este periodo. Selecciona la materia correspondiente a este grupo.' });
     }
 
+    const troncoComunOtroDocente = await assignmentModel.checkTroncoComunAsignadaAOtroDocente(materia_id, docente_id, periodo_id);
+    if (troncoComunOtroDocente) {
+      return res.status(409).json({ error: 'Restricción de Tronco Común: Esta materia de tronco común ya fue asignada a otro docente en el periodo actual.' });
+    }
+
+    const troncoComunDuplicadaDocente = await assignmentModel.checkTroncoComunMismasCaracteristicasDocente(docente_id, materia_id, periodo_id);
+    if (troncoComunDuplicadaDocente) {
+      return res.status(409).json({ error: 'Materia duplicada: El docente ya tiene asignada una materia de tronco común con el mismo nombre y cuatrimestre en este periodo.' });
+    }
+
     const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
     if (!cumpleReglasAcademicas) {
       return res.status(422).json({ error: 'Restricción de academia: El docente, la materia o el grupo no coinciden con las reglas de su academia.' });
@@ -392,6 +402,16 @@ const updateAsignacion = async (req, res) => {
     const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id, excludeIds);
     if (materiaEnOtroGrupo) {
       return res.status(409).json({ error: 'Materia no disponible: Los cambios no se pueden guardar porque esta materia física ya pertenece a otro grupo distinto.' });
+    }
+
+    const troncoComunOtroDocente = await assignmentModel.checkTroncoComunAsignadaAOtroDocente(materia_id, docente_id, periodo_id, excludeIds);
+    if (troncoComunOtroDocente) {
+      return res.status(409).json({ error: 'Restricción de Tronco Común: Esta materia de tronco común ya fue asignada a otro docente en el periodo actual.' });
+    }
+
+    const troncoComunDuplicadaDocente = await assignmentModel.checkTroncoComunMismasCaracteristicasDocente(docente_id, materia_id, periodo_id, excludeIds);
+    if (troncoComunDuplicadaDocente) {
+      return res.status(409).json({ error: 'Materia duplicada: El docente ya tiene asignada una materia de tronco común con el mismo nombre y cuatrimestre en este periodo.' });
     }
 
     const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id, excludeIds);
@@ -566,6 +586,86 @@ const reactivarAsignacion = async (req, res) => {
     const aulaInactiva = aulasStatus.find(a => a.estatus !== 'ACTIVO');
     if (aulaInactiva) {
       return res.status(422).json({ error: `Operación denegada: El aula "${aulaInactiva.nombre_codigo}" se encuentra INACTIVA.` });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ─── VALIDACIONES DE REGLAS DE NEGOCIO ───────────────────────────────────
+    const materiaDuplicada = await assignmentModel.checkMateriaDuplicadaGrupo(grupo_id, materia_id, periodo_id);
+    if (materiaDuplicada) {
+      return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia equivalente en el periodo actual.' });
+    }
+
+    const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id);
+    if (materiaMismasCaracteristicas) {
+      return res.status(409).json({ error: 'Materia duplicada: Este grupo ya cursa una materia con el mismo nombre y características en el periodo actual.' });
+    }
+
+    const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id);
+    if (materiaEnOtroGrupo) {
+      return res.status(409).json({ error: 'Materia no disponible: Esta materia ya está asignada a otro grupo en este periodo.' });
+    }
+
+    const troncoComunOtroDocente = await assignmentModel.checkTroncoComunAsignadaAOtroDocente(materia_id, docente_id, periodo_id);
+    if (troncoComunOtroDocente) {
+      return res.status(409).json({ error: 'Restricción de Tronco Común: Esta materia de tronco común ya fue asignada a otro docente en el periodo actual.' });
+    }
+
+    const troncoComunDuplicadaDocente = await assignmentModel.checkTroncoComunMismasCaracteristicasDocente(docente_id, materia_id, periodo_id);
+    if (troncoComunDuplicadaDocente) {
+      return res.status(409).json({ error: 'Materia duplicada: El docente ya tiene asignada una materia de tronco común con el mismo nombre y cuatrimestre en este periodo.' });
+    }
+
+    const cumpleReglasAcademicas = await assignmentModel.checkReglasNegocioAsignacion(materia_id, grupo_id, docente_id, periodo_id);
+    if (!cumpleReglasAcademicas) {
+      return res.status(422).json({ error: 'Restricción de academia: El docente, la materia o el grupo no coinciden con las reglas de su academia.' });
+    }
+
+    const nivelesInfo = await assignmentModel.checkNivelAcademico(docente_id, grupo_id, materia_id);
+    if (nivelesInfo) {
+      const nivelGrupo   = nivelesInfo.grupo_nivel   ? nivelesInfo.grupo_nivel.toUpperCase()   : '';
+      const nivelMateria = nivelesInfo.materia_nivel ? nivelesInfo.materia_nivel.toUpperCase() : '';
+      const nivelDocente = nivelesInfo.docente_nivel ? nivelesInfo.docente_nivel.toUpperCase() : '';
+      if (nivelGrupo === 'MAESTRIA' || nivelMateria === 'MAESTRIA') {
+        if (nivelDocente === 'LICENCIATURA' || nivelDocente === '') {
+          return res.status(403).json({ error: 'Restricción de nivel: El docente requiere grado de Maestría o Doctorado para impartir materias de este nivel.' });
+        }
+      }
+    }
+
+    const {
+      total_horas, asignaciones_actuales, limite_horas, max_horas_continuas, max_asignaciones_docente,
+    } = await assignmentModel.getTotalHorasDocente(docente_id, periodo_id);
+
+    if (asignaciones_actuales >= max_asignaciones_docente) {
+      return res.status(422).json({
+        error: `Límite de materias: El docente ya alcanzó su máximo permitido (${max_asignaciones_docente} materias) para este periodo.`,
+      });
+    }
+
+    let totalHorasReactivadas = 0;
+    const MINUTO_7AM  = 420;
+    const MINUTO_10PM = 1320;
+
+    for (const bloque of horariosCerrados) {
+      const startMin  = timeToMinutes(bloque.hora_inicio);
+      const endMin    = timeToMinutes(bloque.hora_fin);
+      const durHoras  = (endMin - startMin) / 60;
+      const nombreDia = diasMap[bloque.dia_semana] || 'seleccionado';
+
+      if (startMin < MINUTO_7AM || endMin > MINUTO_10PM)
+        return res.status(400).json({ error: `Horario inválido: El bloque del ${nombreDia} debe estar entre las 07:00 a. m. y las 10:00 p. m.` });
+      if (durHoras <= 0)
+        return res.status(400).json({ error: `Duración inválida: La duración del horario el ${nombreDia} es incorrecta.` });
+      if (durHoras > max_horas_continuas)
+        return res.status(422).json({ error: `Límite de horas continuas: El bloque del ${nombreDia} supera el máximo de ${max_horas_continuas} horas seguidas permitidas.` });
+
+      totalHorasReactivadas += durHoras;
+    }
+
+    if (total_horas + totalHorasReactivadas > limite_horas) {
+      return res.status(422).json({
+        error: `Límite de horas semanales: Reactivar esta asignación sobrepasaría el límite del docente (Límite: ${limite_horas}h, Actuales: ${total_horas.toFixed(1)}h).`,
+      });
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -904,6 +1004,16 @@ const validarBorrador = async (req, res) => {
     const materiaEnOtroGrupo = await assignmentModel.checkMateriaAsignadaAOtroGrupo(materia_id, grupo_id, periodo_id, excludeIds);
     if (materiaEnOtroGrupo) {
       return res.status(409).json({ error: 'Materia no disponible: Esta materia específica ya fue tomada por otro grupo en este periodo.' });
+    }
+
+    const troncoComunOtroDocente = await assignmentModel.checkTroncoComunAsignadaAOtroDocente(materia_id, docente_id, periodo_id, excludeIds);
+    if (troncoComunOtroDocente) {
+      return res.status(409).json({ error: 'Restricción de Tronco Común: Esta materia de tronco común ya fue asignada a otro docente en el periodo actual.' });
+    }
+
+    const troncoComunDuplicadaDocente = await assignmentModel.checkTroncoComunMismasCaracteristicasDocente(docente_id, materia_id, periodo_id, excludeIds);
+    if (troncoComunDuplicadaDocente) {
+      return res.status(409).json({ error: 'Materia duplicada: El docente ya tiene asignada una materia de tronco común con el mismo nombre y cuatrimestre en este periodo.' });
     }
 
     const materiaMismasCaracteristicas = await assignmentModel.checkMateriaMismasCaracteristicasGrupo(grupo_id, materia_id, periodo_id, excludeIds);

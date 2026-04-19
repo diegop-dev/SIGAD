@@ -137,6 +137,56 @@ const checkMateriaMismasCaracteristicasGrupo = async (grupo_id, materia_id, peri
   return rows.length > 0;
 };
 
+// Helper: Validar que una materia de Tronco Común no esté ya asignada a otro docente
+const checkTroncoComunAsignadaAOtroDocente = async (materia_id, docente_id, periodo_id, excludeIds = []) => {
+  let query = `
+    SELECT a.id_asignacion
+    FROM asignaciones a
+    INNER JOIN materias m ON a.materia_id = m.id_materia
+    WHERE a.materia_id = ?
+      AND a.periodo_id = ?
+      AND a.docente_id != ?
+      AND m.tipo_asignatura = 'TRONCO_COMUN'
+      AND a.estatus_acta = 'ABIERTA'
+  `;
+  const params = [materia_id, periodo_id, docente_id];
+
+  if (excludeIds && excludeIds.length > 0) {
+    query += ` AND a.id_asignacion NOT IN (${excludeIds.map(() => '?').join(',')})`;
+    params.push(...excludeIds);
+  }
+
+  const rows = await pool.query(query, params);
+  return rows.length > 0;
+};
+
+// Helper: Validar que un docente no tenga ya una materia de Tronco Común con el mismo nombre y cuatrimestre en el periodo
+const checkTroncoComunMismasCaracteristicasDocente = async (docente_id, materia_id, periodo_id, excludeIds = []) => {
+  let query = `
+    SELECT a.id_asignacion
+    FROM asignaciones a
+    INNER JOIN materias m_asignada ON a.materia_id = m_asignada.id_materia
+    CROSS JOIN materias m_nueva
+    WHERE a.periodo_id = ?
+      AND a.docente_id = ?
+      AND m_nueva.id_materia = ?
+      AND a.estatus_acta = 'ABIERTA'
+      AND m_asignada.tipo_asignatura = 'TRONCO_COMUN'
+      AND m_nueva.tipo_asignatura = 'TRONCO_COMUN'
+      AND m_asignada.nombre <=> m_nueva.nombre
+      AND m_asignada.cuatrimestre_id <=> m_nueva.cuatrimestre_id
+  `;
+  const params = [periodo_id, docente_id, materia_id];
+
+  if (excludeIds && excludeIds.length > 0) {
+    query += ` AND a.id_asignacion NOT IN (${excludeIds.map(() => '?').join(',')})`;
+    params.push(...excludeIds);
+  }
+
+  const rows = await pool.query(query, params);
+  return rows.length > 0;
+};
+
 // Helper: Validar si la materia ya fue asignada a un grupo diferente
 const checkMateriaAsignadaAOtroGrupo = async (materia_id, grupo_id, periodo_id, excludeIds = []) => {
   const gId = nullify(grupo_id);
@@ -621,11 +671,12 @@ const checkAulasStatus = async (aulaIds) => {
 
 module.exports = {
   getAsignacionesParaSincronizacion, checkDocenteConflict, checkGrupoConflict, checkAulaConflict,
-  checkMateriaDuplicadaGrupo, checkMateriaMismasCaracteristicasGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo, 
-  createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas, 
-  getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada, 
+  checkMateriaDuplicadaGrupo, checkMateriaMismasCaracteristicasGrupo, checkReglasNegocioAsignacion, checkNivelAcademico, marcarReporteExternoMasivo,
+  createAsignaciones, getTotalHorasDocente, obtenerTodasLasAsignaciones, updateAsignacionesAgrupadas,
+  getIdsAsignacionAgrupada, cancelarAsignacionAgrupada, getHorariosAsignacionCerrada, reactivarAsignacionAgrupada,
   actualizarConfirmacionDocente, rechazarAsignacionesPorDocente, rechazarAsignacionesPorGrupo, rechazarAsignacionesPorAula,
   ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo,
+  checkTroncoComunAsignadaAOtroDocente, checkTroncoComunMismasCaracteristicasDocente,
   rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia,
   resolverPeriodoActual, checkLinkedEntitiesStatus, checkAulasStatus,
 };
