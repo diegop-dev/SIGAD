@@ -348,7 +348,7 @@ const obtenerTodasLasAsignaciones = async (filters = {}) => {
     SELECT 
       a.id_asignacion, a.periodo_id, a.materia_id, a.grupo_id, a.aula_id,
       a.dia_semana, a.hora_inicio, a.hora_fin, a.estatus_confirmacion, a.estatus_acta,
-      a.tiene_reporte_externo,
+      a.promedio_consolidado, a.tiene_reporte_externo,
       p.codigo AS nombre_periodo, m.nombre AS nombre_materia, 
       m.codigo_unico, m.nivel_academico, 
       IFNULL(g.identificador, 'TRONCO COMÚN / GLOBAL') AS nombre_grupo,

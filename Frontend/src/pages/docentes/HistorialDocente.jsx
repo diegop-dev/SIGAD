@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  Award, BookOpen, Clock, X, Loader2, BarChart2, 
-  GraduationCap, AlertCircle, Hash, Calendar, Filter 
+import {
+  Award, BookOpen, Clock, X, XCircle, Loader2, BarChart2,
+  GraduationCap, AlertCircle, Hash, Calendar, Filter
 } from 'lucide-react';
 
 const HistorialDocente = ({ docenteId, alCerrar }) => {
@@ -75,27 +75,31 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
     if (!historial || !Array.isArray(historial)) return [];
 
     const grupos = [
-      { id: 'pendientes', titulo: 'Pendiente por aceptar', icono: <Clock className="w-5 h-5 text-amber-500 mr-2" />, data: [] },
-      { id: 'actuales', titulo: 'Actuales / cursando', icono: <BookOpen className="w-5 h-5 text-blue-500 mr-2" />, data: [] },
-      { id: 'concluidas', titulo: 'Clases Concluidas', icono: <Award className="w-5 h-5 text-emerald-500 mr-2" />, data: [] },
-      { id: 'rechazadas', titulo: 'Asignaciones Rechazadas', icono: <X className="w-5 h-5 text-red-500 mr-2" />, data: [] },
-      { id: 'otros', titulo: 'Rechazadas por administrador', icono: <AlertCircle className="w-5 h-5 text-slate-500 mr-2" />, data: [] }
+      { id: 'pendientes',  titulo: 'Pendiente por aceptar',     icono: <Clock    className="w-5 h-5 text-amber-500 mr-2" />,  data: [] },
+      { id: 'actuales',    titulo: 'Actuales / cursando',        icono: <BookOpen className="w-5 h-5 text-blue-500 mr-2" />,   data: [] },
+      { id: 'concluidas',  titulo: 'Clases Concluidas',          icono: <Award    className="w-5 h-5 text-emerald-500 mr-2" />, data: [] },
+      { id: 'canceladas',  titulo: 'Asignaciones Canceladas',    icono: <XCircle  className="w-5 h-5 text-orange-500 mr-2" />, data: [] },
+      { id: 'rechazadas',  titulo: 'Asignaciones Rechazadas',    icono: <X        className="w-5 h-5 text-red-500 mr-2" />,    data: [] },
+      { id: 'otros',       titulo: 'Rechazadas por administrador', icono: <AlertCircle className="w-5 h-5 text-slate-500 mr-2" />, data: [] }
     ];
 
     historial.forEach(clase => {
       const conf = (clase.estatus_confirmacion || '').toUpperCase();
       const acta = (clase.estatus_acta || '').toUpperCase();
-      
+      const tienePromedio = clase.promedio_consolidado !== null && clase.promedio_consolidado !== undefined;
+
       if (conf === 'ENVIADA' && acta === 'ABIERTA') {
         grupos[0].data.push(clase);
       } else if (conf === 'ACEPTADA' && acta === 'ABIERTA') {
         grupos[1].data.push(clase);
-      } else if (conf === 'ACEPTADA' && acta === 'CERRADA') {
+      } else if (acta === 'CERRADA' && tienePromedio) {
         grupos[2].data.push(clase);
-      } else if (conf === 'RECHAZADA') { 
+      } else if (acta === 'CERRADA' && !tienePromedio) {
         grupos[3].data.push(clase);
-      } else {
+      } else if (conf === 'RECHAZADA') {
         grupos[4].data.push(clase);
+      } else {
+        grupos[5].data.push(clase);
       }
     });
 
@@ -188,12 +192,13 @@ const HistorialDocente = ({ docenteId, alCerrar }) => {
                     <span className="text-xs font-bold uppercase tracking-wider">Filtros:</span>
                   </div>
                   {[
-                    { id: 'todos', label: 'Todas' },
-                    { id: 'actuales', label: 'Cursando' },
+                    { id: 'todos',      label: 'Todas' },
+                    { id: 'actuales',   label: 'Cursando' },
                     { id: 'pendientes', label: 'Pendientes' },
                     { id: 'concluidas', label: 'Concluidas' },
+                    { id: 'canceladas', label: 'Canceladas' },
                     { id: 'rechazadas', label: 'Rechazadas' },
-                    { id: 'otros', label: 'Rechazadas (Admin)' }
+                    { id: 'otros',      label: 'Rechazadas (Admin)' }
                   ].map(filtro => (
                     <button
                       key={filtro.id}
