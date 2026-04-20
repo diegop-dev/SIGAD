@@ -193,3 +193,13 @@ exports.getCarrerasByAcademia = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getMiAcademia = async (req, res) => {
+  try {
+    const usuario_id = req.user?.id_usuario;
+    const academia = await Academia.getAcademiaByUsuario(usuario_id);
+    res.json(academia || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

@@ -210,6 +210,7 @@ const Dashboard = () => {
     lastAuditDate: null,
     totalAuditLogs: 0,
     docentesSinAsig: null,
+    nombre_academia: null,
   });
 
   const getGreeting = () => {
@@ -226,12 +227,13 @@ const Dashboard = () => {
       const admin      = user?.rol_id <= 2;
 
       try {
-        const [resPeriodos, resMaterias, resUsers, resAulas, resAudit] = await Promise.all([
+        const [resPeriodos, resMaterias, resUsers, resAulas, resAudit, resMiAcademia] = await Promise.all([
           api.get('/periodos').catch(() => ({ data: [] })),
           admin      ? api.get('/materias').catch(() => ({ data: [] }))                                  : null,
           admin      ? api.get('/users').catch(() => ({ data: [] }))                                     : null,
           admin      ? api.get('/aulas/consultar').catch(() => ({ data: [] }))                           : null,
           superAdmin ? api.get('/audit-logs', { params: { page: 1, limit: 1 } }).catch(() => null)       : null,
+          user?.rol_id === 2 ? api.get('/academias/mi-academia').catch(() => ({ data: {} }))             : null,
         ]);
 
         const periodosRaw = resPeriodos.data?.data ?? resPeriodos.data;
@@ -263,6 +265,11 @@ const Dashboard = () => {
           totalAuditLogs = resAudit.data.total ?? 0;
         }
 
+        let nombre_academia = null;
+        if (resMiAcademia?.data?.nombre) {
+          nombre_academia = resMiAcademia.data.nombre;
+        }
+
         let docentesSinAsig = null;
         if (admin && activePeriodo?.id_periodo) {
           try {
@@ -278,7 +285,7 @@ const Dashboard = () => {
           } catch { }
         }
 
-        setStats({ activeUsers, totalMaterias, activePeriodo, totalAulas, lastAuditDate, totalAuditLogs, docentesSinAsig });
+        setStats({ activeUsers, totalMaterias, activePeriodo, totalAulas, lastAuditDate, totalAuditLogs, docentesSinAsig, nombre_academia });
       } catch (err) {
         console.error('Error al cargar estadísticas del dashboard:', err);
       } finally {
@@ -359,33 +366,43 @@ const Dashboard = () => {
             </p>
           </div>
 
-          {/* derecha: badge de periodo activo */}
-          {loading ? (
-            <div className="h-16 w-44 rounded-2xl bg-white/5 animate-pulse" />
-          ) : stats.activePeriodo ? (
-            <div className="flex flex-col items-start md:items-end gap-1 bg-white/5 px-4 py-3 rounded-2xl border border-white/10">
-              <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-white/50">
-                Periodo activo
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                </span>
-                <span className="text-white font-black text-xl sm:text-2xl tracking-wide leading-none">
-                  {stats.activePeriodo.codigo}
-                </span>
+          {/* derecha: badge de periodo activo + academia del administrador */}
+          <div className="flex flex-col items-start md:items-end gap-2">
+            {loading ? (
+              <div className="h-16 w-44 rounded-2xl bg-white/5 animate-pulse" />
+            ) : stats.activePeriodo ? (
+              <div className="flex flex-col items-start md:items-end gap-1 bg-white/5 px-4 py-3 rounded-2xl border border-white/10">
+                <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-white/50">
+                  Periodo activo
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                  </span>
+                  <span className="text-white font-black text-xl sm:text-2xl tracking-wide leading-none">
+                    {stats.activePeriodo.codigo}
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-xs font-medium text-white/60 mt-0.5">
+                  {formatDateRange(stats.activePeriodo.fecha_inicio, stats.activePeriodo.fecha_fin)}
+                </p>
               </div>
-              <p className="text-[10px] sm:text-xs font-medium text-white/60 mt-0.5">
-                {formatDateRange(stats.activePeriodo.fecha_inicio, stats.activePeriodo.fecha_fin)}
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-500/20 border border-red-400/30">
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <span className="text-red-300 font-bold text-xs sm:text-sm">Sin periodo activo</span>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-500/20 border border-red-400/30">
+                <AlertCircle className="w-4 h-4 text-red-400" />
+                <span className="text-red-300 font-bold text-xs sm:text-sm">Sin periodo activo</span>
+              </div>
+            )}
+
+            {user?.rol_id === 2 && stats.nombre_academia && (
+              <div className="flex items-center gap-2 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10">
+                <div className="text-left md:text-right">
+                  <p className="text-xs font-bold text-white/80 leading-tight">{stats.nombre_academia}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

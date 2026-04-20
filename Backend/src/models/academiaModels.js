@@ -15,6 +15,20 @@ const Academia = {
     }
   },
 
+  getAcademiaByUsuario: async (usuario_id) => {
+    let conn;
+    try {
+      conn = await db.getConnection();
+      const rows = await conn.query(
+        "SELECT id_academia, nombre FROM academias WHERE usuario_id = ? AND estatus = 'ACTIVO' LIMIT 1",
+        [usuario_id]
+      );
+      return rows[0];
+    } finally {
+      if (conn) conn.release();
+    }
+  },
+
   getCoordinadoresDisponibles: async () => {
     let conn;
     try {
