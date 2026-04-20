@@ -3,21 +3,19 @@
 
   <br/>
 
-  <img src="https://img.shields.io/badge/Status-En%20Desarrollo-yellow?style=for-the-badge&logo=fire" alt="Status" />
+  <img src="https://img.shields.io/badge/Status-%20Finalizado-green?style=for-the-badge&logo=fire" alt="Status" />
   <img src="https://img.shields.io/badge/Team-NexaByte-blue?style=for-the-badge&logo=microsoftteams" alt="Team" />
   <img src="https://img.shields.io/badge/Version-1.0.0-green?style=for-the-badge&logo=semver" alt="Version" />
-  <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
-  <img src="https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
 </div>
 
 ---
 
 ## 📖 Descripción del Proyecto
 
-**SIGAD (Sistema de Gestión Académica y Docente)** es una solución web para la asignación de materias y horarios en universidades, diseñada para eliminar errores como cruces de horario y sobrecarga de horas docentes. A diferencia de la gestión manual tradicional, SIGAD valida reglas académicas en tiempo real y se sincroniza de forma bidireccional con el sistema externo **SESA** (Sistema de Evaluación y Seguimiento Académico), centralizando la toma de decisiones con base en estadísticas de rendimiento y deserción.
+**SIGAD (Sistema de Gestión Académica y Docente)** es una solución web para la asignación de materias y horarios en universidades, diseñada para eliminar errores como cruces de horario y sobrecarga de horas docentes. A diferencia de la gestión manual tradicional, SIGAD valida reglas académicas en tiempo real y se sincroniza de forma bidireccional con el sistema externo **SESA (Sistema de Evaluación y Seguimiento Académico)**, centralizando la toma de decisiones con base en estadísticas de rendimiento y deserción.
 
 ### Características Principales
+
 - ✅ Validación en tiempo real de empalmes de horario y sobrecarga docente
 - 🔄 Sincronización bidireccional con el sistema externo SESA vía red privada
 - 📊 Métricas institucionales e indicadores históricos de rendimiento académico
@@ -45,14 +43,16 @@ Desarrollado por estudiantes de la **Licenciatura en Ingeniería de Software y S
 
 ## 🏗️ Arquitectura del Sistema
 
-SIGAD implementa una arquitectura **Cliente-Servidor desacoplada**, comunicada mediante una **API RESTful**, que garantiza la separación de responsabilidades entre la interfaz de usuario y la lógica de negocio.
+SIGAD implementa una arquitectura **Cliente-Servidor Desacoplada**, comunicada mediante una **API RESTful**, que garantiza la separación de responsabilidades entre la interfaz de usuario y la lógica de negocio.
 
 ### Capas del Sistema
 
 **1.1 Frontend (SPA — React + Vite)**
+
 Interfaz responsiva que renderiza vistas dinámicamente sin recargar la página. Emite peticiones HTTP asíncronas en formato JSON hacia el servidor en respuesta a las interacciones del usuario.
 
 **1.2 Backend (API — Node.js + Express)**
+
 Actúa como la API central del sistema. Su lógica se divide en cinco categorías basadas en el control de acceso por roles:
 
 | Módulo | Descripción |
@@ -74,6 +74,7 @@ Actúa como la API central del sistema. Su lógica se divide en cinco categoría
 ## 🛠️ Stack Tecnológico
 
 ### Frontend
+
 | Tecnología | Versión | Propósito |
 | :--- | :--- | :--- |
 | ![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB) **React** | ^19.2.0 | SPA basada en componentes funcionales |
@@ -81,16 +82,18 @@ Actúa como la API central del sistema. Su lógica se divide en cinco categoría
 | ![TailwindCSS](https://img.shields.io/badge/Tailwind-38B2AC?style=flat&logo=tailwind-css&logoColor=white) **Tailwind CSS** | ^4.1.18 | Diseño responsivo con utilidades CSS |
 
 ### Backend
+
 | Tecnología | Versión | Propósito |
 | :--- | :--- | :--- |
 | ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white) **Node.js** | LTS | Entorno de ejecución asíncrono y no bloqueante |
 | ![Express](https://img.shields.io/badge/Express.js-000000?style=flat&logo=express&logoColor=white) **Express.js** | ^5.2.1 | Framework para la API RESTful y middlewares |
 
 ### Base de Datos e Infraestructura
+
 | Tecnología | Propósito |
 | :--- | :--- |
 | ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat&logo=mariadb&logoColor=white) **MariaDB** | RDBMS relacional con integridad ACID |
-| ![DBeaver](https://img.shields.io/badge/DBeaver-372923?style=flat&logo=dbeaver&logoColor=white) **DBeaver** | Community | Cliente gráfico multiplataforma para administración, diseño de esquemas y depuración SQL sobre MariaDB |
+| ![DBeaver](https://img.shields.io/badge/DBeaver-372923?style=flat&logo=dbeaver&logoColor=white) **DBeaver** | Community | Cliente gráfico multiplataforma |
 | ![Tailscale](https://img.shields.io/badge/Tailscale-000000?style=flat&logo=tailscale&logoColor=white) **Tailscale** | VPN privada (Tailnet) para comunicación segura con SESA |
 | ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white) **Git / GitHub** | Control de versiones y base para CI/CD |
 
@@ -140,8 +143,8 @@ Antes de clonar el repositorio, asegúrate de tener instalado:
 
 - **Node.js** (versión LTS) y **Git**
 - **MariaDB Server** `v11.4.10` — Windows x86_64
-- **DBeaver Community Edition** — cliente de administración de BD
-- **Tailscale** — instalado, activo y autenticado en la Tailnet del equipo
+- **DBeaver Community Edition** — Cliente de administración de BD
+- **Tailscale** — Instalado, activo y autenticado en la Tailnet del equipo
 
 ### Variables de Entorno
 
@@ -173,7 +176,7 @@ EMAIL_USER=
 EMAIL_PASS=
 
 # API SESA
-EXTERNAL_API_URL
+EXTERNAL_API_URL=
 ```
 
 **`Frontend/.env`**
@@ -184,7 +187,7 @@ VITE_API_URL=
 ### Instalación y Arranque
 
 ```bash
-# 1. Clonar y sincronizar el repositorio
+# 1. Clonar y Sincronizar el Repositorio
 git clone https://github.com/diegop-dev/SIGAD.git
 cd SIGAD
 git fetch origin && git pull origin main
@@ -194,13 +197,13 @@ cd Backend
 npm install
 npm run dev
 
-# 3. Iniciar el Frontend (Terminal 2 — nueva ventana)
+# 3. Iniciar el Frontend (Terminal 2 — Nueva Ventana)
 cd Frontend
 npm install
 npm run dev
 ```
 
-> ⚠️ El Frontend y el Backend deben ejecutarse en **terminales independientes**, ya que ambos comandos `npm run dev` mantienen el proceso activo escuchando cambios.
+> ⚠️ El Frontend y el Backend deben ejecutarse en **Terminales Independientes**, ya que ambos comandos `npm run dev` mantienen el proceso activo escuchando cambios.
 
 ---
 
@@ -293,7 +296,7 @@ La mayoría de las tablas implementan los campos estándar de trazabilidad:
 
 ## 🔌 API y Endpoints
 
-Toda comunicación externa transita por la **red privada Tailscale**, evitando exposición al internet público.
+Toda comunicación externa transita por la **Red Privada Tailscale**, evitando exposición al internet público.
 
 ### Endpoints Internos — Core de SIGAD
 
@@ -308,9 +311,9 @@ Los endpoints internos soportan la operación completa de la SPA. Cuentan con va
 | Sistema y Monitoreo | `/metricas`, `/reportes`, `/notificaciones`, `/audit-logs`, `/configuracion`, `/external` | PDFs, indicadores, registro de auditoría |
 | Diagnóstico | `/health` | Verificación pública del estado del servidor |
 
-### Endpoints Expuestos — SESA consume de SIGAD (HU-37)
+### Endpoints Expuestos — SESA consume de SIGAD
 
-SIGAD actúa como **proveedor** de catálogos base para SESA. Todos son de solo lectura (`GET`) y se acceden vía vpn.
+SIGAD actúa como **Proveedor** de catálogos base para SESA. Todos son de solo lectura (`GET`) y se acceden vía vpn.
 
 | ID | Endpoint | Descripción |
 | :--- | :--- | :--- |
@@ -324,9 +327,9 @@ SIGAD actúa como **proveedor** de catálogos base para SESA. Todos son de solo 
 | EP-08 | `GET /api/users/catalogo/{id_usuario}` | Datos generales de un usuario específico |
 | EP-09 | `GET /api/aulas/catalogo` | Espacios físicos registrados |
 
-### Endpoints Consumidos — SIGAD consume de SESA (HU-38 / HU-39)
+### Endpoints Consumidos — SIGAD Consume de SESA
 
-SIGAD actúa como **cliente**, solicitando información de evaluación a SESA vía vpn. Todas soportan paginación con `?page={n}&page_size={n}`.
+SIGAD actúa como **Cliente**, solicitando información de evaluación a SESA vía vpn. Todas soportan paginación con `?page={n}&page_size={n}`.
 
 | ID | Endpoint en SESA | Historia | Propósito |
 | :--- | :--- | :--- | :--- |
@@ -346,7 +349,7 @@ El acceso y navegación están regidos por **RBAC (Control de Acceso Basado en R
 1. **Dashboard** → Resumen general del periodo activo
 2. **Gestión Académica** → Registro/actualización de Carreras, Materias, Grupos, Aulas y Periodos
 3. **Control de Personal** → Mantenimiento de expedientes y disponibilidad docente
-4. **Asignaciones (Core)** → Cruce entre carrera, grupo, materia, docente y aula con validación de empalmes
+4. **Asignaciones** → Cruce entre carrera, grupo, materia, docente y aula con validación de empalmes
 5. **Sincronización SESA** → Puente bidireccional: consumo de datos de evaluación y exposición de catálogos
 
 ### Vía de Consulta — Docentes (Rol 3)
@@ -364,10 +367,10 @@ Acceso restringido y enfocado en lectura de información personal:
 
 ## 📐 Convenciones del Equipo
 
-- **Control de versiones:** Conventional Commits (`feat:`, `fix:`, etc.)
+- **Control de Versiones:** Conventional Commits (`feat:`, `fix:`, etc.)
 - **Nomenclatura:** Funciones nuevas orientadas a SESA en español; funciones legacy existentes se mantienen en inglés
-- **Entrega de código:** Archivos completos (no fragmentos), en orden: `model → controller → routes → validator`
-- **Testing de endpoints:** Thunder Client + Tailscale VPN
+- **Entrega de Código:** Archivos completos (no fragmentos), en orden: `model → controller → routes → validator`
+- **Testing de Endpoints:** Thunder Client + Tailscale VPN
 
 ---
 
