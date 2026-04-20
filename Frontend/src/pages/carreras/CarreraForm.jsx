@@ -57,35 +57,47 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
 
       setFormData({ ...formData, [name]: clean });
       setServerAction(null);
-      if (errores[name]) setErrores({ ...errores, [name]: null });
+      const err = validateField(name, clean);
+      setErrores(prev => {
+        const next = { ...prev };
+        if (err) next[name] = err;
+        else delete next[name];
+        return next;
+      });
       return;
     }
 
     setFormData({ ...formData, [name]: formattedValue });
     setServerAction(null);
-    if (errores[name]) setErrores({ ...errores, [name]: null });
+    const err = validateField(name, formattedValue);
+    setErrores(prev => {
+      const next = { ...prev };
+      if (err) next[name] = err;
+      else delete next[name];
+      return next;
+    });
+  };
+
+  const validateField = (name, value) => {
+    const valStr = typeof value === 'string' ? value.trim() : value;
+    if (name === 'nombre_carrera') {
+      if (!valStr) return "El nombre del programa es obligatorio";
+      if (valStr.replace(REGEX.SOLO_LETRAS, '').length < 5) return "El nombre debe contener al menos 5 letras";
+      if (!REGEX.LETRAS_Y_ESPACIOS.test(valStr)) return "El nombre solo puede contener letras y espacios";
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(valStr)) return "El nombre no puede contener tres o más letras iguales consecutivas";
+    }
+    if (name === 'nivel_academico' && !valStr) return "El nivel académico es obligatorio";
+    if (name === 'modalidad' && !valStr) return "La modalidad es obligatoria";
+    if (name === 'academia_id' && !valStr) return "Selecciona una academia";
+    return null;
   };
 
   const validate = () => {
     const newErrors = {};
-    const { nombre_carrera, modalidad, academia_id, nivel_academico } = formData;
-    const nombreLimpio = nombre_carrera.trim();
-
-    // Validaciones del nombre del programa
-    if (!nombreLimpio) {
-      newErrors.nombre_carrera = "El nombre del programa es obligatorio";
-    } else if (nombreLimpio.replace(REGEX.SOLO_LETRAS, '').length < 5) {
-      newErrors.nombre_carrera = "El nombre debe contener al menos 5 letras";
-    } else if (!REGEX.LETRAS_Y_ESPACIOS.test(nombreLimpio)) {
-      newErrors.nombre_carrera = "El nombre solo puede contener letras y espacios";
-    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombreLimpio)) {
-      newErrors.nombre_carrera = "El nombre no puede contener tres o más letras iguales consecutivas";
-    }
-
-    if (!nivel_academico) newErrors.nivel_academico = "El nivel académico es obligatorio";
-    if (!modalidad) newErrors.modalidad = "La modalidad es obligatoria";
-    if (!academia_id) newErrors.academia_id = "Selecciona una academia";
-
+    ['nombre_carrera', 'nivel_academico', 'modalidad', 'academia_id'].forEach(field => {
+      const err = validateField(field, formData[field]);
+      if (err) newErrors[field] = err;
+    });
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -164,7 +176,7 @@ export const CarreraForm = ({ onBack, onSuccess, initialData = null }) => {
       </div>
 
       <div className="p-6 md:p-10">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-10">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto space-y-10">
           
           <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl w-fit">
             <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 

@@ -150,14 +150,14 @@ Crea los siguientes archivos antes de iniciar el proyecto:
 
 **`Backend/.env`**
 ```env
-# Configuración del servidor
+# Configuración del Servidor
 PORT=
 HOST=
 
-# URL del frontend para permitir solicitudes CORS
+# URL del Frontend Para Permitir Solicitudes CORS
 FRONTEND_URL=
 
-# Configuración de la base de datos
+# Configuración de la Base de Datos
 DB_HOST=
 DB_USER=
 DB_PASSWORD=
@@ -169,16 +169,17 @@ DB_CONNECTION_LIMIT=
 JWT_SECRET=
 JWT_EXPIRES_IN=
 
-# Configuración de nodemailer
+# Configuración de Nodemailer
 EMAIL_USER=
 EMAIL_PASS=
 
-# API SESA
+# IP de SESA
 EXTERNAL_API_URL=
 ```
 
 **`Frontend/.env`**
 ```env
+# URL del Backend
 VITE_API_URL=
 ```
 

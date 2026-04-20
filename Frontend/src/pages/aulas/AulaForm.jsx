@@ -37,6 +37,7 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [errores, setErrores] = useState({});
   const [serverAction, setServerAction] = useState(null);
 
   useEffect(() => {
@@ -51,22 +52,55 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
     }
   }, [aulaToEdit]);
 
+  const validateField = (name, value) => {
+    const valStr = (value || '').toString().trim();
+    if (name === 'nombre') {
+      if (!valStr) return "El nombre / código es obligatorio.";
+      if (valStr.length < 2) return "Mínimo 2 caracteres.";
+      if (!REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(valStr)) return "Formato inválido.";
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(valStr)) return "No puede contener 3 letras seguidas idénticas.";
+    }
+    if (name === 'capacidad') {
+      if (!valStr) return "La capacidad es obligatoria.";
+      if (isNaN(valStr) || parseInt(valStr) <= 0) return "Debe ser un número mayor a 0.";
+    }
+    if (name === 'ubicacion') {
+      if (!valStr) return "Seleccione la ubicación.";
+    }
+    return null;
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     const formattedValue = formatToGlobalUppercase(value, name, type);
 
-    // Standard Regex validation
-    if (name === 'nombre' && formattedValue !== '' && !REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(formattedValue)) return;
-    if (name === 'nombre' && REGEX.TRIPLE_LETRA_REPETIDA.test(formattedValue)) return;
-    if (name === 'capacidad' && formattedValue !== '' && !REGEX.NUMEROS.test(formattedValue)) return;
-
     setFormData({ ...formData, [name]: formattedValue });
     setError(null);
     setServerAction(null);
+    
+    const errorMsg = validateField(name, formattedValue);
+    setErrores(prev => {
+      const newE = { ...prev };
+      if (errorMsg) newE[name] = errorMsg;
+      else delete newE[name];
+      return newE;
+    });
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    ['nombre', 'capacidad', 'ubicacion'].forEach(field => {
+      const err = validateField(field, formData[field]);
+      if (err) newErrors[field] = err;
+    });
+    setErrores(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
+    
     setIsSubmitting(true);
     setError(null);
 
@@ -115,7 +149,11 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
     }
   };
 
-  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
+  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none";
+  const getValidationClass = (hasError) => 
+    hasError 
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500 bg-white" 
+      : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]";
 
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden relative">
@@ -137,7 +175,7 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
       </div>
 
       <div className="p-6 md:p-10">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto">
           {error && serverAction !== 'WARN' && (
             <div className={`p-4 rounded-2xl flex items-start gap-3 border mb-8 ${serverAction === 'BLOCK' ? 'bg-amber-50 text-amber-900 border-amber-200' : 'bg-red-50 text-red-700 border-red-100/50'}`}>
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -171,11 +209,11 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
                     name="nombre" 
                     value={formData.nombre} 
                     onChange={handleChange} 
-                    required 
                     placeholder="Ej. A-101 o Lab. Cómputo 1"
                     maxLength={50}
-                    className={inputBaseClass}
+                    className={`${inputBaseClass} ${getValidationClass(errores.nombre)}`}
                   />
+                  {errores.nombre && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.nombre}</p>}
                 </div>
                 
                 <div className="space-y-2">
@@ -209,11 +247,11 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
                     name="capacidad" 
                     value={formData.capacidad} 
                     onChange={handleChange} 
-                    required 
                     placeholder="Ej. 40"
                     maxLength={3}
-                    className={inputBaseClass}
+                    className={`${inputBaseClass} ${getValidationClass(errores.capacidad)}`}
                   />
+                  {errores.capacidad && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.capacidad}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -224,8 +262,7 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
                     name="ubicacion" 
                     value={formData.ubicacion} 
                     onChange={handleChange} 
-                    required
-                    className={`${inputBaseClass} appearance-none cursor-pointer`}
+                    className={`${inputBaseClass} ${getValidationClass(errores.ubicacion)} appearance-none cursor-pointer`}
                   >
                     <option value="" disabled>Selecciona un edificio...</option>
                     {ubicacionesFinales.map((edificio) => (
@@ -234,6 +271,7 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
                       </option>
                     ))}
                   </select>
+                  {errores.ubicacion && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.ubicacion}</p>}
                 </div>
               </div>
             </div>
@@ -264,9 +302,9 @@ export const AulaForm = ({ aulaToEdit, onBack, onSuccess }) => {
             <div className="pt-8 border-t border-dashed border-slate-200 mt-2">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || Object.keys(errores).length > 0}
                 className={`w-full flex justify-center items-center px-8 py-5 rounded-2xl font-black transition-all duration-300 text-lg ${
-                  isSubmitting
+                  isSubmitting || Object.keys(errores).length > 0
                     ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300"
                     : serverAction === 'WARN' 
                       ? "bg-red-600 text-white hover:bg-red-700 shadow-xl hover:shadow-red-600/30 active:scale-[0.98]"

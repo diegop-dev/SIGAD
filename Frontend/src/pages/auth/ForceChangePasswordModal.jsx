@@ -37,25 +37,29 @@ export const ForceChangePasswordModal = () => {
     if (e.key === ' ') e.preventDefault();
   };
 
+  const validateField = (name, value, otherVal) => {
+    if (name === 'newPassword') {
+      if (!value) return "La nueva contraseña es obligatoria.";
+      if (value.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
+    }
+    if (name === 'confirmPassword') {
+      if (!value) return "Debes confirmar tu nueva contraseña.";
+      if (otherVal && value !== otherVal) return "Las contraseñas no coinciden. Verifícalas.";
+    }
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = {};
+    
+    const errObj = {};
+    const e1 = validateField('newPassword', newPassword);
+    if (e1) errObj.newPassword = e1;
+    const e2 = validateField('confirmPassword', confirmPassword, newPassword);
+    if (e2) errObj.confirmPassword = e2;
 
-    // Validaciones personalizadas en lugar de etiquetas HTML
-    if (!newPassword) {
-      newErrors.newPassword = "La nueva contraseña es obligatoria.";
-    } else if (newPassword.length < 8) {
-      newErrors.newPassword = "La contraseña debe tener al menos 8 caracteres.";
-    }
-
-    if (!confirmPassword) {
-      newErrors.confirmPassword = "Debes confirmar tu nueva contraseña.";
-    } else if (newPassword && confirmPassword && newPassword !== confirmPassword) {
-      newErrors.confirmPassword = "Las contraseñas no coinciden. Verifícalas.";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrores(newErrors);
+    if (Object.keys(errObj).length > 0) {
+      setErrores(errObj);
       return;
     }
 
@@ -138,8 +142,22 @@ export const ForceChangePasswordModal = () => {
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => {
-                      setNewPassword(e.target.value.replace(/\s/g, ''));
-                      if (errores.newPassword) setErrores({ ...errores, newPassword: null });
+                      const val = e.target.value.replace(/\s/g, '');
+                      setNewPassword(val);
+                      const err = validateField('newPassword', val);
+                      setErrores(prev => {
+                        const next = { ...prev };
+                        if (err) next.newPassword = err;
+                        else delete next.newPassword;
+                        
+                        // Re-validate confirm if valid
+                        if (confirmPassword) {
+                          const errC = validateField('confirmPassword', confirmPassword, val);
+                          if (errC) next.confirmPassword = errC;
+                          else delete next.confirmPassword;
+                        }
+                        return next;
+                      });
                     }}
                     onKeyDown={handleKeyDownStrict}
                     className={`${inputBaseClass} ${getValidationClass(errores.newPassword)} pl-4 pr-12`}
@@ -164,8 +182,15 @@ export const ForceChangePasswordModal = () => {
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => {
-                    setConfirmPassword(e.target.value.replace(/\s/g, ''));
-                    if (errores.confirmPassword) setErrores({ ...errores, confirmPassword: null });
+                    const val = e.target.value.replace(/\s/g, '');
+                    setConfirmPassword(val);
+                    const err = validateField('confirmPassword', val, newPassword);
+                    setErrores(prev => {
+                      const next = { ...prev };
+                      if (err) next.confirmPassword = err;
+                      else delete next.confirmPassword;
+                      return next;
+                    });
                   }}
                   onKeyDown={handleKeyDownStrict}
                   className={`${inputBaseClass} ${getValidationClass(errores.confirmPassword)} px-4`}

@@ -56,19 +56,42 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
     );
   }, [carrerasDisponibles, formData.nivel_academico]);
 
+  const validateField = (name, value, currentFormData = formData) => {
+    let errorMsj = null;
+    if (name === "periodo_id" && !value) errorMsj = "Por favor, selecciona un periodo académico.";
+    if (name === "carrera_id" && !value) errorMsj = "Por favor, selecciona un programa educativo.";
+
+    if (name === "total_inscritos") {
+      const inscritos = parseInt(value, 10);
+      if (!value) errorMsj = "El total de inscritos es obligatorio.";
+      else if (isNaN(inscritos) || inscritos < 0) errorMsj = "Ingresa una cantidad válida mayor o igual a 0.";
+    }
+
+    if (name === "total_egresados") {
+      const egresados = parseInt(value, 10);
+      const inscritos = parseInt(currentFormData.total_inscritos, 10);
+      if (!value) errorMsj = "El total de egresados es obligatorio.";
+      else if (isNaN(egresados) || egresados < 0) errorMsj = "Ingresa una cantidad válida mayor o igual a 0.";
+      else if (!isNaN(inscritos) && inscritos >= 0 && egresados > inscritos) errorMsj = "Incongruencia: Los egresados no pueden superar a los inscritos.";
+    }
+
+    if (name === "promedio_general") {
+      const promedio = parseFloat(value);
+      if (!value) errorMsj = "El promedio general es obligatorio.";
+      else if (isNaN(promedio) || promedio < 0 || promedio > 100) errorMsj = "El promedio debe encontrarse en una escala válida de 0 a 100.";
+    }
+    return errorMsj;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     let sanitizedValue = value;
 
     if (typeof value === 'string') {
         sanitizedValue = value.trimStart();
-        
-        // Limite realista de 4 dígitos para inscritos y egresados (hasta 9,999)
         if (name === 'total_inscritos' || name === 'total_egresados') {
           sanitizedValue = sanitizedValue.replace(/\D/g, '').slice(0, 4);
         }
-    
-        // Permite formato decimal (ej. 100.00 -> 6 caracteres máximo)
         if (name === 'promedio_general') {
           sanitizedValue = sanitizedValue.replace(/[^0-9.]/g, '')
                                          .replace(/(\..*)\./g, '$1')
@@ -76,41 +99,36 @@ export const MetricasForm = ({ periodos, onBack, onSuccess }) => {
         }
     }
 
-    setFormData(prev => {
-      const newData = { ...prev, [name]: sanitizedValue };
-      // Si cambia el nivel académico, reseteamos la carrera seleccionada
-      if (name === 'nivel_academico') {
-        newData.carrera_id = '';
-      }
-      return newData;
-    });
-
-    if (errores[name]) {
-      const newErrors = { ...errores };
-      delete newErrors[name];
-      setErrores(newErrors);
+    const nextFormData = { ...formData, [name]: sanitizedValue };
+    if (name === 'nivel_academico') {
+      nextFormData.carrera_id = '';
     }
+    setFormData(nextFormData);
+
+    setErrores(prev => {
+      const newErrors = { ...prev };
+      const err = validateField(name, sanitizedValue, nextFormData);
+      if (err) newErrors[name] = err; else delete newErrors[name];
+
+      if (name === 'total_inscritos' && nextFormData.total_egresados) {
+         const errEg = validateField('total_egresados', nextFormData.total_egresados, nextFormData);
+         if (errEg) newErrors.total_egresados = errEg; else delete newErrors.total_egresados;
+      }
+      if (name === 'nivel_academico') {
+         const errCar = validateField('carrera_id', nextFormData.carrera_id, nextFormData);
+         if (errCar) newErrors.carrera_id = errCar; else delete newErrors.carrera_id;
+      }
+
+      return newErrors;
+    });
   };
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!formData.periodo_id) newErrors.periodo_id = "Por favor, selecciona un periodo académico.";
-    if (!formData.carrera_id) newErrors.carrera_id = "Por favor, selecciona un programa educativo.";
-
-    const inscritos = parseInt(formData.total_inscritos, 10);
-    if (!formData.total_inscritos) newErrors.total_inscritos = "El total de inscritos es obligatorio.";
-    else if (isNaN(inscritos) || inscritos < 0) newErrors.total_inscritos = "Ingresa una cantidad válida mayor o igual a 0.";
-
-    const egresados = parseInt(formData.total_egresados, 10);
-    if (!formData.total_egresados) newErrors.total_egresados = "El total de egresados es obligatorio.";
-    else if (isNaN(egresados) || egresados < 0) newErrors.total_egresados = "Ingresa una cantidad válida mayor o igual a 0.";
-    else if (inscritos >= 0 && egresados > inscritos) newErrors.total_egresados = "Incongruencia: Los egresados no pueden superar a los inscritos.";
-
-    const promedio = parseFloat(formData.promedio_general);
-    if (!formData.promedio_general) newErrors.promedio_general = "El promedio general es obligatorio.";
-    else if (isNaN(promedio) || promedio < 0 || promedio > 100) newErrors.promedio_general = "El promedio debe encontrarse en una escala válida de 0 a 100.";
-
+    ['periodo_id', 'carrera_id', 'total_inscritos', 'total_egresados', 'promedio_general'].forEach(field => {
+      const err = validateField(field, formData[field]);
+      if (err) newErrors[field] = err;
+    });
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
   };

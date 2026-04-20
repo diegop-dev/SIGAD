@@ -121,78 +121,96 @@ export const PeriodosForm = ({ periodoToEdit, onBack, onSuccess }) => {
     }
   }, [formData.fecha_inicio, formData.fecha_fin, periodosExistentes, periodoToEdit]);
 
+  const validateField = (name, value, currentFormData = formData) => {
+    let errorMsj = null;
+    if (name === "fecha_inicio") {
+      if (!value) errorMsj = "Fecha de inicio obligatoria";
+      else {
+        const anio = value.split('-')[0];
+        if (!REGEX.ANIO.test(anio)) errorMsj = "El año de la fecha de inicio no es válido.";
+      }
+    }
+    if (name === "fecha_fin") {
+      if (!value) errorMsj = "Fecha de fin obligatoria";
+    }
+    if (name === "fecha_limite_calif") {
+      if (!value) errorMsj = "Fecha límite obligatoria";
+    }
+
+    const { fecha_inicio, fecha_fin } = currentFormData;
+    
+    if (name === "fecha_fin") {
+       if (fecha_inicio && value) {
+          const inicio = new Date(fecha_inicio);
+          const fin = new Date(value);
+          const minFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000));
+          if (fin < minFin) errorMsj = "Debe ser al menos 12 semanas después del inicio";
+          else if (inicio > fin) errorMsj = "La fecha de fin debe ser posterior a la fecha de inicio";
+       }
+    }
+
+    if (name === "fecha_limite_calif") {
+       if (fecha_inicio && fecha_fin && value) {
+          const fin = new Date(fecha_fin);
+          const limite = new Date(value);
+          const minLimite = new Date(new Date(fecha_inicio).getTime() + (1 * 24 * 60 * 60 * 1000));
+          const maxLimite = new Date(fin.getTime() - (30 * 24 * 60 * 60 * 1000));
+          
+          if (limite <= new Date(fecha_inicio)) {
+            errorMsj = "La fecha límite debe ser posterior a la fecha de inicio del periodo";
+          } else if (limite > maxLimite) {
+            errorMsj = "Debe ser al menos 30 días antes de la fecha de fin del periodo";
+          }
+       }
+    }
+    return errorMsj;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setServerAction(null); // Limpiar alerta de integridad al intentar corregir
+    setServerAction(null); 
     
     let updatedData = {
       ...formData,
       [name]: value
     };
 
-    // Lógica automática de fechas
     if (name === "fecha_inicio" && value) {
       const inicio = new Date(value);
-      // Se utiliza UTC para evitar desfases al sumar días
-      const fechaFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000)); // +12 semanas
+      const fechaFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000));
 
       updatedData.fecha_fin = fechaFin.toISOString().split("T")[0];
-      updatedData.fecha_limite_calif = new Date(fechaFin.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString().split("T")[0]; // -30 días del fin
+      updatedData.fecha_limite_calif = new Date(fechaFin.getTime() - (30 * 24 * 60 * 60 * 1000)).toISOString().split("T")[0];
     }
 
     setFormData(updatedData);
 
-    // Limpiar el error específico del campo modificado
-    if (errores[name]) {
-      setErrores((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+    setErrores(prev => {
+      const newErrors = { ...prev };
+      
+      const err1 = validateField('fecha_inicio', updatedData.fecha_inicio, updatedData);
+      if (err1) newErrors.fecha_inicio = err1; else delete newErrors.fecha_inicio;
+      
+      const err2 = validateField('fecha_fin', updatedData.fecha_fin, updatedData);
+      if (err2) newErrors.fecha_fin = err2; else delete newErrors.fecha_fin;
+      
+      const err3 = validateField('fecha_limite_calif', updatedData.fecha_limite_calif, updatedData);
+      if (err3) newErrors.fecha_limite_calif = err3; else delete newErrors.fecha_limite_calif;
+      
+      return newErrors;
+    });
   };
 
   const validate = () => {
-    const newErrors = { ...errores }; // Preservar errores en tiempo real como el overlap
+    const newErrors = { ...errores }; // Preservar overlap
     const { fecha_inicio, fecha_fin, fecha_limite_calif } = formData;
-
-    if (!fecha_inicio) newErrors.fecha_inicio = "Fecha de inicio obligatoria";
-    if (!fecha_fin) newErrors.fecha_fin = "Fecha de fin obligatoria";
-    if (!fecha_limite_calif) newErrors.fecha_limite_calif = "Fecha límite obligatoria";
-
-    // Validar que el año extraído tenga exactamente 4 dígitos numéricos
-    if (fecha_inicio) {
-      const anio = fecha_inicio.split('-')[0];
-      if (!REGEX.ANIO.test(anio)) newErrors.fecha_inicio = "El año de la fecha de inicio no es válido.";
-    }
-
-    if (fecha_inicio && fecha_fin) {
-      const inicio = new Date(fecha_inicio);
-      const fin = new Date(fecha_fin);
-      const minFin = new Date(inicio.getTime() + (84 * 24 * 60 * 60 * 1000));
-
-      if (fin < minFin) {
-        newErrors.fecha_fin = "Debe ser al menos 12 semanas después del inicio";
-      }
-      
-      if (inicio > fin) {
-        newErrors.fecha_fin = "La fecha de fin debe ser posterior a la fecha de inicio";
-      }
-    }
-
-    if (fecha_fin && fecha_limite_calif) {
-      const fin = new Date(fecha_fin);
-      const limite = new Date(fecha_limite_calif);
-      // La fecha límite debe estar entre fecha_inicio+1 día y fecha_fin-30 días
-      const minLimite = fecha_inicio ? new Date(new Date(fecha_inicio).getTime() + (1 * 24 * 60 * 60 * 1000)) : null;
-      const maxLimite = new Date(fin.getTime() - (30 * 24 * 60 * 60 * 1000));
-
-      if (minLimite && limite <= new Date(fecha_inicio)) {
-        newErrors.fecha_limite_calif = "La fecha límite debe ser posterior a la fecha de inicio del periodo";
-      } else if (limite > maxLimite) {
-        newErrors.fecha_limite_calif = "Debe ser al menos 30 días antes de la fecha de fin del periodo";
-      }
-    }
+    
+    const err1 = validateField('fecha_inicio', fecha_inicio);
+    if (err1) newErrors.fecha_inicio = err1;
+    const err2 = validateField('fecha_fin', fecha_fin);
+    if (err2) newErrors.fecha_fin = err2;
+    const err3 = validateField('fecha_limite_calif', fecha_limite_calif);
+    if (err3) newErrors.fecha_limite_calif = err3;
 
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;

@@ -10,29 +10,49 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errores, setErrores] = useState({});
 
   const { login }  = useAuth();
   const navigate   = useNavigate();
 
-  // 3. Control estricto de caracteres en vivo para el correo
+  const validateField = (name, value) => {
+    let errorMsj = null;
+    const valTrim = value.trim();
+    if (name === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!valTrim) errorMsj = 'Por favor, ingresa tu correo institucional.';
+      else if (!emailRegex.test(valTrim)) errorMsj = 'Verifica que el correo tenga un formato válido.';
+    } else if (name === 'password') {
+      if (!valTrim) errorMsj = 'La contraseña no puede estar vacía.';
+    }
+    return errorMsj;
+  };
+
   const handleEmailChange = (e) => {
-    // Solo permite letras, números, puntos, guiones medios, guiones bajos y la arroba.
-    // Elimina espacios, acentos, y caracteres especiales inválidos al instante.
     let newValue = e.target.value.replace(/[^a-zA-Z0-9._\-@]/g, '');
-    
-    // Evita teclear múltiples '@'
     if ((newValue.match(/@/g) || []).length > 1) {
       return; 
     }
-    
     setEmail(newValue);
+
+    const err = validateField('email', newValue);
+    setErrores(prev => {
+      const newErrors = { ...prev };
+      if (err) newErrors.email = err; else delete newErrors.email;
+      return newErrors;
+    });
   };
 
-  // 3. Control estricto en vivo para la contraseña
   const handlePasswordChange = (e) => {
-    // Evita que puedan teclear espacios en blanco dentro de la contraseña
     let newValue = e.target.value.replace(/\s/g, '');
     setPassword(newValue);
+
+    const err = validateField('password', newValue);
+    setErrores(prev => {
+      const newErrors = { ...prev };
+      if (err) newErrors.password = err; else delete newErrors.password;
+      return newErrors;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -42,20 +62,15 @@ const Login = () => {
     const emailTrimmed = email.trim();
     const passwordTrimmed = password.trim();
 
-    if (!emailTrimmed) {
-      toast.error('Por favor, ingresa tu correo institucional.');
-      return;
-    }
+    const newErrors = {};
+    const e1 = validateField('email', emailTrimmed);
+    if (e1) newErrors.email = e1;
+    const e2 = validateField('password', passwordTrimmed);
+    if (e2) newErrors.password = e2;
 
-    if (passwordTrimmed.length === 0) {
-      toast.error('La contraseña no puede estar vacía.');
-      return;
-    }
-
-    // Validación de formato estándar de correo
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailTrimmed)) {
-      toast.error('Verifica que el correo tenga un formato válido.');
+    if (Object.keys(newErrors).length > 0) {
+      setErrores(newErrors);
+      toast.error('Corrige los errores antes de continuar.');
       return;
     }
 
@@ -125,13 +140,13 @@ const Login = () => {
                       autoComplete="email"
                       value={email}
                       onChange={handleEmailChange}
-                      maxLength={100} // Límite de caracteres
-                      // Se agrega el pseudo-elemento :-webkit-autofill para quitar el fondo azul
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 focus:bg-white focus:ring-1 focus:ring-[#0B1828] focus:border-[#0B1828] text-sm font-bold text-[#0B1828] transition-all placeholder:text-slate-400 shadow-sm [&:-webkit-autofill]:shadow-[0_0_0_1000px_#F8FAFC_inset] [&:-webkit-autofill]:-webkit-text-fill-color-[#0B1828]"
+                      maxLength={100}
+                      className={`w-full bg-slate-50 border rounded-xl py-3.5 pl-12 pr-4 outline-none focus:bg-white focus:ring-1 text-sm font-bold text-[#0B1828] transition-all placeholder:text-slate-400 shadow-sm [&:-webkit-autofill]:shadow-[0_0_0_1000px_#F8FAFC_inset] [&:-webkit-autofill]:-webkit-text-fill-color-[#0B1828] ${errores.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500 bg-white' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
                       placeholder="ejemplo@red.unid.mx"
                       disabled={isSubmitting}
                     />
                   </div>
+                  {errores.email && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.email}</p>}
                 </div>
 
                 {/* Contraseña */}
@@ -148,9 +163,8 @@ const Login = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={handlePasswordChange}
-                      maxLength={64} // Límite de caracteres
-                      // Se limpia también el autocompletado en la contraseña
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pl-12 pr-12 focus:bg-white focus:ring-1 focus:ring-[#0B1828] focus:border-[#0B1828] text-sm font-bold text-[#0B1828] transition-all placeholder:text-slate-400 shadow-sm [&:-webkit-autofill]:shadow-[0_0_0_1000px_#F8FAFC_inset] [&:-webkit-autofill]:-webkit-text-fill-color-[#0B1828]"
+                      maxLength={64}
+                      className={`w-full bg-slate-50 border rounded-xl py-3.5 pl-12 pr-12 outline-none focus:bg-white focus:ring-1 text-sm font-bold text-[#0B1828] transition-all placeholder:text-slate-400 shadow-sm [&:-webkit-autofill]:shadow-[0_0_0_1000px_#F8FAFC_inset] [&:-webkit-autofill]:-webkit-text-fill-color-[#0B1828] ${errores.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500 bg-white' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
                       placeholder="••••••••"
                       disabled={isSubmitting}
                     />
@@ -166,6 +180,7 @@ const Login = () => {
                       }
                     </button>
                   </div>
+                  {errores.password && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.password}</p>}
                 </div>
 
                 {/* Botón de envío */}

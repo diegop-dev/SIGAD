@@ -63,62 +63,82 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
     fetchCatalogos();
   }, []);
 
+  const validateField = (name, value, currentFormData = formData) => {
+    let errorMsj = null;
+    if (name === "nombre") {
+      const valTrimmed = value.trim();
+      if (!valTrimmed) {
+        errorMsj = "El nombre de la materia es obligatorio";
+      } else if (valTrimmed.replace(REGEX.SOLO_LETRAS, '').length < 3) {
+        errorMsj = "El nombre debe contener al menos 3 letras";
+      } else if (!REGEX.NOMBRE_MATERIA.test(valTrimmed)) {
+        errorMsj = "El nombre solo puede contener letras, espacios, puntos, guiones y un dígito aislado";
+      } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(valTrimmed)) {
+        errorMsj = "El nombre no puede contener tres o más letras iguales consecutivas";
+      }
+    }
+    else if (name === "creditos" && (!value || value < 1)) errorMsj = "Debe asignar al menos 1 crédito";
+    else if (name === "cupo_maximo" && (!value || value < 1)) errorMsj = "El cupo debe ser mayor a 0";
+    else if (name === "periodo_id" && !value) errorMsj = "Seleccione el periodo escolar";
+    else if (name === "cuatrimestre_id" && !value) errorMsj = "Seleccione el cuatrimestre";
+    else if (name === "nivel_academico" && !value) errorMsj = "Seleccione el nivel académico";
+    else if (name === "carrera_id") {
+      const tipo = currentFormData.tipo_asignatura;
+      if (tipo !== "TRONCO_COMUN" && (!value || value === "0")) {
+        errorMsj = "Seleccione la carrera correspondiente";
+      }
+    }
+    return errorMsj;
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
+    // ... logic is the same at first
     const formattedValue = formatToGlobalUppercase(value, name, type);
     
-    // Regex validation
     if (name === "nombre" && formattedValue !== '' && !REGEX.NOMBRE_MATERIA.test(formattedValue)) return;
     if (name === "nombre" && REGEX.TRIPLE_LETRA_REPETIDA.test(formattedValue)) return;
     if ((name === "creditos" || name === "cupo_maximo") && formattedValue !== '' && !REGEX.NUMEROS.test(formattedValue)) return;
 
+    let finalValue = formattedValue;
+    if (name === 'creditos' || name === 'cupo_maximo') {
+      finalValue = formattedValue !== "" ? Number(formattedValue) : "";
+    }
+
+    const nextFormData = { ...formData, [name]: finalValue };
+
     if (name === "tipo_asignatura") {
-      if (formattedValue === "TRONCO_COMUN") {
-        setFormData(prev => ({ ...prev, tipo_asignatura: formattedValue, carrera_id: "" }));
-      } else {
-        setFormData(prev => ({ ...prev, tipo_asignatura: formattedValue }));
+      if (finalValue === "TRONCO_COMUN") {
+        nextFormData.carrera_id = "";
       }
     } 
     else if (name === "nivel_academico") {
-      setFormData(prev => ({ ...prev, nivel_academico: formattedValue, carrera_id: "" }));
+      nextFormData.carrera_id = "";
     }
-    else {
-      let finalValue = formattedValue;
-      if (name === 'codigo_unico') {
-        finalValue = value.toUpperCase().slice(0, 15);
-      } else if (name === 'creditos' || name === 'cupo_maximo') {
-        finalValue = value !== "" ? Number(value) : "";
-      }
-      setFormData(prev => ({ ...prev, [name]: finalValue }));
-    }
+
+    setFormData(nextFormData);
     
-    if (errores[name]) setErrores(prev => ({ ...prev, [name]: null }));
+    setErrores(prev => {
+      const next = { ...prev };
+      const err = validateField(name, finalValue, nextFormData);
+      if (err) next[name] = err; else delete next[name];
+      
+      // Secondary fields reset
+      if (name === "tipo_asignatura" || name === "nivel_academico") {
+         const err2 = validateField("carrera_id", nextFormData.carrera_id, nextFormData);
+         if (err2) next.carrera_id = err2; else delete next.carrera_id;
+      }
+
+      return next;
+    });
   };
 
   const validate = () => {
     const newErrors = {};
-    const { nombre, creditos, cupo_maximo, periodo_id, cuatrimestre_id, tipo_asignatura, carrera_id, nivel_academico } = formData;
-
-    if (!nombre?.trim()) {
-      newErrors.nombre = "El nombre de la materia es obligatorio";
-    } else if (nombre.trim().replace(REGEX.SOLO_LETRAS, '').length < 3) {
-      newErrors.nombre = "El nombre debe contener al menos 3 letras";
-    } else if (!REGEX.NOMBRE_MATERIA.test(nombre.trim())) {
-      newErrors.nombre = "El nombre solo puede contener letras, espacios, puntos, guiones y un dígito aislado";
-    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombre.trim())) {
-      newErrors.nombre = "El nombre no puede contener tres o más letras iguales consecutivas";
-    }
-    if (!creditos || creditos < 1) newErrors.creditos = "Debe asignar al menos 1 crédito";
-    if (!cupo_maximo || cupo_maximo < 1) newErrors.cupo_maximo = "El cupo debe ser mayor a 0";
-    if (!periodo_id) newErrors.periodo_id = "Seleccione el periodo escolar";
-    if (!cuatrimestre_id) newErrors.cuatrimestre_id = "Seleccione el cuatrimestre";
-    if (!nivel_academico) newErrors.nivel_academico = "Seleccione el nivel académico";
-    
-    if (tipo_asignatura !== "TRONCO_COMUN") {
-      if (!carrera_id || carrera_id === "" || carrera_id === "0") {
-        newErrors.carrera_id = "Seleccione la carrera correspondiente";
-      }
-    }
+    ['nombre', 'creditos', 'cupo_maximo', 'periodo_id', 'cuatrimestre_id', 'nivel_academico', 'carrera_id'].forEach(field => {
+      const err = validateField(field, formData[field]);
+      if (err) newErrors[field] = err;
+    });
 
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -215,7 +235,7 @@ export const MateriasForm = ({ onBack, onSuccess, initialData = null }) => {
       </div>
 
       <div className="p-6 md:p-10">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-10">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto space-y-10">
           <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl w-fit">
             <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
             Indica un campo obligatorio para el sistema

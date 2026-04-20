@@ -109,40 +109,44 @@ export const AcademiaForm = ({ academiaToEdit, onBack, onSuccess }) => {
 
     setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
     
-    // Limpiar error del campo al escribir
-    if (errores[name]) {
-      const newErrors = { ...errores };
-      delete newErrors[name];
-      setErrores(newErrors);
+    const errorMsg = validateField(name, sanitizedValue);
+    setErrores(prev => {
+      const newE = { ...prev };
+      if (errorMsg) newE[name] = errorMsg;
+      else delete newE[name];
+      return newE;
+    });
+  };
+
+  const validateField = (name, value) => {
+    const valStr = (value || '').toString().trim();
+    if (name === 'nombre') {
+      if (!valStr) return "El nombre de la academia es obligatorio.";
+      if (valStr.length < 3) return "El nombre debe tener al menos 3 caracteres.";
+      if (!REGEX.LETRAS_Y_ESPACIOS.test(valStr)) return "El nombre solo puede contener letras y espacios.";
+      if (REGEX.TRIPLE_LETRA_REPETIDA.test(valStr)) return "El nombre no puede contener tres o más letras iguales consecutivas.";
     }
+    if (name === 'descripcion') {
+      if (valStr.length > 0 && valStr.length < 10) return "La descripción debe tener al menos 10 caracteres o dejarse en blanco.";
+    }
+    if (name === 'usuario_id') {
+      if (!valStr) return "Debe asignar un coordinador.";
+    }
+    return null;
   };
 
   const validateForm = () => {
     const newErrors = {};
-    const nombreLimpio = formData.nombre.trim();
-
-    // Validaciones del campo NOMBRE
-    if (!nombreLimpio) {
-      newErrors.nombre = "El nombre de la academia es obligatorio.";
-    } else if (nombreLimpio.length < 3) {
-      newErrors.nombre = "El nombre debe tener al menos 3 caracteres.";
-    } else if (!REGEX.LETRAS_Y_ESPACIOS.test(nombreLimpio)) {
-      newErrors.nombre = "El nombre solo puede contener letras y espacios.";
-    } else if (REGEX.TRIPLE_LETRA_REPETIDA.test(nombreLimpio)) {
-      newErrors.nombre = "El nombre no puede contener tres o más letras iguales consecutivas.";
-    }
-
-    // Validaciones del campo DESCRIPCIÓN (opcional, pero si se llena tiene reglas)
-    const descLimpia = formData.descripcion.trim();
-    if (descLimpia.length > 0 && descLimpia.length < 10) {
-      newErrors.descripcion = "La descripción debe tener al menos 10 caracteres o dejarse en blanco.";
-    }
-
-    // Validación del COORDINADOR
-    if (!formData.usuario_id) {
-      newErrors.usuario_id = "Debe asignar un coordinador.";
-    }
     
+    const errNombre = validateField('nombre', formData.nombre);
+    if (errNombre) newErrors.nombre = errNombre;
+
+    const errDesc = validateField('descripcion', formData.descripcion);
+    if (errDesc) newErrors.descripcion = errDesc;
+
+    const errUser = validateField('usuario_id', formData.usuario_id);
+    if (errUser) newErrors.usuario_id = errUser;
+
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
   };

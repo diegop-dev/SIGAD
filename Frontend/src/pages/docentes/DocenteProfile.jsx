@@ -234,7 +234,7 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
 
   /* ── CP effect ── */
   useEffect(() => {
-    if (formData.cp.length === 5) {
+    if (formData.cp && formData.cp.length === 5) {
       setLoadingCP(true);
       (async () => {
         try {
@@ -242,15 +242,20 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
           if (res.ok) {
             const data = await res.json();
             setEstado(data.places[0].state);
-            setColonias(data.places.map((p) => p["place name"]));
+            const cols = data.places.map((p) => p["place name"]);
+            setColonias(cols);
             setErrores((prev) => ({ ...prev, cp: null }));
+            if (cols.length === 1 && !formData.colonia) {
+              setFormData(prev => ({ ...prev, colonia: cols[0] }));
+              setErrores(prev => { const n = {...prev}; delete n.colonia; return n; });
+            }
           } else {
             setColonias([]); setEstado("");
             setErrores((prev) => ({ ...prev, cp: "Código postal no encontrado" }));
           }
         } catch {
           setColonias([]); setEstado("");
-          setErrores((prev) => ({ ...prev, cp: "Error de conexión" }));
+          setErrores((prev) => ({ ...prev, cp: "Error de conexión al validar C.P." }));
         } finally {
           setLoadingCP(false);
         }
@@ -309,18 +314,51 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
 
   /* ─── Handlers: expediente ─── */
 
+  const validateField = (name, value) => {
+    let errorMsj = null;
+    const valTrimmed = typeof value === 'string' ? value.trim() : value;
+
+    if (name === "celular") {
+      if (!valTrimmed || valTrimmed.length !== 10) errorMsj = "El celular debe tener exactamente 10 dígitos.";
+    }
+    if (name === "cp") {
+      if (!valTrimmed || valTrimmed.length !== 5) errorMsj = "El código postal es obligatorio y debe tener 5 dígitos.";
+    }
+    if (name === "colonia") {
+      if (!valTrimmed) errorMsj = "La colonia es un campo obligatorio.";
+    }
+    if (name === "calle") {
+      if (!valTrimmed) errorMsj = "La calle es un campo obligatorio.";
+    }
+    if (name === "numero") {
+      if (!valTrimmed) errorMsj = "El número es un campo obligatorio.";
+    }
+    return errorMsj;
+  };
+
   const handleChange = (e) => {
     const { name, value, type } = e.target;
     const formattedValue = formatToGlobalUppercase(value, name, type);
-    let v = formattedValue;
+    let sanitizedValue = formattedValue;
     
     if (name === "celular" || name === "cp") {
-      // Remover todo lo que no sea dígito
-      v = v.replace(/\D/g, "");
+      sanitizedValue = sanitizedValue.replace(/\D/g, "");
+    } else if (name === "calle" || name === "colonia") {
+      sanitizedValue = sanitizedValue.replace(/^\s+/g, '');
+      if (sanitizedValue && (!REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(sanitizedValue) || REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue))) return;
+    } else if (name === "numero") {
+      sanitizedValue = sanitizedValue.replace(/^\s+/g, '');
+      if (sanitizedValue && (!REGEX.ALFANUMERICO_GUIONES.test(sanitizedValue) || REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue))) return;
     }
     
-    setFormData((prev) => ({ ...prev, [name]: v }));
-    if (errores[name]) setErrores((prev) => ({ ...prev, [name]: null }));
+    setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
+    
+    const err = validateField(name, sanitizedValue);
+    setErrores(prev => {
+       const newErrors = { ...prev };
+       if (err) newErrors[name] = err; else delete newErrors[name];
+       return newErrors;
+    });
   };
 
   const handleFileChange = (e) => {
@@ -338,10 +376,17 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
-    if (!formData.celular || formData.celular.length !== 10)
-      errs.celular = "Debe tener exactamente 10 dígitos.";
-    if (formData.cp && formData.cp.length !== 5)
-      errs.cp = "Debe tener exactamente 5 dígitos.";
+    const e1 = validateField('celular', formData.celular);
+    if (e1) errs.celular = e1;
+    const e2 = validateField('cp', formData.cp);
+    if (e2) errs.cp = e2;
+    const e3 = validateField('colonia', formData.colonia);
+    if (e3) errs.colonia = e3;
+    const e4 = validateField('calle', formData.calle);
+    if (e4) errs.calle = e4;
+    const e5 = validateField('numero', formData.numero);
+    if (e5) errs.numero = e5;
+
     if (Object.keys(errs).length) {
       setErrores(errs);
       toast.error("Corrige los errores antes de guardar.");
@@ -628,14 +673,14 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
                     <MapPin className="w-4 h-4 mr-2" />
-                    Colonia
+                    Colonia <span className="text-[#0B1828] ml-1">*</span>
                   </label>
                   {coloniaOptions.length > 0 ? (
                     <select
                       name="colonia"
                       value={formData.colonia}
                       onChange={handleChange}
-                      className={`${inputBaseClass} border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828] appearance-none cursor-pointer`}
+                      className={`${inputBaseClass} border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828] appearance-none cursor-pointer ${getValidationClass(errores.colonia)}`}
                     >
                       <option value="">Seleccione una colonia</option>
                       {coloniaOptions.map((c, i) => (
@@ -653,10 +698,11 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
                       className={`${inputBaseClass} ${
                         formData.cp.length < 5
                           ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
-                          : "border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]"
+                          : getValidationClass(errores.colonia)
                       }`}
                     />
                   )}
+                  {errores.colonia && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.colonia}</p>}
                 </div>
               </div>
 
@@ -665,7 +711,7 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
                 <div className="md:col-span-3 space-y-2">
                   <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
                     <MapPin className="w-4 h-4 mr-2" />
-                    Calle
+                    Calle <span className="text-[#0B1828] ml-1">*</span>
                   </label>
                   <input
                     type="text"
@@ -673,12 +719,13 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
                     value={formData.calle}
                     onChange={handleChange}
                     placeholder="Av. Ejemplo"
-                    className={`${inputBaseClass} border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]`}
+                    className={`${inputBaseClass} ${getValidationClass(errores.calle)}`}
                   />
+                  {errores.calle && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.calle}</p>}
                 </div>
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-bold text-[#0B1828] mb-2">
-                    Número
+                    Número <span className="text-[#0B1828] ml-1">*</span>
                   </label>
                   <input
                     type="text"
@@ -686,8 +733,9 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
                     value={formData.numero}
                     onChange={handleChange}
                     placeholder="123"
-                    className={`${inputBaseClass} border-slate-200 bg-white focus:border-[#0B1828] focus:ring-[#0B1828]`}
+                    className={`${inputBaseClass} ${getValidationClass(errores.numero)}`}
                   />
+                  {errores.numero && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.numero}</p>}
                 </div>
               </div>
             </div>

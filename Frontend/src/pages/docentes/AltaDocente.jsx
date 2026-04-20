@@ -194,6 +194,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
             setErrores(prev => ({ ...prev, cp: null }));
             if (colonias.length === 1 && !formData.colonia) {
               setFormData(prev => ({ ...prev, colonia: colonias[0] }));
+              setErrores(prev => { const n = {...prev}; delete n.colonia; return n; });
             }
           } else {
             setColoniasDisponibles([]);
@@ -209,9 +210,8 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         }
       })();
     } else {
-      setColoniasDisponibles([]);
-      setEstadoRepublica("");
-      if (errores.cp) setErrores(prev => ({ ...prev, cp: null }));
+      setColoniasDisponibles(prev => prev.length ? [] : prev);
+      setEstadoRepublica(prev => prev ? "" : prev);
     }
   }, [formData.cp]);
 
@@ -240,18 +240,6 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       }
     } else if (name === "rfc" || name === "curp" || name === "clave_ine") {
       sanitizedValue = sanitizedValue.toUpperCase().replace(/[^A-Z0-9Ñ]/g, "");
-      
-      let errorMsj = null;
-      if (name === "rfc" && !regexRFC.test(sanitizedValue) && sanitizedValue !== "") errorMsj = "Formato inválido";
-      if (name === "curp" && !regexCURP.test(sanitizedValue) && sanitizedValue !== "") errorMsj = "Formato inválido";
-
-      if (!errorMsj && sanitizedValue.length >= 4 && formData.nombres) {
-        const raizEsperada = calcularRaizRFC(formData.nombres, formData.apellido_paterno, formData.apellido_materno);
-        const raizIngresada = sanitizedValue.substring(0, 4).replace(/Ñ/g, 'X');
-        if (raizIngresada !== raizEsperada) errorMsj = `No coincide, por favor verifique`;
-      }
-
-      setErrores(prev => ({ ...prev, [name]: errorMsj }));
     } else if (name === "celular" || name === "cp") {
       sanitizedValue = sanitizedValue.replace(/[^0-9]/g, "");
     } else if (name === "calle" || name === "colonia") {
@@ -262,12 +250,88 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       if (sanitizedValue && (!REGEX.ALFANUMERICO_GUIONES.test(sanitizedValue) || REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue))) return;
     }
 
-    setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
-    if (errores[name] && !['rfc', 'curp', 'clave_ine', 'calle', 'numero', 'colonia'].includes(name)) {
-      const newErrors = { ...errores };
-      delete newErrors[name];
-      setErrores(newErrors);
+    const nextFormData = { ...formData, [name]: sanitizedValue };
+    setFormData(nextFormData);
+    
+    // Ejecutar validación en tiempo real pura
+    const errorMsj = validateField(name, sanitizedValue, nextFormData);
+    setErrores(prev => {
+      const newE = { ...prev };
+      if (errorMsj) newE[name] = errorMsj;
+      else delete newE[name];
+      return newE;
+    });
+  };
+
+  const validateField = (name, value, allData) => {
+    let errorMsj = null;
+    const valTrimmed = typeof value === 'string' ? value.trim() : value;
+    
+    if (name === 'nombres') {
+      if (!valTrimmed) errorMsj = "El nombre es un campo obligatorio.";
+      else if (valTrimmed.length < 3) errorMsj = "El nombre debe tener al menos 3 caracteres.";
+      else if (!REGEX.NOMBRES.test(valTrimmed)) errorMsj = "Solo se permiten letras y un espacio simple entre palabras.";
+      else if (REGEX.TRIPLE_LETRA_REPETIDA.test(valTrimmed)) errorMsj = "El nombre no puede contener tres o más letras iguales consecutivas.";
+    } else if (name === 'apellido_paterno') {
+      if (!valTrimmed) errorMsj = "El apellido paterno es un campo obligatorio.";
+      else if (valTrimmed.length < 3) errorMsj = "El apellido paterno debe tener al menos 3 caracteres.";
+      else if (!REGEX.NOMBRES.test(valTrimmed)) errorMsj = "Solo se permiten letras y un espacio simple entre palabras.";
+      else if (REGEX.TRIPLE_LETRA_REPETIDA.test(valTrimmed)) errorMsj = "El apellido no puede contener tres o más letras iguales consecutivas.";
+    } else if (name === 'apellido_materno') {
+      if (!valTrimmed) errorMsj = "El apellido materno es un campo obligatorio.";
+      else if (valTrimmed.length < 3) errorMsj = "El apellido materno debe tener al menos 3 caracteres.";
+      else if (!REGEX.NOMBRES.test(valTrimmed)) errorMsj = "Solo se permiten letras y un espacio simple entre palabras.";
+      else if (REGEX.TRIPLE_LETRA_REPETIDA.test(valTrimmed)) errorMsj = "El apellido no puede contener tres o más letras iguales consecutivas.";
+    } else if (name === 'personal_email') {
+      if (!valTrimmed) errorMsj = "El correo personal es un campo obligatorio.";
+      else if (!REGEX.EMAIL.test(valTrimmed)) errorMsj = "El formato del correo ingresado no es válido.";
+    } else if (name === 'institutional_email') {
+      if (!valTrimmed) errorMsj = "El correo institucional es un campo obligatorio.";
+      else if (!REGEX.EMAIL.test(valTrimmed)) errorMsj = "El formato del correo ingresado no es válido.";
     }
+    else if (name === "rfc") {
+      if (!valTrimmed) errorMsj = "El RFC es obligatorio.";
+      else if (valTrimmed.length < 13) errorMsj = "El RFC debe tener 13 caracteres.";
+      else if (!regexRFC.test(valTrimmed)) errorMsj = "Formato inválido";
+    }
+    else if (name === "curp") {
+      if (!valTrimmed) errorMsj = "El CURP es obligatorio.";
+      else if (valTrimmed.length < 18) errorMsj = "El CURP debe tener 18 caracteres.";
+      else if (!regexCURP.test(valTrimmed)) errorMsj = "Formato inválido";
+    }
+    else if (name === "clave_ine") {
+      if (!valTrimmed && !bloquearCamposLegales) errorMsj = "La clave INE es obligatoria.";
+    }
+    else if (name === "nivel_academico" && !bloquearCamposLegales) {
+      if (!valTrimmed) errorMsj = "El nivel académico es obligatorio.";
+    }
+    else if (name === "academia_id" && !bloquearCamposLegales) {
+      if (!valTrimmed) errorMsj = "La academia es obligatoria.";
+    }
+    else if (name === "celular") {
+      if (!valTrimmed || valTrimmed.length !== 10) errorMsj = "El celular debe tener exactamente 10 dígitos.";
+    }
+    else if (name === "cp") {
+      if (!valTrimmed || valTrimmed.length !== 5) errorMsj = "El código postal es obligatorio y debe tener 5 dígitos.";
+    }
+    else if (name === "colonia") {
+      if (!valTrimmed) errorMsj = "La colonia es un campo obligatorio.";
+    }
+    else if (name === "calle") {
+      if (!valTrimmed) errorMsj = "La calle es un campo obligatorio.";
+    }
+    else if (name === "numero") {
+      if (!valTrimmed) errorMsj = "El número es un campo obligatorio.";
+    }
+
+    if ((name === "rfc" || name === "curp" || name === "clave_ine") && valTrimmed && valTrimmed.length >= 4 && !errorMsj) {
+      const raizEsperada = calcularRaizRFC(allData.nombres, allData.apellido_paterno, allData.apellido_materno);
+      const raizIngresada = valTrimmed.substring(0, 4).replace(/Ñ/g, 'X');
+      if (raizIngresada !== raizEsperada) {
+         errorMsj = `No coincide, por favor verifique`;
+      }
+    }
+    return errorMsj;
   };
 
   const handleBlur = async (e) => {
@@ -315,14 +379,17 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const validarPaso1 = () => {
     const newErrors = {};
     if (!formData.nombres.trim()) newErrors.nombres = "El nombre es un campo obligatorio.";
+    else if (formData.nombres.trim().length < 3) newErrors.nombres = "El nombre debe tener al menos 3 caracteres.";
     else if (!REGEX.NOMBRES.test(formData.nombres)) newErrors.nombres = "Solo se permiten letras y un espacio simple entre palabras.";
     else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.nombres)) newErrors.nombres = "El nombre no puede contener tres o más letras iguales consecutivas.";
 
     if (!formData.apellido_paterno.trim()) newErrors.apellido_paterno = "El apellido paterno es un campo obligatorio.";
+    else if (formData.apellido_paterno.trim().length < 3) newErrors.apellido_paterno = "El apellido paterno debe tener al menos 3 caracteres.";
     else if (!REGEX.NOMBRES.test(formData.apellido_paterno)) newErrors.apellido_paterno = "Solo se permiten letras y un espacio simple entre palabras.";
     else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_paterno)) newErrors.apellido_paterno = "El apellido no puede contener tres o más letras iguales consecutivas.";
 
     if (!formData.apellido_materno.trim()) newErrors.apellido_materno = "El apellido materno es un campo obligatorio.";
+    else if (formData.apellido_materno.trim().length < 3) newErrors.apellido_materno = "El apellido materno debe tener al menos 3 caracteres.";
     else if (!REGEX.NOMBRES.test(formData.apellido_materno)) newErrors.apellido_materno = "Solo se permiten letras y un espacio simple entre palabras.";
     else if (REGEX.TRIPLE_LETRA_REPETIDA.test(formData.apellido_materno)) newErrors.apellido_materno = "El apellido no puede contener tres o más letras iguales consecutivas.";
     
@@ -642,7 +709,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-bold text-[#0B1828]">RFC <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
-                    type="text" name="rfc" required maxLength="13" value={formData.rfc}
+                    type="text" name="rfc" maxLength="13" value={formData.rfc}
                     onChange={handleChange} onKeyDown={handleKeyDownStrict}
                     disabled={bloquearCamposLegales}
                     placeholder="XAXX010101000"
@@ -653,7 +720,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                 <div className="space-y-2">
                   <label className="flex items-center text-sm font-bold text-[#0B1828]">CURP <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
-                    type="text" name="curp" required maxLength="18" value={formData.curp}
+                    type="text" name="curp" maxLength="18" value={formData.curp}
                     onChange={handleChange} onKeyDown={handleKeyDownStrict}
                     disabled={bloquearCamposLegales}
                     placeholder="XAXX010101HXXXXXX0"
@@ -758,7 +825,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                     Celular <span className="text-[#0B1828] ml-1">*</span>
                   </label>
                   <input
-                    type="text" name="celular" required maxLength="10" value={formData.celular} onChange={handleChange}
+                    type="text" name="celular" maxLength="10" value={formData.celular} onChange={handleChange}
                     placeholder="5512345678"
                     className={`${inputBaseClass} ${getValidationClass(errores.celular)}`}
                   />
@@ -771,7 +838,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
                   </label>
                   <div className="relative">
                     <input
-                      type="text" name="cp" required maxLength="5" value={formData.cp} onChange={handleChange}
+                      type="text" name="cp" maxLength="5" value={formData.cp} onChange={handleChange}
                       placeholder="97000"
                       className={`${inputBaseClass} ${getValidationClass(errores.cp)}`}
                     />

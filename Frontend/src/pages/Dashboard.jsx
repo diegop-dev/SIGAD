@@ -9,6 +9,7 @@ import {
 import api from '../services/api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { REGEX } from '../utils/regex';
 
 /* ── Tarjeta de KPI reutilizable ────────────────────────────── */
 const KpiCard = ({ title, value, subtitle, icon: Icon, accentColor, iconBg, iconColor, loading, linkTo }) => {
@@ -65,8 +66,42 @@ const CONFIG_LABELS = {
 
 const SettingsModal = ({ onClose }) => {
   const [config, setConfig]     = useState({});
+  const [errores, setErrores]   = useState({});
   const [saving, setSaving]     = useState(false);
   const [fetching, setFetching] = useState(true);
+
+  const validateField = (clave, valor) => {
+    let err = null;
+    const valTrim = (valor || '').toString().trim();
+    
+    if (!valTrim) {
+      err = 'Este campo es obligatorio.';
+    } else if (clave === 'max_horas_continuas') {
+      if (!valTrim.match(/^\d+(\.\d)?$/)) err = 'Formato decimal no válido (ej. 4.5).';
+    } else {
+      if (!REGEX.NUMEROS.test(valTrim)) err = 'Solo se permiten números enteros.';
+    }
+
+    if (!err) {
+      const v = parseFloat(valTrim);
+      const meta = CONFIG_LABELS[clave];
+      if (v < meta.min) err = `El valor mínimo es ${meta.min}.`;
+      else if (v > meta.max) err = `El valor máximo es ${meta.max}.`;
+    }
+    return err;
+  };
+
+  const handleChange = (clave, rawValue) => {
+    const val = rawValue.replace(/[^0-9.]/g, ''); 
+    setConfig(c => ({ ...c, [clave]: val }));
+
+    const err = validateField(clave, val);
+    setErrores(prev => {
+      const n = { ...prev };
+      if (err) n[clave] = err; else delete n[clave];
+      return n;
+    });
+  };
 
   useEffect(() => {
     api.get('/configuracion')
@@ -83,11 +118,14 @@ const SettingsModal = ({ onClose }) => {
   }, []);
 
   const handleSave = async () => {
-    for (const [clave, meta] of Object.entries(CONFIG_LABELS)) {
-      const v = parseFloat(config[clave]);
-      if (isNaN(v) || v <= 0) {
-        return toast.error(`Valor inválido para: ${meta.label}`);
-      }
+    const newErrors = {};
+    for (const [clave] of Object.entries(CONFIG_LABELS)) {
+      const err = validateField(clave, config[clave] ?? '');
+      if (err) newErrors[clave] = err;
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrores(newErrors);
+      return toast.error('Corrige los errores antes de continuar.');
     }
     setSaving(true);
     const toastId = toast.loading('Guardando configuración…');
@@ -126,16 +164,14 @@ const SettingsModal = ({ onClose }) => {
           ) : (
             Object.entries(CONFIG_LABELS).map(([clave, meta]) => (
               <div key={clave}>
-                <label className="block text-sm font-bold text-[#0B1828] mb-2">{meta.label}</label>
+                <label className="block text-sm font-bold text-[#0B1828] mb-2">{meta.label} <span className="text-[#0B1828] ml-1">*</span></label>
                 <input
-                  type="number"
-                  min={meta.min}
-                  max={meta.max}
-                  step={meta.step}
+                  type="text"
                   value={config[clave] ?? ''}
-                  onChange={e => setConfig(c => ({ ...c, [clave]: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-1 focus:border-[#0B1828] focus:ring-[#0B1828] transition-all text-[#0B1828] font-medium shadow-sm outline-none"
+                  onChange={e => handleChange(clave, e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all text-[#0B1828] font-medium shadow-sm ${errores[clave] ? 'border-red-500 focus:border-red-500 focus:ring-red-500 bg-white' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
                 />
+                {errores[clave] && <p className="text-xs font-bold text-red-500 mt-1.5">{errores[clave]}</p>}
               </div>
             ))
           )}

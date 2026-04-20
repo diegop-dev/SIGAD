@@ -70,46 +70,81 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
     );
   }, [carreras, modalidadSeleccionada, nivelSeleccionado]);
 
+  const validateField = (name, value, isEditingMode = isEditing) => {
+    if (name === "nivel_academico" && !value) return "Selecciona el nivel académico";
+    if (name === "modalidad" && !value) return "Selecciona una modalidad";
+    if (name === "carrera_id" && !value) return "Selecciona un programa académico";
+    if (name === "cuatrimestre_id" && isEditingMode && !value) return "Selecciona un cuatrimestre";
+    return null;
+  };
+
   const handleNivelChange = (e) => {
-    setNivelSeleccionado(e.target.value);
+    const val = e.target.value;
+    setNivelSeleccionado(val);
     setModalidadSeleccionada(""); 
     setCarreraId(""); 
     setServerAction(null); 
-    if (errores.nivel_academico) setErrores({ ...errores, nivel_academico: null });
-    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
-    if (errores.modalidad) setErrores({ ...errores, modalidad: null });
+    setErrores(prev => {
+      const next = { ...prev };
+      const err = validateField('nivel_academico', val);
+      if (err) next.nivel_academico = err; else delete next.nivel_academico;
+      const errMod = validateField('modalidad', "");
+      if (errMod) next.modalidad = errMod; else delete next.modalidad;
+      const errCarr = validateField('carrera_id', "");
+      if (errCarr) next.carrera_id = errCarr; else delete next.carrera_id;
+      return next;
+    });
   };
 
   const handleModalidadChange = (e) => {
-    setModalidadSeleccionada(e.target.value);
+    const val = e.target.value;
+    setModalidadSeleccionada(val);
     setCarreraId(""); 
     setServerAction(null); 
-    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
-    if (errores.modalidad) setErrores({ ...errores, modalidad: null });
+    setErrores(prev => {
+      const next = { ...prev };
+      const err = validateField('modalidad', val);
+      if (err) next.modalidad = err; else delete next.modalidad;
+      const errCarr = validateField('carrera_id', "");
+      if (errCarr) next.carrera_id = errCarr; else delete next.carrera_id;
+      return next;
+    });
   };
 
   const handleCarreraChange = (e) => {
-    setCarreraId(e.target.value);
+    const val = e.target.value;
+    setCarreraId(val);
     setServerAction(null); 
-    if (errores.carrera_id) setErrores({ ...errores, carrera_id: null });
+    setErrores(prev => {
+      const next = { ...prev };
+      const err = validateField('carrera_id', val);
+      if (err) next.carrera_id = err; else delete next.carrera_id;
+      return next;
+    });
   };
 
   const handleCuatrimestreChange = (e) => {
-    setCuatrimestreId(e.target.value);
+    const val = e.target.value;
+    setCuatrimestreId(val);
     setServerAction(null);
-    if (errores.cuatrimestre_id) setErrores({ ...errores, cuatrimestre_id: null });
+    setErrores(prev => {
+      const next = { ...prev };
+      const err = validateField('cuatrimestre_id', val);
+      if (err) next.cuatrimestre_id = err; else delete next.cuatrimestre_id;
+      return next;
+    });
   };
 
   const validate = () => {
     const newErrors = {};
-    if (!nivelSeleccionado) newErrors.nivel_academico = "Selecciona el nivel académico";
-    if (!modalidadSeleccionada) newErrors.modalidad = "Selecciona una modalidad";
-    if (!carreraId) newErrors.carrera_id = "Selecciona un programa académico";
-    
-    // Validar el cuatrimestre SOLO si estamos en modo edición
-    if (isEditing && !cuatrimestreId) {
-      newErrors.cuatrimestre_id = "Selecciona un cuatrimestre";
-    }
+    const e1 = validateField('nivel_academico', nivelSeleccionado);
+    if (e1) newErrors.nivel_academico = e1;
+    const e2 = validateField('modalidad', modalidadSeleccionada);
+    if (e2) newErrors.modalidad = e2;
+    const e3 = validateField('carrera_id', carreraId);
+    if (e3) newErrors.carrera_id = e3;
+    const e4 = validateField('cuatrimestre_id', cuatrimestreId);
+    if (e4) newErrors.cuatrimestre_id = e4;
 
     setErrores(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -199,7 +234,7 @@ export const GrupoForm = ({ onBack, onSuccess, initialData = null }) => {
       </div>
 
       <div className="p-6 md:p-10">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-10">
+        <form onSubmit={handleSubmit} noValidate className="max-w-3xl mx-auto space-y-10">
           <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl w-fit">
             <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span> 
             Indica un campo obligatorio para el sistema
