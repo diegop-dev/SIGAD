@@ -1,10 +1,8 @@
 <div align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0066cc,100:00d9ff&height=280&section=header&text=SIGAD&fontSize=80&fontColor=ffffff&animation=fadeIn&fontAlignY=38&desc=Sistema%20de%20Gesti%C3%B3n%20Acad%C3%A9mica%20y%20Docente&descSize=20&descAlignY=60" alt="SIGAD Header" width="100%" />
-
   <br/>
-
-  <img src="https://img.shields.io/badge/Status-%20Finalizado-green?style=for-the-badge&logo=fire" alt="Status" />
   <img src="https://img.shields.io/badge/Team-NexaByte-blue?style=for-the-badge&logo=microsoftteams" alt="Team" />
+  <img src="https://img.shields.io/badge/Status-%20Finalizado-green?style=for-the-badge&logo=fire" alt="Status" />
   <img src="https://img.shields.io/badge/Version-1.0.0-green?style=for-the-badge&logo=semver" alt="Version" />
 </div>
 
@@ -93,7 +91,7 @@ Actúa como la API central del sistema. Su lógica se divide en cinco categoría
 | Tecnología | Propósito |
 | :--- | :--- |
 | ![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=flat&logo=mariadb&logoColor=white) **MariaDB** | RDBMS relacional con integridad ACID |
-| ![DBeaver](https://img.shields.io/badge/DBeaver-372923?style=flat&logo=dbeaver&logoColor=white) **DBeaver** | Community | Cliente gráfico multiplataforma |
+| ![DBeaver](https://img.shields.io/badge/DBeaver-372923?style=flat&logo=dbeaver&logoColor=white) **DBeaver Community** | Cliente gráfico multiplataforma para MariaDB|
 | ![Tailscale](https://img.shields.io/badge/Tailscale-000000?style=flat&logo=tailscale&logoColor=white) **Tailscale** | VPN privada (Tailnet) para comunicación segura con SESA |
 | ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white) **Git / GitHub** | Control de versiones y base para CI/CD |
 
