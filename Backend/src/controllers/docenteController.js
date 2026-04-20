@@ -184,7 +184,7 @@ const updateDocente = async (req, res) => {
 
     let domicilio_completo = null;
     if (calle && numero && colonia && cp) {
-      domicilio_completo = `${calle} Num. ${numero}, Col. Col. ${colonia}, C.P. ${cp}`;
+      domicilio_completo = `${calle} Num. ${numero}, Col. ${colonia}, C.P. ${cp}`;
     }
 
     const documentosNuevos = [];
@@ -200,11 +200,24 @@ const updateDocente = async (req, res) => {
       domicilio: domicilio_completo, documentos: documentosNuevos,
     });
 
+    const cambios = [];
+    if (rfc !== docenteActual.rfc)                                         cambios.push('RFC');
+    if (curp !== docenteActual.curp)                                       cambios.push('CURP');
+    if (celular !== docenteActual.celular)                                 cambios.push('celular');
+    if (clave_ine !== docenteActual.clave_ine)                             cambios.push('clave INE');
+    if (nivel_academico !== docenteActual.nivel_academico)                 cambios.push('nivel académico');
+    if (Number(academia_id) !== Number(docenteActual.academia_id))         cambios.push('academia');
+    if (domicilio_completo && domicilio_completo !== docenteActual.domicilio) cambios.push('domicilio');
+    if (documentosNuevos.length > 0) cambios.push(`${documentosNuevos.length} documento(s) reemplazado(s)`);
+    const detalleAudit = cambios.length > 0
+      ? `Campos actualizados: ${cambios.join(', ')}`
+      : 'Guardado sin cambios detectados';
+
     logAudit({
       modulo:            'DOCENTES',
       accion:            'MODIFICACION',
-      registro_afectado: `Docente #${id} "${docenteActual.nombres} ${docenteActual.apellido_paterno}"`,
-      detalle:           null,
+      registro_afectado: `Docente #${id} "${[docenteActual.nombres, docenteActual.apellido_paterno].filter(Boolean).join(' ')}"`,
+      detalle:           detalleAudit,
       usuario_id:        req.user?.id_usuario,
       usuario_rol:       rolNombre(req.user?.rol_id),
       ip_address:        getClientIp(req),

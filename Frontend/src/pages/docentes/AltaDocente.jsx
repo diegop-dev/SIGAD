@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2, Lock, CheckCircle2 } from "lucide-react";
+import { Save, ArrowLeft, FileText, X, CheckCircle, RefreshCw, ExternalLink, User, Mail, ImagePlus, ChevronRight, Copy, Loader2, Lock, CheckCircle2, Phone, MapPin, AlertCircle } from "lucide-react";
+
+const NIVEL_LABELS = {
+  LICENCIATURA: "Licenciatura",
+  MAESTRIA:     "Maestría",
+  DOCTORADO:    "Doctorado",
+};
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth"; 
 import { TOAST_DOCENTES, TOAST_COMMON } from "../../../constants/toastMessages";
@@ -57,6 +63,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const [paso, setPaso] = useState(isEditing ? 2 : 1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isFormDirty, setIsFormDirty] = useState(!isEditing);
 
   const [registroExitoso, setRegistroExitoso] = useState(false);
   const [credenciales, setCredenciales] = useState({ matricula: "", password: "" });
@@ -65,6 +72,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   const [academiasDisponibles, setAcademiasDisponibles] = useState([]);
   const [coloniasDisponibles, setColoniasDisponibles] = useState([]);
   const [estadoRepublica, setEstadoRepublica] = useState("");
+  const [loadingCP, setLoadingCP] = useState(false);
   const [errores, setErrores] = useState({});
 
   const hoy = new Date();
@@ -132,6 +140,8 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         nombres: docenteToEdit.nombres || "",
         apellido_paterno: docenteToEdit.apellido_paterno || "",
         apellido_materno: docenteToEdit.apellido_materno || "",
+        personal_email: docenteToEdit.personal_email || "",
+        institutional_email: docenteToEdit.institutional_email || "",
         rfc: docenteToEdit.rfc || "",
         curp: docenteToEdit.curp || "",
         celular: docenteToEdit.celular || "",
@@ -145,8 +155,35 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
   }, [isEditing, docenteToEdit, fechaActual]);
 
   useEffect(() => {
+    if (!isEditing || !docenteToEdit) { setIsFormDirty(true); return; }
+
+    const orig = (() => {
+      if (!docenteToEdit.domicilio) return { calle: "", numero: "", colonia: "", cp: "" };
+      const m = docenteToEdit.domicilio.match(/(.*?) Num\. (.*?), Col\. (.*?), C\.P\. (\d{5})/);
+      return m ? { calle: m[1], numero: m[2], colonia: m[3], cp: m[4] }
+               : { calle: docenteToEdit.domicilio, numero: "", colonia: "", cp: "" };
+    })();
+
+    const hasChanged =
+      formData.rfc            !== (docenteToEdit.rfc            || "") ||
+      formData.curp           !== (docenteToEdit.curp           || "") ||
+      formData.clave_ine      !== (docenteToEdit.clave_ine      || "") ||
+      formData.celular        !== (docenteToEdit.celular        || "") ||
+      formData.calle          !== orig.calle  ||
+      formData.numero         !== orig.numero ||
+      formData.colonia        !== orig.colonia ||
+      formData.cp             !== orig.cp     ||
+      formData.nivel_academico !== (docenteToEdit.nivel_academico || "") ||
+      String(formData.academia_id) !== String(docenteToEdit.academia_id || "") ||
+      Object.values(archivos).some(f => f !== null);
+
+    setIsFormDirty(hasChanged);
+  }, [formData, archivos, docenteToEdit, isEditing]);
+
+  useEffect(() => {
     if (formData.cp && formData.cp.length === 5) {
-      const fetchCP = async () => {
+      setLoadingCP(true);
+      (async () => {
         try {
           const res = await fetch(`https://api.zippopotam.us/mx/${formData.cp}`);
           if (res.ok) {
@@ -161,23 +198,19 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
           } else {
             setColoniasDisponibles([]);
             setEstadoRepublica("");
-            setFormData(prev => ({ ...prev, colonia: "" }));
             setErrores(prev => ({ ...prev, cp: "Código postal no encontrado" }));
           }
-        } catch (error) {
-          console.error("Error al buscar CP", error);
+        } catch {
           setColoniasDisponibles([]);
           setEstadoRepublica("");
           setErrores(prev => ({ ...prev, cp: "Error de conexión al validar C.P." }));
+        } finally {
+          setLoadingCP(false);
         }
-      };
-      fetchCP();
-    } else if (formData.cp && formData.cp.length < 5) {
-      if (coloniasDisponibles.length > 0 || estadoRepublica !== "") {
-        setColoniasDisponibles([]);
-        setEstadoRepublica("");
-        setFormData(prev => ({ ...prev, colonia: "" }));
-      }
+      })();
+    } else {
+      setColoniasDisponibles([]);
+      setEstadoRepublica("");
       if (errores.cp) setErrores(prev => ({ ...prev, cp: null }));
     }
   }, [formData.cp]);
@@ -221,10 +254,16 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
       setErrores(prev => ({ ...prev, [name]: errorMsj }));
     } else if (name === "celular" || name === "cp") {
       sanitizedValue = sanitizedValue.replace(/[^0-9]/g, "");
+    } else if (name === "calle" || name === "colonia") {
+      sanitizedValue = sanitizedValue.replace(/^\s+/g, '');
+      if (sanitizedValue && (!REGEX.ALFANUMERICO_ESPACIOS_PUNTUACION.test(sanitizedValue) || REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue))) return;
+    } else if (name === "numero") {
+      sanitizedValue = sanitizedValue.replace(/^\s+/g, '');
+      if (sanitizedValue && (!REGEX.ALFANUMERICO_GUIONES.test(sanitizedValue) || REGEX.TRIPLE_LETRA_REPETIDA.test(sanitizedValue))) return;
     }
 
     setFormData((prev) => ({ ...prev, [name]: sanitizedValue }));
-    if (errores[name] && !['rfc', 'curp'].includes(name)) {
+    if (errores[name] && !['rfc', 'curp', 'clave_ine', 'calle', 'numero', 'colonia'].includes(name)) {
       const newErrors = { ...errores };
       delete newErrors[name];
       setErrores(newErrors);
@@ -309,8 +348,48 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
 
   const handleOpenModal = (e) => {
     e.preventDefault();
-    if (errores.rfc || errores.curp || formData.rfc.length < 13 || formData.curp.length < 18) {
-      toast.error("Por favor, corrige los formatos de RFC o CURP antes de continuar.");
+    const newErrors = {};
+
+    // Propagar errores de formato en tiempo real
+    if (errores.rfc)    newErrors.rfc    = errores.rfc;
+    if (errores.curp)   newErrors.curp   = errores.curp;
+    if (errores.calle)  newErrors.calle  = errores.calle;
+    if (errores.numero) newErrors.numero = errores.numero;
+    if (errores.colonia) newErrors.colonia = errores.colonia;
+    if (errores.cp)     newErrors.cp     = errores.cp;
+
+    // Validaciones requeridas + formato
+    if (!formData.rfc || formData.rfc.length < 13)
+      newErrors.rfc  = newErrors.rfc  || "El RFC debe tener 13 caracteres.";
+    if (!formData.curp || formData.curp.length < 18)
+      newErrors.curp = newErrors.curp || "El CURP debe tener 18 caracteres.";
+
+    if (!bloquearCamposLegales) {
+      if (!formData.clave_ine)       newErrors.clave_ine      = "La clave INE es obligatoria.";
+      if (!formData.nivel_academico) newErrors.nivel_academico = "El nivel académico es obligatorio.";
+      if (!formData.academia_id)     newErrors.academia_id    = "La academia es obligatoria.";
+    }
+
+    if (!formData.celular || formData.celular.length !== 10)
+      newErrors.celular = "El celular debe tener exactamente 10 dígitos.";
+
+    if (!formData.cp || formData.cp.length !== 5)
+      newErrors.cp = "El código postal es obligatorio y debe tener 5 dígitos.";
+
+    if (!formData.colonia)
+      newErrors.colonia = newErrors.colonia || "La colonia es un campo obligatorio.";
+
+    if (!formData.calle?.trim()) {
+      newErrors.calle = newErrors.calle || "La calle es un campo obligatorio.";
+    }
+
+    if (!formData.numero?.trim()) {
+      newErrors.numero = newErrors.numero || "El número es un campo obligatorio.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrores(prev => ({ ...prev, ...newErrors }));
+      toast.error("Por favor, completa todos los campos requeridos antes de continuar.");
       return;
     }
     setShowModal(true);
@@ -403,7 +482,15 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
     );
   }
 
-  const inputBaseClass = "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none";
+  const coloniaOptions = coloniasDisponibles.length > 0
+    ? (coloniasDisponibles.includes(formData.colonia) ? coloniasDisponibles : [formData.colonia, ...coloniasDisponibles].filter(Boolean))
+    : [];
+
+  const isSubmitDisabled = isSubmitting || (isEditing && !isFormDirty);
+
+  const inputBaseClass =
+    "w-full px-4 py-3.5 rounded-xl border text-sm focus:ring-1 transition-all text-[#0B1828] font-medium shadow-sm outline-none " +
+    "[&:autofill]:shadow-[inset_0_0_0px_1000px_#fff] [&:autofill]:[-webkit-text-fill-color:#0B1828]";
   const getValidationClass = (hasError) => 
     hasError 
       ? "border-red-500 focus:border-red-500 focus:ring-red-500" 
@@ -426,7 +513,7 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         </div>
       </div>
 
-      <form onSubmit={paso === 2 ? handleOpenModal : (e) => e.preventDefault()} className="p-6 md:p-10">
+      <form noValidate onSubmit={paso === 2 ? handleOpenModal : (e) => e.preventDefault()} className="p-6 md:p-10">
         
         {paso === 1 && !isEditing && (
           <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl mx-auto">
@@ -529,174 +616,294 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         )}
 
         {paso === 2 && (
-          <div className="space-y-6 animate-in slide-in-from-right-8 duration-300 max-w-4xl mx-auto">
-            {bloquearCamposLegales && (
-              <div className="bg-blue-50 text-blue-800 p-4 rounded-xl flex items-start gap-3 text-sm font-medium border border-blue-100">
-                <Lock className="w-5 h-5 text-blue-600 mt-0.5" />
-                <p>Por políticas de seguridad, los datos legales (RFC, CURP, INE) solo pueden ser modificados por un Administrador.</p>
-              </div>
-            )}
+          <div className="space-y-10 animate-in slide-in-from-right-8 duration-300 max-w-4xl mx-auto">
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">RFC <span className="text-[#0B1828] ml-1">*</span></label>
-                <input
-                  type="text" name="rfc" required maxLength="13" value={formData.rfc}
-                  onChange={handleChange} onKeyDown={handleKeyDownStrict}
-                  disabled={bloquearCamposLegales}
-                  placeholder="XAXX010101000"
-                  className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.rfc ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
-                />
-                {errores.rfc && <p className="text-xs font-bold text-red-500">{errores.rfc}</p>}
+            <div className="flex items-center text-xs font-medium text-slate-500 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl w-fit">
+              <span className="text-[#0B1828] font-black mr-1.5 text-base leading-none">*</span>
+              Indica un campo obligatorio para el sistema
+            </div>
+
+            {/* ── Datos Legales ── */}
+            <div className="space-y-6">
+              <div className="mb-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2">
+                  <h3 className="text-lg font-black text-[#0B1828]">Datos Legales</h3>
+                  {bloquearCamposLegales && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+                      <Lock className="w-2.5 h-2.5" /> Solo lectura
+                    </span>
+                  )}
+                </div>
+                {bloquearCamposLegales && (
+                  <p className="text-xs font-medium text-slate-400 mt-1">Gestionados exclusivamente por el área administrativa.</p>
+                )}
               </div>
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">CURP <span className="text-[#0B1828] ml-1">*</span></label>
-                <input
-                  type="text" name="curp" required maxLength="18" value={formData.curp}
-                  onChange={handleChange} onKeyDown={handleKeyDownStrict}
-                  disabled={bloquearCamposLegales}
-                  placeholder="XAXX010101HXXXXXX0"
-                  className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'} ${errores.curp ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
-                />
-                {errores.curp && <p className="text-xs font-bold text-red-500">{errores.curp}</p>}
-              </div>
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">Celular <span className="text-[#0B1828] ml-1">*</span></label>
-                <input
-                  type="text" name="celular" required maxLength="10" value={formData.celular} onChange={handleChange}
-                  placeholder="5512345678"
-                  className={`${inputBaseClass} ${getValidationClass(errores.celular)}`}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">RFC <span className="text-[#0B1828] ml-1">*</span></label>
+                  <input
+                    type="text" name="rfc" required maxLength="13" value={formData.rfc}
+                    onChange={handleChange} onKeyDown={handleKeyDownStrict}
+                    disabled={bloquearCamposLegales}
+                    placeholder="XAXX010101000"
+                    className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-mono' : 'bg-white'} ${errores.rfc ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
+                  />
+                  {errores.rfc && <p className="text-xs font-bold text-red-500">{errores.rfc}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">CURP <span className="text-[#0B1828] ml-1">*</span></label>
+                  <input
+                    type="text" name="curp" required maxLength="18" value={formData.curp}
+                    onChange={handleChange} onKeyDown={handleKeyDownStrict}
+                    disabled={bloquearCamposLegales}
+                    placeholder="XAXX010101HXXXXXX0"
+                    className={`${inputBaseClass} ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-mono' : 'bg-white'} ${errores.curp ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828]'}`}
+                  />
+                  {errores.curp && <p className="text-xs font-bold text-red-500">{errores.curp}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Clave INE <span className="text-[#0B1828] ml-1">*</span></label>
+                  <input
+                    type="text" name="clave_ine" value={formData.clave_ine} onChange={handleChange}
+                    disabled={bloquearCamposLegales}
+                    maxLength="18"
+                    placeholder="IDMEX..."
+                    className={`${inputBaseClass} uppercase ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-mono border-slate-200' : getValidationClass(errores.clave_ine)}`}
+                  />
+                  {errores.clave_ine && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.clave_ine}</p>}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-slate-100">
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">C.P. <span className="text-[#0B1828] ml-1">*</span></label>
-                <input
-                  type="text" name="cp" required maxLength="5" value={formData.cp} onChange={handleChange}
-                  placeholder="97000"
-                  className={`${inputBaseClass} ${getValidationClass(errores.cp)}`}
-                />
-                {errores.cp && <p className="text-xs font-bold text-red-500">{errores.cp}</p>}
+            {/* ── Perfil Académico ── */}
+            <div className="space-y-6">
+              <div className="mb-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2">
+                  <h3 className="text-lg font-black text-[#0B1828]">Perfil Académico</h3>
+                  {bloquearCamposLegales && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+                      <Lock className="w-2.5 h-2.5" /> Solo lectura
+                    </span>
+                  )}
+                </div>
+                {bloquearCamposLegales && (
+                  <p className="text-xs font-medium text-slate-400 mt-1">Asignado por el área de gestión académica.</p>
+                )}
               </div>
-              <div className="col-span-3 space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">
-                  Colonia <span className="text-[#0B1828] ml-1">*</span>
-                  {estadoRepublica && <span className="ml-2 text-xs font-medium text-slate-400">({estadoRepublica})</span>}
-                </label>
-                <select
-                  name="colonia" required value={formData.colonia} onChange={handleChange}
-                  disabled={coloniasDisponibles.length === 0}
-                  className={`${inputBaseClass} appearance-none ${
-                    coloniasDisponibles.length === 0 
-                      ? 'bg-slate-50 cursor-not-allowed text-slate-500 border-slate-200' 
-                      : 'bg-white border-slate-200 focus:border-[#0B1828] focus:ring-[#0B1828] cursor-pointer'
-                  }`}
-                >
-                  {coloniasDisponibles.length === 0 ? (
-                    <option value="">
-                      {formData.cp?.length === 5 ? 'C.P. inválido o no encontrado' : 'Ingresa un C.P.'}
-                    </option>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Nivel académico <span className="text-[#0B1828] ml-1">*</span></label>
+                  {bloquearCamposLegales ? (
+                    <input
+                      type="text" value={NIVEL_LABELS[formData.nivel_academico] ?? formData.nivel_academico} disabled readOnly
+                      className={`${inputBaseClass} bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed font-mono`}
+                    />
                   ) : (
-                    <>
+                    <select
+                      name="nivel_academico" value={formData.nivel_academico} onChange={handleChange}
+                      className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass(errores.nivel_academico)}`}
+                    >
+                      <option value="">Seleccione un nivel</option>
+                      <option value="LICENCIATURA">Licenciatura</option>
+                      <option value="MAESTRIA">Maestría</option>
+                      <option value="DOCTORADO">Doctorado</option>
+                    </select>
+                  )}
+                  {errores.nivel_academico && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.nivel_academico}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Academia <span className="text-[#0B1828] ml-1">*</span></label>
+                  {bloquearCamposLegales ? (
+                    <input
+                      type="text"
+                      value={academiasDisponibles.find(a => String(a.id_academia) === String(formData.academia_id))?.nombre || formData.academia_id}
+                      disabled readOnly
+                      className={`${inputBaseClass} bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed font-mono`}
+                    />
+                  ) : (
+                    <select
+                      name="academia_id" value={formData.academia_id} onChange={handleChange}
+                      className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass(errores.academia_id)}`}
+                    >
+                      <option value="">Seleccione una academia</option>
+                      {academiasDisponibles.map(a => <option key={a.id_academia} value={a.id_academia}>{a.nombre}</option>)}
+                    </select>
+                  )}
+                  {errores.academia_id && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.academia_id}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Fecha de ingreso</label>
+                  <input
+                    type="date" name="fecha_ingreso" value={formData.fecha_ingreso}
+                    disabled readOnly
+                    className={`${inputBaseClass} bg-slate-50 cursor-not-allowed text-slate-500 border-slate-200`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Contacto y Domicilio ── */}
+            <div className="space-y-6">
+              <div className="mb-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2">
+                  <h3 className="text-lg font-black text-[#0B1828]">Contacto y Domicilio</h3>
+                </div>
+                <p className="text-xs font-medium text-slate-400 mt-1">Puedes actualizar estos datos en cualquier momento.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                    <Phone className="w-4 h-4 mr-2" />
+                    Celular <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  <input
+                    type="text" name="celular" required maxLength="10" value={formData.celular} onChange={handleChange}
+                    placeholder="5512345678"
+                    className={`${inputBaseClass} ${getValidationClass(errores.celular)}`}
+                  />
+                  {errores.celular && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.celular}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                    C.P. <span className="text-[#0B1828] ml-1">*</span>
+                    {estadoRepublica && <span className="ml-1.5 text-xs font-medium text-slate-400 normal-case">({estadoRepublica})</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text" name="cp" required maxLength="5" value={formData.cp} onChange={handleChange}
+                      placeholder="97000"
+                      className={`${inputBaseClass} ${getValidationClass(errores.cp)}`}
+                    />
+                    {loadingCP && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                    )}
+                  </div>
+                  {errores.cp && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.cp}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Colonia <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
+                  {coloniaOptions.length > 0 ? (
+                    <select
+                      name="colonia" value={formData.colonia} onChange={handleChange}
+                      className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass(errores.colonia)}`}
+                    >
                       <option value="">Seleccione una colonia</option>
-                      {coloniasDisponibles.map((col, idx) => (
+                      {coloniaOptions.map((col, idx) => (
                         <option key={idx} value={col}>{col}</option>
                       ))}
-                    </>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      name="colonia"
+                      value={formData.colonia}
+                      readOnly={formData.cp.length < 5}
+                      onChange={formData.cp.length >= 5 ? handleChange : undefined}
+                      placeholder={formData.cp.length < 5 ? "Ingresa primero el C.P." : "Colonia"}
+                      className={`${inputBaseClass} ${
+                        formData.cp.length < 5
+                          ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
+                          : getValidationClass(errores.colonia)
+                      }`}
+                    />
                   )}
-                </select>
+                  {errores.colonia && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.colonia}</p>}
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="flex gap-3">
-                <div className="flex-1 space-y-2">
-                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Calle <span className="text-[#0B1828] ml-1">*</span></label>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="md:col-span-3 space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Calle <span className="text-[#0B1828] ml-1">*</span>
+                  </label>
                   <input
-                    type="text" name="calle" required value={formData.calle} onChange={handleChange}
+                    type="text" name="calle" value={formData.calle} onChange={handleChange}
                     placeholder="Av. Ejemplo"
-                    className={`${inputBaseClass} ${getValidationClass()}`}
+                    className={`${inputBaseClass} ${getValidationClass(errores.calle)}`}
                   />
+                  {errores.calle && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.calle}</p>}
                 </div>
-                <div className="w-28 space-y-2">
-                  <label className="flex items-center text-sm font-bold text-[#0B1828]">No. <span className="text-[#0B1828] ml-1">*</span></label>
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-bold text-[#0B1828]">Número <span className="text-[#0B1828] ml-1">*</span></label>
                   <input
-                    type="text" name="numero" required value={formData.numero} onChange={handleChange}
+                    type="text" name="numero" value={formData.numero} onChange={handleChange}
                     placeholder="123"
-                    className={`${inputBaseClass} ${getValidationClass()}`}
+                    className={`${inputBaseClass} ${getValidationClass(errores.numero)}`}
                   />
+                  {errores.numero && <p className="text-xs font-bold text-red-500 mt-1.5">{errores.numero}</p>}
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">Clave INE <span className="text-[#0B1828] ml-1">*</span></label>
-                <input
-                  type="text" name="clave_ine" required value={formData.clave_ine} onChange={handleChange}
-                  disabled={bloquearCamposLegales}
-                  maxLength="18" 
-                  placeholder="IDMEX..."
-                  className={`${inputBaseClass} uppercase ${bloquearCamposLegales ? 'bg-slate-50 cursor-not-allowed text-slate-500 font-medium' : 'bg-white'}`}
-                />
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">Nivel académico <span className="text-[#0B1828] ml-1">*</span></label>
-                <select
-                  name="nivel_academico" required value={formData.nivel_academico} onChange={handleChange}
-                  className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
-                >
-                  <option value="">Seleccione un nivel</option>
-                  <option value="LICENCIATURA">Licenciatura</option>
-                  <option value="MAESTRIA">Maestría</option>
-                  <option value="DOCTORADO">Doctorado</option>
-                </select>
+            {/* ── Documentos Digitales ── */}
+            <div className="space-y-6">
+              <div className="mb-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-100 pb-2">
+                  <h3 className="text-lg font-black text-[#0B1828]">Documentos Digitales</h3>
+                </div>
+                <p className="text-xs font-medium text-slate-400 mt-1">
+                  {isEditing ? "Visualiza los archivos vigentes o sube una versión actualizada." : "Sube los documentos requeridos para el expediente."}
+                </p>
               </div>
-              <div className="space-y-2">
-                <label className="flex items-center text-sm font-bold text-[#0B1828]">Academia <span className="text-[#0B1828] ml-1">*</span></label>
-                <select
-                  name="academia_id" required value={formData.academia_id} onChange={handleChange}
-                  className={`${inputBaseClass} appearance-none cursor-pointer ${getValidationClass()}`}
-                >
-                  <option value="">Seleccione una academia</option>
-                  {academiasDisponibles.map(a => <option key={a.id_academia} value={a.id_academia}>{a.nombre}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-lg font-black text-[#0B1828] mb-4">Archivos Digitales</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {documentosRequeridos.map((doc) => {
                   const urlActual = getDocumentoUrl(doc.tipoBackend);
                   const archivoSeleccionado = archivos[doc.id];
+                  const tieneArchivo = Boolean(urlActual);
                   return (
-                    <div key={doc.id} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
-                      <div className="flex justify-between items-center mb-3">
-                        <label className="text-sm font-bold text-[#0B1828] flex items-center">
-                          <FileText className="w-4 h-4 mr-1.5" /> {doc.label}
-                        </label>
-                        {urlActual && (
+                    <div
+                      key={doc.id}
+                      className={`rounded-xl border p-4 flex flex-col gap-3 transition-all duration-200 ${
+                        archivoSeleccionado
+                          ? "border-emerald-200 bg-emerald-50/40 shadow-sm"
+                          : "border-slate-200 bg-slate-50/50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm shrink-0">
+                            <FileText className="w-3.5 h-3.5 text-[#0B1828]" />
+                          </div>
+                          <span className="text-sm font-bold text-[#0B1828] leading-tight">{doc.label}</span>
+                        </div>
+                        {tieneArchivo && (
                           <a href={`${BACKEND_URL}${urlActual}`} target="_blank" rel="noreferrer"
-                            className="text-xs text-[#0B1828] font-bold hover:underline flex items-center bg-white px-2 py-1 rounded-md border border-slate-200"
+                            className="shrink-0 flex items-center gap-1 text-[10px] font-bold text-[#0B1828] bg-white px-2 py-1 rounded-md border border-slate-200 hover:bg-slate-50 hover:shadow-sm transition-all"
                           >
-                            <ExternalLink className="inline w-3 h-3 mr-1" /> Ver
+                            <ExternalLink className="w-3 h-3" />
+                            Ver PDF
                           </a>
                         )}
                       </div>
-                      <input
-                        type="file" name={doc.id} accept="application/pdf"
-                        required={!isEditing && !archivoSeleccionado} onChange={handleFileChange}
-                        className="block w-full text-xs file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-[#0B1828] file:text-white file:font-bold hover:file:bg-[#162840] cursor-pointer transition-colors"
-                      />
-                      {archivoSeleccionado && (
-                        <p className="mt-3 text-xs font-bold text-emerald-600 flex items-center truncate bg-emerald-50 px-2 py-1 rounded-md" title={archivoSeleccionado.name}>
-                          <CheckCircle className="w-3.5 h-3.5 mr-1.5 shrink-0" />
-                          {archivoSeleccionado.name}
-                        </p>
+                      {tieneArchivo ? (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle className="w-3 h-3 shrink-0" />
+                          <span>Archivo vigente</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          <span>Sin archivo</span>
+                        </div>
                       )}
+                      <div>
+                        <input
+                          type="file" name={doc.id} accept="application/pdf"
+                          required={!isEditing && !archivoSeleccionado} onChange={handleFileChange}
+                          className="block w-full text-[10px] text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-bold file:bg-[#0B1828] file:text-white hover:file:bg-[#162840] hover:file:shadow-md cursor-pointer file:transition-all file:cursor-pointer"
+                        />
+                        {archivoSeleccionado && (
+                          <p className="mt-2 text-[10px] font-bold text-emerald-700 flex items-center gap-1 truncate bg-white px-2 py-1 rounded-md border border-emerald-200" title={archivoSeleccionado.name}>
+                            <CheckCircle className="w-3 h-3 shrink-0" />
+                            {archivoSeleccionado.name}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -714,9 +921,9 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
               ) : <div />}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitDisabled}
                 className={`flex justify-center items-center px-8 py-4 rounded-2xl font-black transition-all duration-300 text-lg sm:min-w-[300px] ${
-                  isSubmitting ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300" : "bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
+                  isSubmitDisabled ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-dashed border-slate-300" : "bg-[#0B1828] text-white hover:bg-[#162840] shadow-xl hover:shadow-[#0B1828]/30 active:scale-[0.98]"
                 }`}
               >
                 {isSubmitting
@@ -736,22 +943,35 @@ export const AltaDocente = ({ onBack, onSuccess, docenteToEdit }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-auto overflow-hidden">
             <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200 bg-[#0B1828]">
-              <h3 className="text-lg font-black text-white">Confirmar registro</h3>
+              <h3 className="text-lg font-black text-white">
+                {isEditing ? "Confirmar modificación" : "Confirmar registro"}
+              </h3>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
                 <X className="w-5 h-5 text-white" />
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-slate-600 mb-5 font-medium">Esta acción realizará inserciones dependientes en la base de datos. ¿Los datos son correctos?</p>
+              <p className="text-sm text-slate-600 mb-5 font-medium">
+                {isEditing
+                  ? "Esta acción actualizará el expediente del docente en la base de datos. ¿Los datos ingresados son correctos?"
+                  : "Esta acción realizará inserciones dependientes en la base de datos. ¿Los datos son correctos?"}
+              </p>
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-sm space-y-3">
                 <div className="flex">
                   <span className="font-black w-1/3 text-[#0B1828]">RFC:</span>
                   <span className="text-slate-600 font-medium">{formData.rfc}</span>
                 </div>
-                <div className="flex">
-                  <span className="font-black w-1/3 text-[#0B1828]">Correo inst.:</span>
-                  <span className="text-slate-600 font-medium">{formData.institutional_email || 'No asignado'}</span>
-                </div>
+                {isEditing ? (
+                  <div className="flex">
+                    <span className="font-black w-1/3 text-[#0B1828]">Celular:</span>
+                    <span className="text-slate-600 font-medium">{formData.celular || 'No especificado'}</span>
+                  </div>
+                ) : (
+                  <div className="flex">
+                    <span className="font-black w-1/3 text-[#0B1828]">Correo inst.:</span>
+                    <span className="text-slate-600 font-medium">{formData.institutional_email || 'No asignado'}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="bg-slate-50 px-6 py-5 border-t border-slate-100 flex justify-end gap-3">
