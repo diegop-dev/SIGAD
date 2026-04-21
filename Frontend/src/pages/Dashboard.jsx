@@ -149,7 +149,7 @@ const SettingsModal = ({ onClose }) => {
         <div className="bg-[#0B1828] px-6 py-4 flex items-center justify-between shadow-md relative z-10">
           <div className="flex items-center gap-2 text-white">
             <Settings className="w-5 h-5 text-white/80" />
-            <h2 className="text-base font-black text-white">Configuración del sistema</h2>
+            <h2 className="text-base font-black text-white">Configuración del Sistema</h2>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-xl transition-all duration-300 active:scale-[0.98]">
             <X className="w-5 h-5 text-white/80" />
@@ -189,7 +189,7 @@ const SettingsModal = ({ onClose }) => {
             disabled={saving || fetching}
             className="px-5 py-2.5 rounded-xl bg-[#0B1828] text-white text-sm font-bold shadow-md hover:bg-[#162840] hover:shadow-lg disabled:opacity-60 transition-all duration-300 active:scale-[0.98]"
           >
-            Guardar cambios
+            Guardar
           </button>
         </div>
       </div>
@@ -411,7 +411,7 @@ const Dashboard = () => {
 
         {isAdmin && (
           <KpiCard
-            title="Usuarios activos"
+            title="Usuarios"
             value={stats.activeUsers}
             subtitle="Cuentas habilitadas en el sistema"
             icon={Users}
@@ -425,9 +425,9 @@ const Dashboard = () => {
 
         {isAdmin && (
           <KpiCard
-            title="Materias activas"
+            title="Materias"
             value={stats.totalMaterias}
-            subtitle="Registradas en el catálogo institucional"
+            subtitle="Materias registradas en el catálogo académico"
             icon={BookOpen}
             accentColor="bg-indigo-600"
             iconBg="bg-indigo-50"
@@ -438,7 +438,7 @@ const Dashboard = () => {
         )}
 
         <KpiCard
-          title="Periodo en curso"
+          title="Periodo"
           value={loading ? '--' : (stats.activePeriodo?.codigo ?? 'Ninguno')}
           subtitle={
             loading ? null :
@@ -465,8 +465,8 @@ const Dashboard = () => {
             }
             subtitle={
               loading ? null :
-              stats.docentesSinAsig === null ? 'Sin periodo activo para evaluar' :
-              stats.docentesSinAsig === 0 ? 'Todos los docentes tienen carga asignada' :
+              stats.docentesSinAsig === null ? 'No hay un periodo activo para evaluar' :
+              stats.docentesSinAsig === 0 ? 'Todos los docentes tienen una asignación' :
               `${stats.docentesSinAsig} docente${stats.docentesSinAsig !== 1 ? 's' : ''} sin asignaciones`
             }
             icon={CalendarCheck}
@@ -480,9 +480,9 @@ const Dashboard = () => {
 
         {isAdmin && (
           <KpiCard
-            title="Aulas y laboratorios"
+            title="Aulas"
             value={stats.totalAulas}
-            subtitle="Espacios habilitados en el plantel"
+            subtitle="Aulas registradas en el catálogo académico"
             icon={Building2}
             accentColor="bg-teal-500"
             iconBg="bg-teal-50"
@@ -494,8 +494,8 @@ const Dashboard = () => {
 
         {isSuperAdmin && (
           <KpiCard
-            title="Panel de métricas"
-            value="Analítica"
+            title="Métricas"
+            value="Graficas"
             subtitle="Inscritos, egresados y promedios"
             icon={BarChart2}
             accentColor="bg-[#0B1828]"
@@ -508,7 +508,7 @@ const Dashboard = () => {
 
         {isSuperAdmin && (
           <KpiCard
-            title="Registro de auditoría"
+            title="Registro de Auditoría"
             value={loading ? '--' : (stats.lastAuditDate ? timeAgo(stats.lastAuditDate) : 'Vacío')}
             subtitle={
               loading ? null :
@@ -533,9 +533,9 @@ const Dashboard = () => {
             <GraduationCap className="h-8 w-8 text-[#0B1828]" />
           </div>
           <div>
-            <p className="text-lg font-black text-[#0B1828]">Portal docente</p>
+            <p className="text-lg font-black text-[#0B1828]">Dashboard de Docente</p>
             <p className="mt-1 text-sm font-medium text-slate-500 leading-relaxed">
-              Consulta tus asignaciones y descarga tu horario oficial en PDF desde el menú lateral.
+              Consulta tus asignaciones y horarios, donde podrás descargar tu horario oficial en PDF.
             </p>
           </div>
         </div>
@@ -548,12 +548,12 @@ const Dashboard = () => {
           </div>
           <div>
             <p className="text-lg font-black text-[#0B1828]">
-              {isSuperAdmin ? 'Acceso completo al sistema' : 'Panel de administración'}
+              {isSuperAdmin ? 'Dashboard de Superadministrador' : 'Dashboard de administrador'}
             </p>
             <p className="mt-1 text-sm font-medium text-slate-500 leading-relaxed">
               {isSuperAdmin
-                ? 'Gestiona usuarios, materias, periodos y revisa las métricas institucionales desde el panel de control.'
-                : 'Administra docentes, materias, periodos, aulas, carreras y asignaciones desde el menú lateral.'}
+                ? 'Gestiona el catalogo académico completo, consulta las métricas institucionales, registro de auditoria y cambia la configuración del sistema.'
+                : 'Administra usuarios que sean docentes, asignaciones, academias, carreras, materias, aulas, grupos y periodos.'}
             </p>
           </div>
         </div>

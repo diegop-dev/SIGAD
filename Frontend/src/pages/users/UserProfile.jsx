@@ -134,7 +134,7 @@ export const UserProfile = ({ userToView, onBack, onPhotoUpdate }) => {
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
         <div>
-          <h2 className="text-lg font-black text-white leading-tight">Mi perfil</h2>
+          <h2 className="text-lg font-black text-white leading-tight">Mi Perfil</h2>
           <p className="text-xs text-white/70 font-medium mt-0.5">
              Visualiza tu información personal, información de contacto y cambia tu fotografía de usuario.
           </p>

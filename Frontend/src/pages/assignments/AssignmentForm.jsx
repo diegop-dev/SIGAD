@@ -204,10 +204,11 @@ export const AssignmentForm = ({ onBack, onSuccess, initialData = null }) => {
         if (periodoVigenteId) {
           const resAsig = await api.get(`/asignaciones?periodo_id=${periodoVigenteId}`).catch(() => ({ data: { data: [] } }));
           const asigs = resAsig.data?.data || [];
-          // Solo bloquean la materia: asignaciones activas (ABIERTA) o cerradas con promedio.
-          // Las canceladas (CERRADA sin promedio) liberan la materia para reasignación.
+          // Solo bloquean la materia: asignaciones activas no rechazadas (ABIERTA + no RECHAZADA)
+          // o cerradas con promedio consolidado.
+          // Las rechazadas (RECHAZADA) liberan la materia para permitir reasignación a otro docente.
           const asigsBloqueantes = asigs.filter(a =>
-            a.estatus_acta === 'ABIERTA' ||
+            (a.estatus_acta === 'ABIERTA' && a.estatus_confirmacion !== 'RECHAZADA') ||
             (a.estatus_acta === 'CERRADA' && a.promedio_consolidado !== null && a.promedio_consolidado !== undefined)
           );
           setMateriasAsignadasIds(new Set(asigsBloqueantes.map(a => Number(a.materia_id))));

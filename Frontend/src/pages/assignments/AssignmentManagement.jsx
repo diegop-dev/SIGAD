@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Search, CalendarDays, Loader2, Calendar, MapPin,
   ChevronLeft, ChevronRight, Edit, Trash2, AlertTriangle,
-  X, RefreshCcw, Users, FileText, BarChart2, CheckCircle2, 
-  ClipboardList, Filter, UserCheck, ChevronDown
+  X, RefreshCcw, Users, FileText, BarChart2, CheckCircle2,
+  ClipboardList, Filter, UserCheck, ChevronDown, WifiOff
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -49,9 +49,11 @@ export const AssignmentManagement = () => {
 
   const [resultadosModal, setResultadosModal] = useState({
     isOpen: false,
-    tipo: null,          
-    asignaciones: [],    
-    resumen: {}          
+    tipo: null,
+    estado: null,        // 'exitosa' | 'no_vinculada' | 'error'
+    asignaciones: [],
+    resumen: {},
+    mensajeError: ''
   });
 
   const fetchAsignaciones = async () => {
@@ -114,6 +116,26 @@ export const AssignmentManagement = () => {
     return () => clearTimeout(timerId);
   }, [searchInput]);
 
+  // Detecta el periodo vigente cuyas fechas cubren la fecha actual
+  const periodoActivo = useMemo(() => {
+    if (!periodosLista.length) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return periodosLista.find(p => {
+      if (!p.fecha_inicio || !p.fecha_fin) return false;
+      const inicio = new Date(p.fecha_inicio);
+      const fin = new Date(p.fecha_fin);
+      return inicio <= today && fin >= today;
+    }) || null;
+  }, [periodosLista]);
+
+  // Pre-selecciona el periodo activo en el filtro principal al cargar
+  useEffect(() => {
+    if (periodoActivo && !periodoFilter) {
+      setPeriodoFilter(periodoActivo.codigo);
+    }
+  }, [periodoActivo]);
+
   const deduplicarPorMateriaDocente = (items) => {
     const seen = new Set();
     return items.filter(item => {
@@ -131,39 +153,65 @@ export const AssignmentManagement = () => {
     }
 
     const { grupo_id, periodo_id } = syncModal;
+
+    // Capturar el conjunto de asignaciones ya reportadas ANTES del sync
+    const prevReportadosKeys = new Set(
+      asignacionesRaw
+        .filter(item =>
+          (item.tiene_reporte_externo === 1 || item.tiene_reporte_externo === true) &&
+          String(item.grupo_id) === String(grupo_id) &&
+          String(item.periodo_id) === String(periodo_id)
+        )
+        .map(item => `${item.materia_id}_${item.docente_id}`)
+    );
+
     setIsSyncing(true);
-    const toastId = toast.loading('Estableciendo conexión con el sistema externo...');
+    const toastId = toast.loading('Estableciendo conexión con SESA...');
 
     try {
       const response = await api.get(
         `/asignaciones/recepcion?grupo_id=${grupo_id}&periodo_id=${periodo_id}`
       );
-      toast.success(response.data.message || 'Sincronización completada exitosamente.', { id: toastId, duration: 3000 });
+      toast.dismiss(toastId);
       setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' });
 
       const rawActualizado = await fetchAsignaciones();
 
+      // Mostrar solo los recién marcados en esta sincronización
       const conReporte = deduplicarPorMateriaDocente(
         rawActualizado.filter(item =>
           (item.tiene_reporte_externo === 1 || item.tiene_reporte_externo === true) &&
           String(item.grupo_id) === String(grupo_id) &&
-          String(item.periodo_id) === String(periodo_id)
+          String(item.periodo_id) === String(periodo_id) &&
+          !prevReportadosKeys.has(`${item.materia_id}_${item.docente_id}`)
         )
       );
 
       setResultadosModal({
         isOpen: true,
         tipo: 'incumplimientos',
+        estado: 'exitosa',
         asignaciones: conReporte,
         resumen: {
           reportes_recibidos: response.data.reportes_recibidos ?? conReporte.length,
           asignaciones_afectadas: response.data.asignaciones_afectadas ?? conReporte.length,
           paginas_consumidas: response.data.paginas_consumidas ?? 1,
-        }
+        },
+        mensajeError: ''
       });
 
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Se produjo un error al sincronizar los reportes.', { id: toastId });
+      toast.dismiss(toastId);
+      const status = error.response?.status;
+      setSyncModal({ isOpen: false, periodo_id: '', grupo_id: '' });
+      setResultadosModal({
+        isOpen: true,
+        tipo: 'incumplimientos',
+        estado: status === 404 ? 'no_vinculada' : 'error',
+        asignaciones: [],
+        resumen: {},
+        mensajeError: error.response?.data?.error || 'No se pudo establecer comunicación con el sistema externo SESA. Verifica la conexión e inténtalo nuevamente.'
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -176,55 +224,69 @@ export const AssignmentManagement = () => {
     }
 
     const { grupo_id } = promediosModal;
+
+    // Capturar el conjunto de asignaciones ya cerradas con promedio ANTES del sync
+    const prevConPromedioKeys = new Set(
+      asignacionesRaw
+        .filter(item =>
+          item.promedio_consolidado !== null &&
+          item.promedio_consolidado !== undefined &&
+          String(item.grupo_id) === String(grupo_id) &&
+          item.estatus_acta === 'CERRADA'
+        )
+        .map(item => `${item.materia_id}_${item.docente_id}`)
+    );
+
     setIsSyncingPromedios(true);
-    const toastId = toast.loading('Consultando promedios en el sistema central externo...');
+    const toastId = toast.loading('Consultando promedios en SESA...');
 
     try {
       const response = await api.post(
         `/asignaciones/sincronizar-promedios?grupo_id=${grupo_id}`
       );
-      const { actualizadas, sin_promedio, mensaje } = response.data;
+      const { actualizadas, sin_promedio } = response.data;
 
-      toast.success(
-        mensaje || `Sincronización completada: ${actualizadas} asignacion(es) cerrada(s).`,
-        { id: toastId, duration: 3000 }
-      );
-
-      if (sin_promedio > 0) {
-        toast(`${sin_promedio} materia(s) aún sin promedio disponible en SESA.`, {
-          icon: '⚠️', duration: 5000
-        });
-      }
-
+      toast.dismiss(toastId);
       setPromediosModal({ isOpen: false, grupo_id: '' });
 
       const rawActualizado = await fetchAsignaciones();
 
+      // Mostrar solo los recién cerrados en esta sincronización
       const conPromedio = deduplicarPorMateriaDocente(
         rawActualizado.filter(item =>
           item.promedio_consolidado !== null &&
           item.promedio_consolidado !== undefined &&
           String(item.grupo_id) === String(grupo_id) &&
-          item.estatus_acta === 'CERRADA'
+          item.estatus_acta === 'CERRADA' &&
+          !prevConPromedioKeys.has(`${item.materia_id}_${item.docente_id}`)
         )
       );
 
       setResultadosModal({
         isOpen: true,
         tipo: 'promedios',
+        estado: 'exitosa',
         asignaciones: conPromedio,
         resumen: {
           actualizadas: actualizadas ?? conPromedio.length,
           sin_promedio: sin_promedio ?? 0,
-        }
+        },
+        mensajeError: ''
       });
 
     } catch (error) {
-      console.error("Error al sincronizar promedios:", error);
-      toast.error(
-        error.response?.data?.error || 'No fue posible conectar con el sistema externo de promedios.',
-        { id: toastId }
-      );
+      toast.dismiss(toastId);
+      const status = error.response?.status;
+      const errMsg = error.response?.data?.error || 'No fue posible conectar con el sistema externo SESA.';
+      setPromediosModal({ isOpen: false, grupo_id: '' });
+      setResultadosModal({
+        isOpen: true,
+        tipo: 'promedios',
+        estado: status === 404 ? 'no_vinculada' : 'error',
+        asignaciones: [],
+        resumen: {},
+        mensajeError: errMsg
+      });
     } finally {
       setIsSyncingPromedios(false);
     }
@@ -383,7 +445,7 @@ export const AssignmentManagement = () => {
           {(user?.rol_id === 1 || user?.rol_id === 2) && (
             <>
               <button
-                onClick={() => setSyncModal({ ...syncModal, isOpen: true })}
+                onClick={() => setSyncModal({ isOpen: true, periodo_id: periodoActivo ? String(periodoActivo.id_periodo) : '', grupo_id: '' })}
                 className="flex-1 sm:flex-none flex items-center justify-center px-5 py-3 bg-white/10 text-white border border-white/20 rounded-xl hover:bg-white/20 transition-all duration-200 shadow-sm active:scale-95 font-bold text-sm"
               >
                 <RefreshCcw className="w-4 h-4 mr-2" /> Incumplimientos docente
@@ -724,132 +786,163 @@ export const AssignmentManagement = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
 
-            <div className={`flex justify-between items-center px-6 py-5 shrink-0 ${resultadosModal.tipo === 'incumplimientos' ? 'bg-red-500' : 'bg-violet-600'}`}>
+            {/* Header siempre navy — subtítulo cambia según el estado */}
+            <div className="flex justify-between items-center px-6 py-5 bg-[#0B1828] shrink-0">
               <div className="flex items-center gap-3">
-                {resultadosModal.tipo === 'incumplimientos' ? (
+                {resultadosModal.estado === 'error' ? (
+                  <WifiOff className="w-6 h-6 text-white" />
+                ) : resultadosModal.estado === 'no_vinculada' ? (
                   <AlertTriangle className="w-6 h-6 text-white" />
+                ) : resultadosModal.tipo === 'incumplimientos' ? (
+                  <RefreshCcw className="w-6 h-6 text-white" />
                 ) : (
                   <BarChart2 className="w-6 h-6 text-white" />
                 )}
                 <div>
                   <h3 className="text-lg font-black text-white tracking-tight">
                     {resultadosModal.tipo === 'incumplimientos'
-                      ? 'Resultados — Incumplimientos'
-                      : 'Resultados — Promedios Consolidados'}
+                      ? 'Sincronización — Incumplimientos Docente'
+                      : 'Sincronización — Promedios Consolidados'}
                   </h3>
-                  <p className="text-xs text-white/80 font-bold mt-0.5">
-                    Datos recibidos desde SESA cruzados con registros locales
+                  <p className="text-xs text-white/70 font-bold mt-0.5">
+                    {resultadosModal.estado === 'exitosa' && 'Sincronización exitosa con SESA'}
+                    {resultadosModal.estado === 'no_vinculada' && 'Asignación aún no vinculada con SESA'}
+                    {resultadosModal.estado === 'error' && 'Error de sincronización con SESA'}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
-                className="p-2.5 bg-white/10 text-white hover:bg-black/20 rounded-full transition-all active:scale-95"
+                onClick={() => setResultadosModal({ isOpen: false, tipo: null, estado: null, asignaciones: [], resumen: {}, mensajeError: '' })}
+                className="p-2.5 bg-white/10 text-white hover:bg-red-500 rounded-full transition-all active:scale-95"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className={`px-8 pt-6 pb-4 grid gap-4 shrink-0 ${resultadosModal.tipo === 'incumplimientos' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              {resultadosModal.tipo === 'incumplimientos' ? (
-                <>
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.paginas_consumidas ?? '—'}</p>
-                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Páginas SESA</p>
+            {/* Cuerpo condicional según estado */}
+            {resultadosModal.estado !== 'exitosa' ? (
+              <div className="flex-1 flex items-center justify-center p-10">
+                {resultadosModal.estado === 'no_vinculada' ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 w-full text-center shadow-sm">
+                    <AlertTriangle className="w-14 h-14 text-amber-500 mx-auto mb-4" />
+                    <h4 className="text-base font-black text-amber-900 mb-2">Grupo no vinculado con SESA</h4>
+                    <p className="text-sm text-amber-800 font-medium leading-relaxed">{resultadosModal.mensajeError}</p>
+                    <p className="text-xs text-amber-600 font-bold mt-4">Verifica que el grupo esté registrado en el sistema externo antes de sincronizar.</p>
                   </div>
-                  <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-3xl font-black text-red-700">{resultadosModal.resumen.reportes_recibidos ?? '—'}</p>
-                    <p className="text-xs text-red-600 font-bold mt-1 uppercase tracking-wider">Reportes recibidos</p>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-2xl p-8 w-full text-center shadow-sm">
+                    <WifiOff className="w-14 h-14 text-red-500 mx-auto mb-4" />
+                    <h4 className="text-base font-black text-red-900 mb-2">Error de sincronización</h4>
+                    <p className="text-sm text-red-800 font-medium leading-relaxed">{resultadosModal.mensajeError}</p>
+                    <p className="text-xs text-red-600 font-bold mt-4">Verifica la conexión con SESA e inténtalo nuevamente.</p>
                   </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-3xl font-black text-amber-700">{resultadosModal.resumen.asignaciones_afectadas ?? '—'}</p>
-                    <p className="text-xs text-amber-600 font-bold mt-1 uppercase tracking-wider">Actualizaciones</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-3xl font-black text-violet-700">{resultadosModal.resumen.actualizadas ?? '—'}</p>
-                    <p className="text-xs text-violet-600 font-bold mt-1 uppercase tracking-wider">Actas Cerradas</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
-                    <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.sin_promedio ?? '—'}</p>
-                    <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Sin promedio aún</p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="px-8 pb-3 shrink-0">
-              <div className="flex items-center gap-2 mb-2">
-                <ClipboardList className="w-5 h-5 text-slate-400" />
-                <p className="text-sm font-black text-[#0B1828] uppercase tracking-wider">
-                  {resultadosModal.tipo === 'incumplimientos'
-                    ? `Asignaciones Afectadas (${resultadosModal.asignaciones.length})`
-                    : `Asignaciones Cerradas (${resultadosModal.asignaciones.length})`}
-                </p>
+                )}
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Tarjetas de resumen */}
+                <div className={`px-8 pt-6 pb-4 grid gap-4 shrink-0 ${resultadosModal.tipo === 'incumplimientos' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {resultadosModal.tipo === 'incumplimientos' ? (
+                    <>
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.paginas_consumidas ?? '—'}</p>
+                        <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Páginas SESA</p>
+                      </div>
+                      <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-black text-red-700">{resultadosModal.resumen.reportes_recibidos ?? '—'}</p>
+                        <p className="text-xs text-red-600 font-bold mt-1 uppercase tracking-wider">Reportes recibidos</p>
+                      </div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-black text-amber-700">{resultadosModal.resumen.asignaciones_afectadas ?? '—'}</p>
+                        <p className="text-xs text-amber-600 font-bold mt-1 uppercase tracking-wider">Actualizaciones</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-black text-emerald-700">{resultadosModal.resumen.actualizadas ?? '—'}</p>
+                        <p className="text-xs text-emerald-600 font-bold mt-1 uppercase tracking-wider">Actas Cerradas</p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-black text-[#0B1828]">{resultadosModal.resumen.sin_promedio ?? '—'}</p>
+                        <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-wider">Sin promedio aún</p>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-            <div className="overflow-y-auto flex-1 px-8 pb-8">
-              {resultadosModal.asignaciones.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-4" />
-                  <p className="text-base font-black text-[#0B1828]">
-                    {resultadosModal.tipo === 'incumplimientos'
-                      ? 'No se detectaron docentes con reporte de incumplimiento en este grupo.'
-                      : 'No se encontraron asignaciones listas para cerrar con promedio en este grupo.'}
-                  </p>
-                  <p className="text-sm font-medium text-slate-500 mt-2">Los datos locales están completamente sincronizados con SESA.</p>
+                <div className="px-8 pb-3 shrink-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ClipboardList className="w-5 h-5 text-slate-400" />
+                    <p className="text-sm font-black text-[#0B1828] uppercase tracking-wider">
+                      {resultadosModal.tipo === 'incumplimientos'
+                        ? `Asignaciones Afectadas (${resultadosModal.asignaciones.length})`
+                        : `Asignaciones Cerradas (${resultadosModal.asignaciones.length})`}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-                  <table className="min-w-full divide-y divide-slate-100 text-sm">
-                    <thead className="bg-[#0B1828]">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Docente Titular</th>
-                        <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Materia</th>
-                        <th className="px-5 py-4 text-center text-xs font-black text-white uppercase tracking-wider">
-                          {resultadosModal.tipo === 'incumplimientos' ? 'Estatus' : 'Promedio Final'}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-50">
-                      {resultadosModal.asignaciones.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-5 py-4 font-black text-[#0B1828] whitespace-nowrap">
-                            {`${item.docente_nombres ?? ''} ${item.docente_apellido_paterno ?? ''} ${item.docente_apellido_materno ?? ''}`.trim()}
-                          </td>
-                          <td className="px-5 py-4 text-slate-700">
-                            <span className="font-black text-[#0B1828] block">{item.nombre_materia}</span>
-                            <span className="text-[11px] text-slate-500 font-bold block mt-0.5">{item.codigo_unico} • Grupo {item.nombre_grupo}</span>
-                          </td>
-                          <td className="px-5 py-4 text-center whitespace-nowrap">
-                            {resultadosModal.tipo === 'incumplimientos' ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-red-50 text-red-700 border border-red-200 shadow-sm">
-                                <AlertTriangle className="w-3.5 h-3.5" /> Reporte externo
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black bg-violet-50 text-violet-700 border border-violet-200 shadow-sm">
-                                <BarChart2 className="w-3.5 h-3.5" />
-                                {Number(item.promedio_consolidado).toFixed(2)}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+
+                <div className="overflow-y-auto flex-1 px-8 pb-8">
+                  {resultadosModal.asignaciones.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-500 mb-4" />
+                      <p className="text-base font-black text-[#0B1828]">
+                        {resultadosModal.tipo === 'incumplimientos'
+                          ? 'No se detectaron docentes con reporte de incumplimiento en este grupo.'
+                          : 'No se encontraron asignaciones listas para cerrar con promedio en este grupo.'}
+                      </p>
+                      <p className="text-sm font-medium text-slate-500 mt-2">Los datos locales están completamente sincronizados con SESA.</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="min-w-full divide-y divide-slate-100 text-sm">
+                        <thead className="bg-[#0B1828]">
+                          <tr>
+                            <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Docente Titular</th>
+                            <th className="px-5 py-4 text-left text-xs font-black text-white uppercase tracking-wider">Materia</th>
+                            <th className="px-5 py-4 text-center text-xs font-black text-white uppercase tracking-wider">
+                              {resultadosModal.tipo === 'incumplimientos' ? 'Estatus SESA' : 'Promedio Final'}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-50">
+                          {resultadosModal.asignaciones.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-5 py-4 font-black text-[#0B1828] whitespace-nowrap">
+                                {`${item.docente_nombres ?? ''} ${item.docente_apellido_paterno ?? ''} ${item.docente_apellido_materno ?? ''}`.trim()}
+                              </td>
+                              <td className="px-5 py-4 text-slate-700">
+                                <span className="font-black text-[#0B1828] block">{item.nombre_materia}</span>
+                                <span className="text-[11px] text-slate-500 font-bold block mt-0.5">{item.codigo_unico} • Grupo {item.nombre_grupo}</span>
+                              </td>
+                              <td className="px-5 py-4 text-center whitespace-nowrap">
+                                {resultadosModal.tipo === 'incumplimientos' ? (
+                                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black bg-red-50 text-red-700 border border-red-200 shadow-sm">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Incumplimiento
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+                                    <BarChart2 className="w-3.5 h-3.5" />
+                                    {Number(item.promedio_consolidado).toFixed(2)}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
             <div className="px-8 py-5 bg-slate-50/80 border-t border-slate-100 flex justify-end shrink-0">
               <button
-                onClick={() => setResultadosModal({ isOpen: false, tipo: null, asignaciones: [], resumen: {} })}
+                onClick={() => setResultadosModal({ isOpen: false, tipo: null, estado: null, asignaciones: [], resumen: {}, mensajeError: '' })}
                 className="px-8 py-3.5 text-sm font-black text-white bg-[#0B1828] hover:bg-[#162840] rounded-xl transition-all shadow-md active:scale-[0.98]"
               >
-                Cerrar y Actualizar Tabla
+                Cerrar
               </button>
             </div>
           </div>

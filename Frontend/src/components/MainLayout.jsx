@@ -266,7 +266,7 @@ export const MainLayout = () => {
             }`}
           >
             <LogOut className={`shrink-0 ${isSidebarCollapsed ? 'h-6 w-6' : 'h-5 w-5 mr-3'}`} />
-            {!isSidebarCollapsed && <span className="animate-in fade-in duration-200">Cerrar sesión</span>}
+            {!isSidebarCollapsed && <span className="animate-in fade-in duration-200">Cerrar Sesión</span>}
           </button>
         </div>
       </aside>

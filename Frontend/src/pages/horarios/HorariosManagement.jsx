@@ -188,7 +188,7 @@ export const HorariosManagement = () => {
           <div>
             <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
               <CalendarDays className="w-7 h-7 mr-3 text-white/90 shrink-0" />
-              Mi Horario Oficial
+              Mi Horario
             </h1>
             <p className="mt-1.5 text-sm text-white/70 font-medium">
               Visualiza y descarga tu carga académica por periodo escolar.

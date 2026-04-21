@@ -80,7 +80,7 @@ const Login = () => {
     const result = await login(emailTrimmed, passwordTrimmed);
 
     if (result.success) {
-      toast.success('¡Bienvenido al sistema SIGAD!', { id: toastId });
+      toast.success('¡Bienvenido a SIGAD!', { id: toastId });
       navigate('/dashboard', { replace: true });
     } else {
       toast.error(result.message || 'Credenciales incorrectas. Inténtalo de nuevo.', { id: toastId });
@@ -115,10 +115,10 @@ const Login = () => {
             {/* Encabezado centrado */}
             <div className="text-center">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#0B1828]">
-                Iniciar Sesión
+                Bienvenido de Nuevo!
               </h2>
               <p className="mt-2 text-sm text-slate-500 font-medium">
-                Ingresa tu correo y contraseña para acceder.
+                Ingresa tus credenciales para acceder.
               </p>
             </div>
 
@@ -197,10 +197,10 @@ const Login = () => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Iniciando sesión...
+                        Iniciando Sesión...
                       </>
                     ) : (
-                      'Ingresar al sistema'
+                      'Iniciar Sesión'
                     )}
                   </button>
                 </div>

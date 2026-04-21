@@ -153,7 +153,7 @@ export const TeacherAssignments = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
             <Calendar className="w-7 h-7 mr-3 text-white/90" />
-            Mis asignaciones
+            Mis Asignaciones
           </h1>
           <p className="mt-1.5 text-sm text-white/70 font-medium">
             Revisa las materias que te han sido asignadas para el ciclo escolar y confirma tu disponibilidad.

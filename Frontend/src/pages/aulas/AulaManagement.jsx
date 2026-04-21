@@ -106,10 +106,10 @@ const AulaManagement = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
             <Home className="w-7 h-7 mr-3 text-white/90" />
-            Catálogo de espacios
+            Aulas
           </h1>
           <p className="mt-1.5 text-sm text-white/70 font-medium">
-            Gestión de aulas y laboratorios institucionales.
+            Administra el catálogo de aulas y laboratorios institucionales.
           </p>
         </div>
         <button

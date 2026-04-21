@@ -172,7 +172,7 @@ export const AuditLogs = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
             <ShieldCheck className="w-7 h-7 mr-3 text-white/90" />
-            Registro de auditoría
+            Registro de Auditoría
           </h1>
           <p className="mt-1.5 text-sm text-white/70 font-medium">
             {total.toLocaleString()} eventos registrados en el sistema.

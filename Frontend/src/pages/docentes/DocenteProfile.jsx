@@ -435,7 +435,7 @@ export const DocenteProfile = ({ expediente, onBack, onPhotoUpdate }) => {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-white leading-tight">Mi perfil</h2>
+            <h2 className="text-xl font-black text-white leading-tight">Mi Perfil</h2>
             <p className="text-sm text-white/60 font-medium mt-0.5">
               Visualiza tu información personal y actualiza tu fotografía.
             </p>

@@ -89,6 +89,7 @@ const checkMateriaDuplicadaGrupo = async (grupo_id, materia_id, periodo_id, excl
       AND a.grupo_id = ?
       AND m_nueva.id_materia = ?
       AND a.estatus_acta = 'ABIERTA'
+      AND a.estatus_confirmacion != 'RECHAZADA'
       AND m_asignada.codigo_unico = m_nueva.codigo_unico
       AND m_asignada.cuatrimestre_id = g.cuatrimestre_id
       AND m_nueva.cuatrimestre_id = g.cuatrimestre_id
@@ -120,6 +121,7 @@ const checkMateriaMismasCaracteristicasGrupo = async (grupo_id, materia_id, peri
       AND a.grupo_id = ?
       AND m_nueva.id_materia = ?
       AND a.estatus_acta = 'ABIERTA'
+      AND a.estatus_confirmacion != 'RECHAZADA'
       AND m_asignada.nombre <=> m_nueva.nombre
       AND m_asignada.nivel_academico <=> m_nueva.nivel_academico
       AND m_asignada.tipo_asignatura <=> m_nueva.tipo_asignatura
@@ -196,10 +198,11 @@ const checkMateriaAsignadaAOtroGrupo = async (materia_id, grupo_id, periodo_id, 
   let query = `
     SELECT id_asignacion 
     FROM asignaciones 
-    WHERE materia_id = ? 
-      AND periodo_id = ? 
-      AND NOT (grupo_id <=> ?) 
+    WHERE materia_id = ?
+      AND periodo_id = ?
+      AND NOT (grupo_id <=> ?)
       AND estatus_acta = 'ABIERTA'
+      AND estatus_confirmacion != 'RECHAZADA'
   `;
   const params = [materia_id, periodo_id, gId];
   
@@ -440,11 +443,23 @@ const cancelarAsignacionAgrupada = async (periodo_id, materia_id, docente_id, gr
 const getHorariosAsignacionCerrada = async (periodo_id, materia_id, docente_id, grupo_id) => {
   const gId = nullify(grupo_id);
   const rows = await pool.query(`
-    SELECT dia_semana, hora_inicio, hora_fin, aula_id 
-    FROM asignaciones 
+    SELECT dia_semana, hora_inicio, hora_fin, aula_id
+    FROM asignaciones
     WHERE periodo_id = ? AND materia_id = ? AND docente_id = ? AND grupo_id <=> ? AND estatus_acta = 'CERRADA'
   `, [periodo_id, materia_id, docente_id, gId]);
   return rows;
+};
+
+// Verifica si una asignación cerrada ya tiene promedio consolidado registrado
+// (impide la reactivación de actas que ya fueron cerradas formalmente desde SESA)
+const checkAsignacionCerradaConPromedio = async (periodo_id, materia_id, docente_id, grupo_id) => {
+  const gId = nullify(grupo_id);
+  const rows = await pool.query(`
+    SELECT COUNT(*) AS total FROM asignaciones
+    WHERE periodo_id = ? AND materia_id = ? AND docente_id = ? AND grupo_id <=> ?
+      AND estatus_acta = 'CERRADA' AND promedio_consolidado IS NOT NULL
+  `, [periodo_id, materia_id, docente_id, gId]);
+  return Number(rows[0].total) > 0;
 };
 
 const reactivarAsignacionAgrupada = async (periodo_id, materia_id, docente_id, grupo_id, usuario_id) => {
@@ -606,7 +621,7 @@ const ObtenerAsignaciones = async ({ grupo_id, materia_id, docente_id } = {}) =>
 const ObtenerAsignacionesAbiertasPorGrupo = async (grupo_id) => {
   const gId = nullify(grupo_id);
   const rows = await pool.query(`
-    SELECT DISTINCT a.materia_id, m.codigo_unico, m.nombre AS nombre_materia
+    SELECT DISTINCT a.materia_id, a.docente_id, m.codigo_unico, m.nombre AS nombre_materia
     FROM asignaciones a
     INNER JOIN materias m ON a.materia_id = m.id_materia
     WHERE a.grupo_id <=> ? AND a.estatus_acta = 'ABIERTA' AND a.estatus_confirmacion = 'ACEPTADA'
@@ -678,5 +693,5 @@ module.exports = {
   ObtenerAsignaciones, ObtenerAsignacionesAbiertasPorGrupo, cerrarAsignacionConPromedio, checkMateriaAsignadaAOtroGrupo,
   checkTroncoComunAsignadaAOtroDocente, checkTroncoComunMismasCaracteristicasDocente,
   rechazarAsignacionesPorMateria, rechazarAsignacionesPorCarrera, rechazarAsignacionesPorAcademia,
-  resolverPeriodoActual, checkLinkedEntitiesStatus, checkAulasStatus,
+  resolverPeriodoActual, checkLinkedEntitiesStatus, checkAulasStatus, checkAsignacionCerradaConPromedio,
 };

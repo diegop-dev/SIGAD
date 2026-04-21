@@ -111,11 +111,10 @@ const sincronizarReportesExternos = async (req, res) => {
         headers: { 'Content-Type': 'application/json', 'Accept-Encoding': 'gzip' },
       });
 
+      // Devolver 404 cuando SESA no conoce el grupo → el frontend mostrará estado 'no_vinculada'
       if (response.status === 404) {
-        return res.status(200).json({
-          message: 'Sincronización completada: No hay reportes externos para este grupo en el periodo actual.',
-          asignaciones_afectadas: 0,
-          reportes_recibidos: 0,
+        return res.status(404).json({
+          error: `Grupo no vinculado con SESA: El grupo con ID ${grupo_id} no se encuentra registrado en el sistema externo. Verifica que el grupo esté correctamente vinculado antes de sincronizar.`,
         });
       }
 
@@ -132,7 +131,7 @@ const sincronizarReportesExternos = async (req, res) => {
 
     if (todasLasAsignaciones.length === 0) {
       return res.status(200).json({
-        message: 'Sincronización completada: No se encontraron reportes de incumplimiento pendientes.',
+        message: 'Sincronización completada con SESA: No se detectaron docentes con reportes de incumplimiento pendientes en este grupo.',
         asignaciones_afectadas: 0,
         reportes_recibidos: 0,
       });
@@ -144,9 +143,38 @@ const sincronizarReportesExternos = async (req, res) => {
 
     let affectedRows = 0;
     if (docentesMorososIds.length > 0) {
+      // Obs. 1: solo notificar a los docentes que aún no estaban marcados (evita duplicados)
+      const yaMarcadosRows = await pool.query(
+        `SELECT DISTINCT docente_id FROM asignaciones
+         WHERE periodo_id = ? AND grupo_id = ? AND docente_id IN (?)
+           AND estatus_acta = 'ABIERTA' AND tiene_reporte_externo = 1`,
+        [periodo_id, grupo_id, docentesMorososIds]
+      );
+      const yaMarcadosSet  = new Set(yaMarcadosRows.map(r => Number(r.docente_id)));
+      const docentesNuevos = docentesMorososIds.filter(id => !yaMarcadosSet.has(Number(id)));
+
       affectedRows = await assignmentModel.marcarReporteExternoMasivo(
         periodo_id, grupo_id, docentesMorososIds
       );
+
+      // Notificar solo a los docentes recién marcados
+      try {
+        if (docentesNuevos.length > 0) {
+          const docentesInfo = await pool.query(
+            `SELECT usuario_id FROM docentes WHERE id_docente IN (?) AND usuario_id IS NOT NULL`,
+            [docentesNuevos]
+          );
+          for (const { usuario_id } of docentesInfo) {
+            await notificationModel.createNotification(
+              usuario_id,
+              'Reporte de incumplimiento detectado: Aún no has registrado calificaciones en el sistema externo SESA. Por favor, accede a SESA y captura las calificaciones de tus grupos a la brevedad posible.',
+              'ALTA'
+            );
+          }
+        }
+      } catch (notifError) {
+        console.error('[Advertencia] No se pudieron enviar las notificaciones de reporte externo:', notifError);
+      }
     }
 
     // Solo auditar si realmente se modificaron registros
@@ -163,7 +191,7 @@ const sincronizarReportesExternos = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: 'Sincronización exitosa: Los reportes externos se han actualizado en el sistema local.',
+      message: `Sincronización exitosa con SESA: Se actualizaron ${affectedRows} registro(s) con el estado de incumplimiento docente.`,
       paginas_consumidas:     paginaActual - 1,
       asignaciones_revisadas: todasLasAsignaciones.length,
       reportes_recibidos:     docentesMorososIds.length,
@@ -565,6 +593,19 @@ const reactivarAsignacion = async (req, res) => {
       return res.status(404).json({ error: 'Historial no encontrado: No existen registros de horarios para reactivar esta clase.' });
     }
 
+    // ─── REGLA DE NEGOCIO: BLOQUEO POR PROMEDIO CONSOLIDADO ─────────────
+    // Una asignación con estatus_acta = CERRADA y promedio_consolidado registrado
+    // ya fue cerrada formalmente desde SESA y no puede volver a estar ABIERTA.
+    const tieneFinalidad = await assignmentModel.checkAsignacionCerradaConPromedio(
+      periodo_id, materia_id, docente_id, grupo_id
+    );
+    if (tieneFinalidad) {
+      return res.status(422).json({
+        error: 'Reactivación no permitida: Esta asignación fue cerrada con un promedio consolidado registrado desde SESA. Las actas con calificaciones definitivas no pueden ser reactivadas.',
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ─── VALIDACIÓN DE ESTATUS DE ENTIDADES VINCULADAS ────────────────────
     const status = await assignmentModel.checkLinkedEntitiesStatus(periodo_id, materia_id, docente_id, grupo_id);
     
@@ -867,7 +908,7 @@ const sincronizarPromedios = async (req, res) => {
 
     if (asignacionesLocales.length === 0) {
       return res.status(200).json({
-        mensaje:      'Sin pendientes: No hay materias activas o aceptadas pendientes de calificar para este grupo.',
+        mensaje:      'Sin asignaciones pendientes: No hay materias activas ni aceptadas para sincronizar en este grupo.',
         actualizadas: 0,
         sin_promedio: 0,
       });
@@ -903,6 +944,23 @@ const sincronizarPromedios = async (req, res) => {
           grupo_id, asignacion.materia_id, promedio_consolidado, usuario_id
         );
         actualizadas++;
+
+        // Notificar al docente que su acta fue cerrada con promedio consolidado
+        try {
+          const docenteInfo = await pool.query(
+            `SELECT usuario_id FROM docentes WHERE id_docente = ? LIMIT 1`,
+            [asignacion.docente_id]
+          );
+          if (docenteInfo.length > 0 && docenteInfo[0].usuario_id) {
+            await notificationModel.createNotification(
+              docenteInfo[0].usuario_id,
+              `Tu asignación de la materia "${asignacion.nombre_materia}" ha sido cerrada para el periodo vigente con el promedio consolidado registrado desde SESA. Esta materia ha sido añadida a tu historial de materias impartidas.`,
+              'ALTA'
+            );
+          }
+        } catch (notifErr) {
+          console.error(`[HU-38] No se pudo notificar al docente de la materia ${asignacion.codigo_unico}:`, notifErr.message);
+        }
       } catch (err) {
         console.error(`[HU-38] Error consultando promedio de materia ${asignacion.codigo_unico}:`, err.message);
         sin_promedio++;
@@ -923,7 +981,7 @@ const sincronizarPromedios = async (req, res) => {
     }
 
     return res.status(200).json({
-      mensaje:      `Sincronización completada: Se descargaron calificaciones y se cerraron ${actualizadas} actas.`,
+      mensaje:      `Sincronización exitosa con SESA: Se cerraron ${actualizadas} acta(s) con promedio consolidado.`,
       actualizadas,
       sin_promedio,
     });

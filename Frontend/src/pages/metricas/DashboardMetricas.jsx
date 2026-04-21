@@ -199,7 +199,7 @@ export const DashboardMetricas = () => {
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center">
             <Activity className="w-7 h-7 mr-3 text-white/90" />
-            Métricas institucionales
+            Métricas Institucionales
           </h1>
           <p className="mt-1.5 text-sm text-white/70 font-medium">
             Métricas de rendimiento académico y retención estudiantil.
