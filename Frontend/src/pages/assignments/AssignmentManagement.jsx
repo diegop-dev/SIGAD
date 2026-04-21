@@ -238,7 +238,7 @@ export const AssignmentManagement = () => {
     );
 
     setIsSyncingPromedios(true);
-    const toastId = toast.loading('Consultando promedios en SESA...');
+    const toastId = toast.loading('Estableciendo conexión con SESA...');
 
     try {
       const response = await api.post(
