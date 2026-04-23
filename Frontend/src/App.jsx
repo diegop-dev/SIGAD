@@ -1,0 +1,71 @@
+import { Routes, Route, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Toaster } from "react-hot-toast";
+import { MainLayout } from "./components/MainLayout";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import { UserManagement } from "./pages/users/UserManagement";
+import { DocenteManagement } from "./pages/docentes/DocenteManagement";
+import { AcademiaManagement } from "./pages/academia/AcademiaManagement";
+import { PeriodosManagement } from "./pages/periodos/periodosManagement";
+import { MateriasManagement } from "./pages/materias/MateriasManagement";
+import AulaManagement from "./pages/aulas/AulaManagement";
+import { CarreraManagement } from "./pages/carreras/CarreraManagement";
+import { GrupoManagement } from "./pages/grupos/GrupoManagement";
+import { AssignmentManagement } from "./pages/assignments/AssignmentManagement";
+import { DashboardMetricas } from "./pages/metricas/DashboardMetricas";
+import { TeacherAssignments } from "./pages/assignments/TeacherAssignments";
+import { MiPerfil } from "./pages/docentes/MiPerfil";
+import { HorariosManagement } from "./pages/horarios/HorariosManagement";
+import { AuditLogs } from "./pages/audit/AuditLogs";
+
+function App() {
+  return (
+    <>
+      <Toaster position="top-right" reverseOrder={false} />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        {/* 1. Capa de seguridad global */}
+        <Route element={<ProtectedRoute />}>
+          
+          <Route element={<MainLayout />}>
+            {/* Rutas accesibles para cualquier usuario autenticado */}
+            <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Rutas exclusivas para superadministradores (rol_id = 1) */}
+            <Route element={<ProtectedRoute allowedRoles={[1]} />}>
+              <Route path="/metricas" element={<DashboardMetricas />} />
+              <Route path="/audit-logs" element={<AuditLogs />} />
+            </Route>
+
+            {/* 2. Capa de seguridad granular: Protege módulos específicos por rol (RBAC) */}
+            <Route element={<ProtectedRoute allowedRoles={[1, 2]} />}>
+              <Route path="/usuarios" element={<UserManagement />} />
+              <Route path="/docentes" element={<DocenteManagement />} />
+              <Route path="/academias" element={<AcademiaManagement />} />
+              <Route path="/materias" element={<MateriasManagement />} />
+              <Route path="/periodos" element={<PeriodosManagement />} />
+              <Route path="/aulas" element={<AulaManagement />} />
+              <Route path="/carreras" element={<CarreraManagement />} />
+              <Route path="/grupos" element={<GrupoManagement />} />
+              <Route path="/asignaciones" element={<AssignmentManagement />} />
+            </Route>
+            <Route element={<ProtectedRoute allowedRoles={[1, 2, 3]} />}>
+              <Route path="/mi-perfil" element={<MiPerfil />} />
+            </Route>
+
+            {/* Rutas exclusivas para docentes */}
+            <Route element={<ProtectedRoute allowedRoles={[3]} />}>
+              <Route path="/mis-asignaciones" element={<TeacherAssignments />} />
+              <Route path="/horarios" element={<HorariosManagement />} />
+            </Route>
+          </Route> 
+        </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </>
+  );
+}
+
+export default App;

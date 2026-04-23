@@ -1,0 +1,3 @@
+# Ignora la carpeta node_modules y el archivo .env
+node_modules/
+.env
